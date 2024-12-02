@@ -75,6 +75,19 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
+    <ClCompile Include="src\CPipeline.cpp" />
+    <ClCompile Include="src\dfs.cpp" />
+    <ClCompile Include="src\main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\CPipeline.h" />
+    <ClInclude Include="src\physics.h" />
+    <ClInclude Include="src\typedefs.h" />
+    <ClInclude Include="src\vector.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include=".gitattributes" />
+    <None Include=".gitignore" />
   </ItemGroup>
   <ItemDefinitionGroup />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
