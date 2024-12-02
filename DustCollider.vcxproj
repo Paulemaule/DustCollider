@@ -75,6 +75,16 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
   <ItemGroup>
+    <None Include=".gitattributes" />
+    <None Include=".gitignore" />
+    <None Include="src\main.cu" />
+    <None Include="src\physics.cuh" />
+    <None Include="src\pipeline.cuh" />
+    <None Include="src\typedefs.cuh" />
+    <None Include="src\vector.cuh" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\CPipeline.cpp" />
   </ItemGroup>
   <ItemDefinitionGroup />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
