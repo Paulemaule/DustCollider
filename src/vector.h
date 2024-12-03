@@ -1,4 +1,7 @@
 #include "typedefs.h"
+#if __linux__
+#include <cmath>
+#endif
 
 #ifndef CVECTOR
 #define CVECTOR

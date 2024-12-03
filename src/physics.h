@@ -2,6 +2,10 @@
 #include "typedefs.h"
 #include <cmath>
 
+#ifdef __linux__
+#include <cstring>
+#endif
+
 #ifndef CPHYSICS
 #define CPHYSICS
 
