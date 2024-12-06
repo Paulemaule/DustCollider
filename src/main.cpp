@@ -197,10 +197,10 @@ int main(const int argc, const char** argv)
         // Predictor step of the leapfrog
         predictor(pos_old, pos_new, force_old, vel, mass, time_step, Nmon);
 
-        // 
+        // ?
         updateNeighbourhoodRelations(pos_new, matrix_con, matrix_norm, matrix_rot, matrix_comp, matrix_twist, amon, mat, matIDs, Nmon);
         
-        // 
+        // ?
         updateContacts(omega, omega_tot, torque_old, mag, matrix_rot, matrix_comp, moment, Nmon, time_step);
 
         // Calculate the forces and torques acting on the particles
