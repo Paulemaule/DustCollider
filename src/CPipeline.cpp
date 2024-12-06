@@ -591,8 +591,8 @@ bool CPipeline::prepareData(vec3D*& pos, vec3D*& vel, vec3D*& omega_tot, vec3D*&
     string line_A, line_B;
     int line_counter_A = 0, line_counter_B = 0;
 
-    agg_filename_A = path_A + "aggregate.txt";
-    agg_filename_B = path_B + "aggregate.txt";
+    agg_filename_A = path_A;
+    agg_filename_B = path_B;
 
     reader_A.open(agg_filename_A.c_str());
 
@@ -1134,16 +1134,18 @@ bool CPipeline::init(int argc, const char** argv)
     cout << PROG_ID;
     cout << SEP_LINE << flush;
 
-    /*if (argc != 2)
+    #ifdef _DEBUG
+    cmd_filename = "/home/ilion/0/pzuern/development/TestFiles/basic_setup1/cmd_file";
+    #else
+    if (argc != 2)
     {
         cout << "\nERROR: Wrong number of arguments!                     \n";
         cout << "       DUST COLLIDER requires only the path of a command file!            \n";
         cout << SEP_LINE;
         return false;
     }
-    cmd_filename = argv[1];*/
-
-    cmd_filename = "F:\\work\\collider\\cmd_file";
+    cmd_filename = argv[1];
+    #endif
 
     return true;
 }
@@ -1151,12 +1153,7 @@ bool CPipeline::init(int argc, const char** argv)
 
 bool CPipeline::createPath(string path)
 {
-    /*cout << path << endl;
-
-    path = "F:\\test\\";
-    cout << path << endl;*/
-
-#ifdef _WIN32
+    #ifdef _WIN32
     // Windows-specific 
     if (_mkdir(path.c_str()) == 0) 
     {
@@ -1201,7 +1198,7 @@ bool CPipeline::createPath(string path)
             }
         }
     }
-#elif __linux__
+    #elif __linux__
     // Linux-specific 
     if (mkdir(path.c_str(), S_IRWXU | S_IRWXG | S_IRWXO) == 0) 
     {
@@ -1218,9 +1215,9 @@ bool CPipeline::createPath(string path)
         else
             cout << "Failed to create directory on Linux: " << strerror(errno) << std::endl;
     }
-#else
+    #else
     cout << "Unsupported OS" << std::endl;
-#endif
+    #endif
     return false;
 }
 
@@ -1556,7 +1553,6 @@ bool CPipeline::parseLine(string cmd, string data)
 
         return true;
     }
-
 
 
     if (cmd.compare("<N_save>") == 0)
