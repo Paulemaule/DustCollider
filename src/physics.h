@@ -9,6 +9,7 @@
 #ifndef CPHYSICS
 #define CPHYSICS
 
+// TODO: Check if this code is duplicate here and in dfs.cpp
 // Function to perform Depth-First Search (DFS) using recursion
 inline void dfs(int node, int n, const double * matrix, int* cluster, int currentCluster) 
 {
@@ -40,7 +41,18 @@ inline void findConnectedComponents(int Nmon, const double* matrix, int* cluster
 }
 
 //update sticking
-inline void updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3D* matrix_norm, quat* matrix_rot, double* matrix_comp, double* matrix_twist, double* amon, material* mat, int* matIDs, int Nmon)
+inline void updateNeighbourhoodRelations(
+    vec3D* pos,                 // Positions of the monomers
+    vec3D* matrix_con,          // ?
+    vec3D* matrix_norm,         // ?
+    quat* matrix_rot,           // ?
+    double* matrix_comp,        // ?
+    double* matrix_twist,       // ?
+    double* amon,               // Radius of the monomers
+    material* mat,              // ?
+    int* matIDs,                // Material ID of the monomers
+    int Nmon                    // Total number of monomers
+)
 {
     for (int i = 0; i < Nmon; i++)
     {
@@ -88,6 +100,7 @@ inline void updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3D* m
             if (index_B > 2 * Nmon * Nmon)
                 int tt = 0;*/
 
+            // Check if the two monomers are close enough to be in contact
             if (distance < contact_distance)
             {
                 //new connection is established
@@ -95,7 +108,7 @@ inline void updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3D* m
                 {
                     vec3D n = vec3D_get_normal(pos_A, pos_B);
 
-                    // init. contact pointer
+                    // Calculate the contact pointers
                     matrix_con[index_A].x = -n.x;
                     matrix_con[index_A].y = -n.y;
                     matrix_con[index_A].z = -n.z;
@@ -104,6 +117,7 @@ inline void updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3D* m
                     matrix_con[index_B].y = n.y;
                     matrix_con[index_B].z = n.z;
 
+                    // Initialize the internal rotation matrix on contact
                     matrix_rot[index_A].e0 = 1;
                     matrix_rot[index_A].e1 = 0;
                     matrix_rot[index_A].e2 = 0;
@@ -114,19 +128,24 @@ inline void updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3D* m
                     matrix_rot[index_B].e2 = 0;
                     matrix_rot[index_B].e3 = 0;
 
+                    // ?
                     matrix_norm[i * Nmon + j].x = n.x;
                     matrix_norm[i * Nmon + j].x = n.y;
                     matrix_norm[i * Nmon + j].x = n.x;
 
+                    // Calculate the compression lenght of the monomer pair
                     double compression_length = a_mon_A + a_mon_B - distance;
-
                     matrix_comp[i * Nmon + j] = compression_length;
+
+                    // ?
                     matrix_twist[i * Nmon + j] = 0;
                 }
             }
 
+            // Check if the monomers have moved away from each other too much
             if (distance > breaking_dist)
             {
+                // Break the contact
                 matrix_con[index_A].x = 0;
                 matrix_con[index_A].y = 0;
                 matrix_con[index_A].z = 0;
@@ -135,17 +154,28 @@ inline void updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3D* m
                 matrix_con[index_B].y = 0;
                 matrix_con[index_B].z = 0;
 
-                matrix_comp[i * Nmon + j] = -1.; //mark as disconnected
+                // Set the compression lenght to -1 to mark the pair as disconnected
+                matrix_comp[i * Nmon + j] = -1.;
+
+                // ?
                 matrix_twist[i * Nmon + j] = 0;
             }
         }
     }
 }
 
-inline void updateNormal(vec3D& n_A, vec3D& n_B, vec3D* matrix_con, quat* matrix_rot, int i, int j, int Nmon)
+inline void updateNormal(
+    vec3D& n_A,                 // ?
+    vec3D& n_B,                 // ?
+    vec3D* matrix_con,          // ?
+    quat* matrix_rot,           // ?
+    int i,                      // ?
+    int j,                      // ?
+    int Nmon                    // Total number of monomers
+)
 {
     int index_A = 0 * Nmon * Nmon + i * Nmon + j;
-    int index_B = 1 * Nmon * Nmon + i * Nmon + j;
+    int index_B = 1 * Nmon * Nmon + i * Nmon + j; // TODO: Check this formula seems weird...
 
     quat rot_A = matrix_rot[index_A];
     quat rot_B = matrix_rot[index_B];
@@ -169,7 +199,15 @@ inline void updateNormal(vec3D& n_A, vec3D& n_B, vec3D* matrix_con, quat* matrix
     matrix_con[index_B].z = init_n_B.z;
 }
 
-inline void predictor(vec3D* pos_old, vec3D* pos_new, vec3D* force_old, vec3D* vel, double* mass, double time_step, int Nmon)
+inline void predictor(
+    vec3D* pos_old,             // The old monomer positions
+    vec3D* pos_new,             // The new monomer positions
+    vec3D* force_old,           // The old forces
+    vec3D* vel,                 // ?
+    double* mass,               // The monomer masses
+    double time_step,           // The time step
+    int Nmon                    // The total number of monomers
+)
 {
     for (int i = 0; i < Nmon; i++)
     {
@@ -181,16 +219,31 @@ inline void predictor(vec3D* pos_old, vec3D* pos_new, vec3D* force_old, vec3D* v
     }
 }
 
-
-
-inline void corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_old, vec3D* torque_new, vec3D* dMdt_old, vec3D* dMdt_new, vec3D* vel, vec3D* omega, vec3D* omega_tot, vec3D* mag, double* mass, double* moment, material* mat, int* matIDs, double time_step, int Nmon)
+inline void corrector(
+    vec3D* force_old,           // The old forces
+    vec3D* force_new,           // The new forces
+    vec3D* torque_old,          // The old torques
+    vec3D* torque_new,          // The new torques
+    vec3D* dMdt_old,            // The old change in magnetizations
+    vec3D* dMdt_new,            // The new change in magnetizations
+    vec3D* vel,                 // The current velocity
+    vec3D* omega,               // The current angular velocity
+    vec3D* omega_tot,           // The current total angular velocity (including curvature)
+    vec3D* mag,                 // The current magnetization
+    double* mass,               // The monomer masses
+    double* moment,             // ?
+    material* mat,              // ?
+    int* matIDs,                // The monomers material IDs
+    double time_step,           // The timestep
+    int Nmon                    // The total number of monomers
+)
 {
     for (int i = 0; i < Nmon; i++)
     {
         double mass_inv = 1. / mass[i];
         double moment_of_inertia_inv = 1. / moment[i];
         
-        vec3D acc;//acceleration
+        vec3D acc;
 
         acc.x = 0.5 * mass_inv * (force_new[i].x + force_old[i].x);
         acc.y = 0.5 * mass_inv * (force_new[i].y + force_old[i].y);
@@ -228,8 +281,10 @@ inline void corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_old, vec
         double chi = mat[mat_id].chi;
         double Msat = mat[mat_id].Msat;
 
-        if (abs(chi) > 0) //magnetic material
-        {
+        // Treat magnetization vectors
+        if (abs(chi) > 0) 
+        {   
+            // Adjust the magnetization
             mag[i].x += 0.5 * time_step * (dMdt_new[i].x + dMdt_old[i].x);
             mag[i].y += 0.5 * time_step * (dMdt_new[i].y + dMdt_old[i].y);
             mag[i].z += 0.5 * time_step * (dMdt_new[i].z + dMdt_old[i].z);
@@ -238,7 +293,8 @@ inline void corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_old, vec
 
             if (len_mag > 0)
             {
-                if (abs(chi) > LIMIT_FER) //re-scale ferromagnetic material to Msat
+                // Ensure that the magnetization of ferromagnetic particles is always exactly the saturation magnetization
+                if (abs(chi) > LIMIT_FER)
                 {
                     mag[i].x = Msat * mag[i].x / len_mag;
                     mag[i].y = Msat * mag[i].y / len_mag;
@@ -246,7 +302,8 @@ inline void corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_old, vec
                 }
                 else
                 {
-                    if (len_mag > Msat) //rescale current mag. if saturation is reached
+                    // Ensure that the magnetization never exceeds the saturation magnetization
+                    if (len_mag > Msat)
                     {
                         mag[i].x = Msat * mag[i].x / len_mag;
                         mag[i].y = Msat * mag[i].y / len_mag;
@@ -258,7 +315,16 @@ inline void corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_old, vec
     }
 }
 
-inline void switch_pointer(vec3D*& pos_old, vec3D*& pos_new, vec3D*& force_old, vec3D*& force_new, vec3D*& torque_old, vec3D*& torque_new, vec3D*& dMdt_old, vec3D*& dMdt_new)
+inline void switch_pointer(
+    vec3D*& pos_old, 
+    vec3D*& pos_new, 
+    vec3D*& force_old, 
+    vec3D*& force_new, 
+    vec3D*& torque_old, 
+    vec3D*& torque_new, 
+    vec3D*& dMdt_old, 
+    vec3D*& dMdt_new
+)
 {
     vec3D* temp;
 
@@ -279,7 +345,17 @@ inline void switch_pointer(vec3D*& pos_old, vec3D*& pos_new, vec3D*& force_old, 
     dMdt_new = temp;
 }
 
-inline void updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque, vec3D* mag, quat* matrix_rot, double* matrix_comp, double* moment, int Nmon, double time_step)
+inline void updateContacts(
+    vec3D* omega, 
+    vec3D* omega_tot, 
+    vec3D* torque, 
+    vec3D* mag, 
+    quat* matrix_rot, 
+    double* matrix_comp, 
+    double* moment, 
+    int Nmon, 
+    double time_step
+)
 {
     for (int i = 0; i < Nmon; i++)
     {
@@ -439,7 +515,7 @@ inline void updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque, vec3D*
             matrix_rot[index_B].e3 = rot_B.e3;
 
 
-            //--- > Rotate magnetization
+            // TODO: Rotate magnetization
         }
     }
 }
@@ -485,10 +561,28 @@ inline double getJKRContactRadius(double compression_length, double r0, double R
 }
 
 
-
-
-inline void updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3D* torque_old, vec3D* torque_new, vec3D* dMdt_new, vec3D* matrix_con, 
-    vec3D* matrix_norm, vec3D* omega, vec3D* omega_tot, vec3D* mag, quat* matrix_rot, double* matrix_comp, double* matrix_twist, double* amon, double* moment, material* mat,  int* matIDs, vec3D B_ext, int Nmon, double time_step)
+inline void updateParticleInteraction(
+    vec3D* pos_new, 
+    vec3D* force_new, 
+    vec3D* torque_old, 
+    vec3D* torque_new, 
+    vec3D* dMdt_new, 
+    vec3D* matrix_con, 
+    vec3D* matrix_norm, 
+    vec3D* omega, 
+    vec3D* omega_tot, 
+    vec3D* mag, 
+    quat* matrix_rot, 
+    double* matrix_comp, 
+    double* matrix_twist, 
+    double* amon, 
+    double* moment, 
+    material* mat,  
+    int* matIDs, 
+    vec3D B_ext, 
+    int Nmon, 
+    double time_step
+)
 {
     // init forces & torques with 0
     memset(force_new, 0, Nmon * sizeof(vec3D));
@@ -502,22 +596,21 @@ inline void updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3D* t
             if (i == j)
                 continue;
 
-            //current position
             vec3D pos_A = pos_new[i];
             vec3D pos_B = pos_new[j];
 
-            //material IDs
             int mat_id_A = matIDs[i];
             int mat_id_B = matIDs[j];
 
-            //monomer radius
             double a_mon_A = amon[i];
             double a_mon_B = amon[j];
 
+            // Current contact pointer
             vec3D n_c = vec3D_diff(pos_A, pos_B);
             double particle_distance = vec3D_length(n_c);
             vec3D_normalize(n_c);
 
+            // ?
             vec3D force_tmp;
 
             force_tmp.x = 1e-12 * n_c.x;
@@ -758,14 +851,14 @@ inline void updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3D* t
             // end of magnetization
             
 
-            //calc. surface forces only for con. monomers
+            // Skip all particles that are not in contact
             if (matrix_comp[i * Nmon + j] == -1.)
                 continue;
 
             bool update_contact_pointers = false;
 
             int index_A = 0 * Nmon * Nmon + i * Nmon + j;
-            int index_B = 1 * Nmon * Nmon + i * Nmon + j;
+            int index_B = 1 * Nmon * Nmon + i * Nmon + j; // TODO: is this correct?
 
             vec3D omega_A = omega[i];
             vec3D omega_B = omega[j];
@@ -806,8 +899,7 @@ inline void updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3D* t
             vec3D n_B = matrix_con[index_B];
             vec3D delta_n = vec3D_diff(n_A, n_B);
 
-            // determine distance between particles & contact normal
-
+            // determine distance between particles & contact normal TODO: comment neccessary?
 
             // -> elastic force
             double compression_length = a_mon_A + a_mon_B - particle_distance;
@@ -832,7 +924,7 @@ inline void updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3D* t
             // -> sliding
             double dot = vec3D_dot(delta_n, n_c);
 
-            //is a_mon_A correct here?
+            // TODO: is a_mon_A correct here?
             vec3D displacement;
             displacement.x = a_mon_A * (delta_n.x - dot * n_c.x);
             displacement.y = a_mon_A * (delta_n.y - dot * n_c.y);
@@ -947,7 +1039,6 @@ inline void updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3D* t
             if (abs(force_sliding) > 1.0e-10)
                 force_sliding = 1e-10;
 
-            //cout << force_sliding << endl << flush;
             force_new[i].x += force_sliding * n_c.x;
             force_new[i].y += force_sliding * n_c.y;
             force_new[i].z += force_sliding * n_c.z;

@@ -29,37 +29,3 @@ void findConnectedComponents(int Nmon, const int* matrix, int* cluster) {
         }
     }
 }
-
-/*
-int main() {
-    const int Nmon = 6;  // Number of nodes in the graph
-
-    // Connectivity matrix (1D array, flattened version of a 2D matrix)
-    // Example graph:
-    // 0 - 1 - 2, 3 - 4, 5
-    int matrix[Nmon * Nmon] =
-    {
-        0, 1, 1, 0, 0, 0,  // Node 0 connections
-        1, 0, 1, 0, 0, 0,  // Node 1 connections
-        1, 1, 0, 0, 0, 0,  // Node 2 connections
-        0, 0, 0, 0, 0, 0,  // Node 3 connections
-        0, 0, 0, 0, 0, 1,  // Node 4 connections
-        0, 0, 0, 0, 1, 0   // Node 5 connections
-    };
-
-    // Array to store cluster IDs for each node
-    int * clusterID = new int[Nmon];
-    memset(clusterID, -1, Nmon*sizeof(int));
-    // Find all connected components
-    findConnectedComponents(Nmon, matrix, clusterID);
-
-    // Print the cluster assignments
-    std::cout << "Node : Cluster ID" << std::endl;
-    for (int i = 0; i < Nmon; ++i)
-    {
-        std::cout << i << " : " << clusterID[i] << std::endl;
-    }
-
-    return 0;
-}
-*/

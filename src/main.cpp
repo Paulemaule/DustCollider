@@ -3,9 +3,8 @@
 #include <stdlib.h>
 #include <chrono>
 #include <string>
-//#include <studio.h>
 #include <iostream>
-#include<fstream>
+#include <fstream>
 #include <algorithm>
 
 using namespace std;
@@ -35,22 +34,24 @@ int main(const int argc, const char** argv)
 
     pipeline.prepareMaterial(mat, Nmat);
 
+    // Initialize the state vectors of the simulation
     vec3D* vel = 0;
-    vec3D* omega = 0;     //angular velocity due to monomer spin
-    vec3D* omega_tot = 0; //angular velocity due to monomer spin + curved trajectory
+    vec3D* omega = 0;            // angular velocity due to monomer spin
+    vec3D* omega_tot = 0;        // angular velocity due to monomer spin + curved trajectory
     vec3D* mag = 0;
 
     vec3D* pos_old = 0;
     vec3D* pos_new = 0;
+
+    // Differential components
     vec3D* force_old = 0;
     vec3D* force_new = 0;
     vec3D* torque_old = 0;
     vec3D* torque_new = 0;
-
     vec3D* dMdt_old = 0;
     vec3D* dMdt_new = 0;
 
-
+    // ?
     vec3D* storage_pos = 0;
     vec3D* storage_vel = 0;
     vec3D* storage_force = 0;
@@ -59,22 +60,30 @@ int main(const int argc, const char** argv)
     vec3D* storage_mag = 0;
     int * storage_cluster = 0;
 
+    // Initialize contact pointers
     vec3D* matrix_con = 0; //contact pointer between monomers
     vec3D* matrix_norm = 0; //normal vectors between monomers
     quat* matrix_rot = 0; //contact pointer rotation direction
     double* matrix_comp = 0; //old compression lengths, also used to track connection
     double* matrix_twist = 0; //old twisting displacement
 
+    // Initialize monomer properties
     int* matIDs = 0;
     double* amon = 0;
     double* moment = 0;
     double* mass = 0;
+
+    // Initialize total monomer count
     int Nmon = 0;
+
+    // Initialize cluster membership
     int* clusterIDs = 0;
 
+    // ?
     pipeline.prepareData(pos_old, vel, omega_tot, mag, amon, mass, moment, matIDs, Nmon);
     pipeline.printParameters();
 
+    // Initialize ?
     omega = new vec3D[Nmon];
     
     pos_new = new vec3D[Nmon];
@@ -117,7 +126,6 @@ int main(const int argc, const char** argv)
     memset(matrix_norm, 0, Ncon * sizeof(vec3D));
 
     fill(matrix_comp, matrix_comp + Ncon, -1.0);
-    //memset(matrix_comp, -1, Ncon * sizeof(double));
     memset(matrix_twist, 0, Ncon * sizeof(double));
 
     ullong N_iter = pipeline.getNIter();
@@ -128,6 +136,7 @@ int main(const int argc, const char** argv)
 
     int N_store = 0;
 
+    // Save 
     if (N_save > 0)
     {
         N_store = Nmon * int((double(N_iter) / double(N_save)+0.5));
@@ -182,20 +191,28 @@ int main(const int argc, const char** argv)
 
     ullong counter_save = 0;
 
+    // The main iteration loop
     for (ullong iter = 0; iter < N_iter; iter++)
     {
+        // Predictor step of the leapfrog
         predictor(pos_old, pos_new, force_old, vel, mass, time_step, Nmon);
 
+        // 
         updateNeighbourhoodRelations(pos_new, matrix_con, matrix_norm, matrix_rot, matrix_comp, matrix_twist, amon, mat, matIDs, Nmon);
         
-        // todo: rotate magnetization here
+        // 
         updateContacts(omega, omega_tot, torque_old, mag, matrix_rot, matrix_comp, moment, Nmon, time_step);
 
+        // Calculate the forces and torques acting on the particles
         updateParticleInteraction(pos_new, force_new, torque_old, torque_new, dMdt_new, matrix_con, matrix_norm, omega, omega_tot,mag, matrix_rot, matrix_comp, matrix_twist, amon, moment, mat, matIDs, B_ext, Nmon, time_step);
+        
+        // Corrector step of the leapfrog
         corrector(force_old, force_new, torque_old, torque_new, dMdt_old, dMdt_new, vel, omega, omega_tot, mag, mass, moment, mat, matIDs, time_step, Nmon);
 
+        // Exchange old and new positions, forces, torques and magnetization_change
         switch_pointer(pos_old, pos_new, force_old, force_new, torque_old, torque_new, dMdt_old, dMdt_new);
 
+        // Store the simulation data in memorie to write it to files later
         if (N_save > 0)
         {
             if (iter % N_save == 0)
@@ -248,6 +265,7 @@ int main(const int argc, const char** argv)
 
     cout << CLR_LINE;
 
+    // Writing the simulation data as well as Ovito files
     if (N_save > 0)
     {
         cout << SEP_LINE;
@@ -323,6 +341,7 @@ int main(const int argc, const char** argv)
 
     cout << "-> Final clanup ...              \r" << flush;
 
+    // Clear memory
     if (omega != 0)
         delete[] omega;
 
@@ -389,8 +408,6 @@ int main(const int argc, const char** argv)
     if (mat != 0)
         delete[] mat;
 
-
-
     if (storage_pos != 0)
         delete[] storage_pos;
 
@@ -412,16 +429,17 @@ int main(const int argc, const char** argv)
     if (storage_cluster != 0)
         delete[] storage_cluster;
 
-
     cout << SEP_LINE;
     cout << "  - Final clanup: done              \n" << flush;
     cout << SEP_LINE;
 
+    // Calculate and print final runtime
     auto end = high_resolution_clock::now();
     auto elapsed = chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+
     printf("Run time for %llu iterations : %.3f seconds.\n", N_iter, elapsed.count() * 1e-9);
+
     cout << SEP_LINE;
 
-    //cout << "All done\n";
     return 0;
 }

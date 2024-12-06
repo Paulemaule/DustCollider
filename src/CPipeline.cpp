@@ -749,7 +749,7 @@ bool CPipeline::prepareData(vec3D*& pos, vec3D*& vel, vec3D*& omega_tot, vec3D*&
 
         r.x = 0;
         r.y = lst_pos_A[i].y;
-        r.z = lst_pos_A[i].z; //todo: r needs to be perp. to ang_A
+        r.z = lst_pos_A[i].z; // TODO: r needs to be perp. to ang_A
 
         vec3D vel_tan = vec3D_cross(ang_A, r);
          
@@ -1926,7 +1926,7 @@ bool CPipeline::checkParameters()
         return false;
     }
      
-    //TODO: check overlap between entire aggregates
+    // TODO: check overlap between entire aggregates
 
     double len_pos_A = sqrt(pos_A.x * pos_A.x + pos_A.y * pos_A.y + pos_A.z * pos_A.z);
     double len_pos_B = sqrt(pos_B.x * pos_B.x + pos_B.y * pos_B.y + pos_B.z * pos_B.z);
@@ -1983,6 +1983,6 @@ bool CPipeline::checkParameters()
         //return false;
     }
 
-    //TODO: check time step?
+    // TODO: check time step?
     return true;
 }
