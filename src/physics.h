@@ -42,8 +42,10 @@ inline void findConnectedComponents(int Nmon, const double* matrix, int* cluster
 //update sticking
 inline void updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3D* matrix_norm, quat* matrix_rot, double* matrix_comp, double* matrix_twist, double* amon, material* mat, int* matIDs, int Nmon)
 {
+#pragma omp parallel for
     for (int i = 0; i < Nmon; i++)
     {
+#pragma omp parallel for
         for (int j = 1; j < Nmon; j++)
         {
             if (i == j)
@@ -171,6 +173,7 @@ inline void updateNormal(vec3D& n_A, vec3D& n_B, vec3D* matrix_con, quat* matrix
 
 inline void predictor(vec3D* pos_old, vec3D* pos_new, vec3D* force_old, vec3D* vel, double* mass, double time_step, int Nmon)
 {
+#pragma omp parallel for
     for (int i = 0; i < Nmon; i++)
     {
         double mass_inv = 1. / mass[i];
@@ -185,6 +188,7 @@ inline void predictor(vec3D* pos_old, vec3D* pos_new, vec3D* force_old, vec3D* v
 
 inline void corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_old, vec3D* torque_new, vec3D* dMdt_old, vec3D* dMdt_new, vec3D* vel, vec3D* omega, vec3D* omega_tot, vec3D* mag, double* mass, double* moment, material* mat, int* matIDs, double time_step, int Nmon)
 {
+#pragma omp parallel for
     for (int i = 0; i < Nmon; i++)
     {
         double mass_inv = 1. / mass[i];
@@ -281,6 +285,7 @@ inline void switch_pointer(vec3D*& pos_old, vec3D*& pos_new, vec3D*& force_old, 
 
 inline void updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque, vec3D* mag, quat* matrix_rot, double* matrix_comp, double* moment, int Nmon, double time_step)
 {
+#pragma omp parallel for
     for (int i = 0; i < Nmon; i++)
     {
         vec3D omega_A;
@@ -350,6 +355,7 @@ inline void updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque, vec3D*
             }*/
         }
 
+#pragma omp parallel for
         for (int j = 1; j < Nmon; j++)
         {
             if (i == j)
@@ -457,6 +463,7 @@ inline double getJKRContactRadius(double compression_length, double r0, double R
     double x_old = c1_contact_radius;
 
     // use Newton-Raphson method to find root
+#pragma omp parallel for
     for (int i = 0; i < 20; ++i)
     {
         x_pow3 = x_old * x_old * x_old;
@@ -495,8 +502,10 @@ inline void updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3D* t
     memset(torque_new, 0, Nmon * sizeof(vec3D));
     memset(dMdt_new, 0, Nmon * sizeof(vec3D));
 
+#pragma omp parallel for
     for (int i = 0; i < Nmon; i++)
     {
+#pragma omp parallel for
         for (int j = 0; j < Nmon; j++)
         {
             if (i == j)
