@@ -622,7 +622,7 @@ inline void updateParticleInteraction(
             force_new[i].z += force_tmp.z;
 
             //calculate magnetization
-            /*double chi_A = mat[mat_id_A].chi;
+            double chi_A = mat[mat_id_A].chi;
 
             if (abs(chi_A) > 0)
             {
@@ -719,7 +719,8 @@ inline void updateParticleInteraction(
                         }
                     }
 
-                    /*if (len_Mfin > Msat_A) //rescale future  mag. if saturation is reached
+                    /*
+                    if (len_Mfin > Msat_A) //rescale future  mag. if saturation is reached
                     {
                         if (len_Mfin > 0)
                         {
@@ -727,9 +728,10 @@ inline void updateParticleInteraction(
                             Mfin.y = Msat_A * Mfin.y / len_Mfin;
                             Mfin.z = Msat_A * Mfin.z / len_Mfin;
                         }
-                    }*/
-
-                    /*double dot_magA_Mfin = vec3D_dot(mag_A, Mfin);
+                    }
+                    */
+                    
+                    double dot_magA_Mfin = vec3D_dot(mag_A, Mfin);
 
                     if (len_Mfin > 0)
                     {
@@ -796,7 +798,7 @@ inline void updateParticleInteraction(
                     vec3D force_D, torque_D, torque_EdH;
                     vec3D torque_B = vec3D_cross(mu_A, B_ext);
 
-                    vec3D vec_d = vec3D_diff(pos_B, pos_A); //todo: check for correct direction
+                    vec3D vec_d = vec3D_diff(pos_B, pos_A); // TODO: check for correct direction
                     double d = vec3D_length(vec_d);
                     double d2 = d * d;
                     double d3 = d2 * d;
@@ -814,10 +816,6 @@ inline void updateParticleInteraction(
 
                     vec3D cross_d_muB = vec3D_cross(vec_d, mu_B);
                     vec3D cross_muA_muB = vec3D_cross(mu_A, mu_B);
-
-                    //force_D.x = fD * (5. * vec_d.x * dot_muA_d * dot_muB_d / d2 - vec_d.x * dot_muA_muB - mu_A.x * dot_muB_d - mu_B.x * dot_muA_d);
-                    //force_D.y = fD * (5. * vec_d.y * dot_muA_d * dot_muB_d / d2 - vec_d.y * dot_muA_muB - mu_A.y * dot_muB_d - mu_B.y * dot_muA_d);
-                    //force_D.z = fD * (5. * vec_d.z * dot_muA_d * dot_muB_d / d2 - vec_d.z * dot_muA_muB - mu_A.z * dot_muB_d - mu_B.z * dot_muA_d);
 
                     force_D.x = fD * (-5. * vec_d.x * dot_muA_d * dot_muB_d + vec_d.x * dot_muA_muB + mu_A.x * dot_muB_d + mu_B.x * dot_muA_d);
                     force_D.y = fD * (-5. * vec_d.y * dot_muA_d * dot_muB_d + vec_d.y * dot_muA_muB + mu_A.y * dot_muB_d + mu_B.y * dot_muA_d);
@@ -847,10 +845,8 @@ inline void updateParticleInteraction(
                     torque_new[i].y += torque_B.y;
                     torque_new[i].z += torque_B.z;
                 }
-            }*/
-            // end of magnetization
+            }
             
-
             // Skip all particles that are not in contact
             if (matrix_comp[i * Nmon + j] == -1.)
                 continue;
