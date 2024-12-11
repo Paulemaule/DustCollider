@@ -1,8 +1,11 @@
-GIT_BRANCH = branch
-GIT_HASH = hash
-GIT_TAG = tag
+GIT_HASH = $(shell git rev-parse --short HEAD)
+GIT_TAG = $(shell git describe --tags --exact-match 2>/dev/null || echo "No Tag")
 
-VERSION_ID = "$(GIT_BRANCH):$(GIT_HASH)"
+ifeq ($(GIT_TAG), No Tag)
+	VERSION_ID = "commit-hash:$(GIT_HASH)"
+else
+	VERSION_ID = "$(GIT_TAG)"
+endif
 
 COMPILER = g++
 COMPILER_FLAGS = -O3 -DVERSION="\"$(VERSION_ID)\""
