@@ -63,18 +63,19 @@ typedef vector<string> strlist;
 #define PI 3.1415926535897932
 #define PIx4 (4*3.1415926535897932)
 
-#define PROG_ID  "                              DUST COLLIDER    V0.00.00                              \n"
+#ifdef VERSION
+    #define PROG_ID "                              DUST COLLIDER    " VERSION "                              \n"
+#else
+    #define PROG_ID "                              DUST COLLIDER    undefined version                              \n"
+#endif
+
 #define SEP_LINE "*************************************************************************************\n"
 #define CLR_LINE "                                                                                     \r"
 
-
-
 #ifdef _WIN32
-#define SEP '\\'
+    #define SEP '\\'
 #elif __linux__
-#define SEP '/'
+    #define SEP '/'
 #endif
-
-
 
 #endif
