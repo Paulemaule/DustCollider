@@ -1516,8 +1516,13 @@ public:
 
         for (int i = 0; i < steps; i++)
         {
+            #ifdef _WIN32
             strcpy_s(str_tmp, "t_%05lu.dump");
             sprintf_s(str_end, str_tmp, i);
+            #elif __linux__
+            strcpy(str_tmp, "t_%05lu.dump");
+            sprintf(str_end, str_tmp, i);
+            #endif
 
             string str_file = path_ovito + str_end;
 
@@ -1537,9 +1542,14 @@ public:
             writer << Nmon << "\n";
 
             writer << "ITEM: BOX BOUNDS pp pp pp\n";
-
+            
+            #ifdef _WIN32
             strcpy_s(str_tmp, "%.4f %.4f\n");
             sprintf_s(str_end, str_tmp, -b_size, b_size);
+            #elif __linux__
+            strcpy(str_tmp, "%.4f %.4f\n");
+            sprintf(str_end, str_tmp, -b_size, b_size);
+            #endif
 
             writer << str_end;
             writer << str_end;
@@ -1626,9 +1636,15 @@ public:
                 int mat_id = matID[j] + 1;
 
                 double r = 1.0e9 * amon[j];
-
+                
+                #ifdef _WIN32
                 strcpy_s(str_tmp, "%d %d %d %.5f %.5f %.5f %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5f\n");
                 sprintf_s(str_end, str_tmp, j, cl_id, mat_id, x, y, z, vx, vy, vz, fx, fy, fz, tx, ty, tz, ox, oy, oz, mx, my, mz, r);
+                #elif __linux__
+                strcpy(str_tmp, "%d %d %d %.5f %.5f %.5f %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5f\n");
+                sprintf(str_end, str_tmp, j, cl_id, mat_id, x, y, z, vx, vy, vz, fx, fy, fz, tx, ty, tz, ox, oy, oz, mx, my, mz, r);
+                #endif
+                
                 writer << str_end;
             }
 
@@ -1897,7 +1913,7 @@ private:
         }
 #elif __linux__
         // Linux-specific 
-        if (mkdir(path.c_str(), S_IRWXU | S_IRWXG | S_IRWXO)) == 0)
+        if (mkdir(path.c_str(), S_IRWXU | S_IRWXG | S_IRWXO) == 0)
         {
             cout << "Directory created successfully on Linux:\n\t" << path << std::endl;
             return true;
