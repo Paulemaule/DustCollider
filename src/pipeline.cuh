@@ -113,22 +113,17 @@ public:
         cout << PROG_ID;
         cout << SEP_LINE << flush;
 
-        /*if (argc != 2)
+        if (argc != 2)
         {
             cout << "\nERROR: Wrong number of arguments!                     \n";
             cout << "       DUST COLLIDER requires only the path of a command file!            \n";
             cout << SEP_LINE;
             return false;
         }
-        cmd_filename = argv[1];*/
-
-        cmd_filename = "F:\\work\\collider\\cmd_file";
+        cmd_filename = argv[1];
 
         return true;
     }
-
-
-
 
     void formatLine(string& line) {
         string::size_type pos = 0;
@@ -869,8 +864,8 @@ public:
         string line_A, line_B;
         int line_counter_A = 0, line_counter_B = 0;
 
-        agg_filename_A = path_A + "aggregate.txt";
-        agg_filename_B = path_B + "aggregate.txt";
+        agg_filename_A = path_A;
+        agg_filename_B = path_B;
 
         reader_A.open(agg_filename_A.c_str());
 
