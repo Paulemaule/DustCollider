@@ -1,3 +1,13 @@
+BUILD ?= Release
+
+ifeq ($(BUILD), Release)
+	BUILD_FLAG = RELEASE
+else ifeq ($(BUILD), Debug)
+	BUILD_FLAG = DEBUG
+else
+	@echo This line is a hack and will cause make to crash. If this happens the BUILD version was unsupported.
+endif
+
 GIT_HASH = $(shell git rev-parse --short HEAD)
 GIT_TAG = $(shell git describe --tags --exact-match 2>/dev/null || echo "No Tag")
 
@@ -8,7 +18,7 @@ else
 endif
 
 COMPILER = nvcc
-COMPILER_FLAGS = -gencode arch=compute_89,code=sm_89 -DVERSION="\"$(VERSION_ID)\""
+COMPILER_FLAGS = -gencode arch=compute_89,code=sm_89 -DVERSION="\"$(VERSION_ID)\"" -D$(BUILD_FLAG)
 LINKER_FLAGS =
 
 SOURCE_FILES = $(wildcard ./src/*.cu)
