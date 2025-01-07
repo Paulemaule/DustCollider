@@ -113,6 +113,7 @@ public:
         cout << PROG_ID;
         cout << SEP_LINE << flush;
 
+        #ifdef RELEASE
         if (argc != 2)
         {
             cout << "\nERROR: Wrong number of arguments!                     \n";
@@ -121,6 +122,9 @@ public:
             return false;
         }
         cmd_filename = argv[1];
+        #else
+        cmd_filename = "/home/ilion/0/pzuern/development/TestFiles/setup1/cmd_file";
+        #endif
 
         return true;
     }
