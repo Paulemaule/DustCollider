@@ -175,7 +175,7 @@ typedef struct
 /**
  * A makro for a clear line for console printing
  */
-#define CLR_LINE "                                                                                     \r"
+#define CLR_LINE "                                                                                     \n"
 
 #ifdef _WIN32
     /**
