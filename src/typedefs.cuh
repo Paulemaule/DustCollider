@@ -162,8 +162,14 @@ typedef struct
 } material;
 
 #ifdef VERSION
+    /**
+     * @brief A makro for the title line for console printing.
+     */
     #define PROG_ID "                         DUST COLLIDER    " VERSION "                              \n"
 #else
+    /**
+     * @brief A makro for the title line for console printing.
+     */
     #define PROG_ID "                         DUST COLLIDER    undefined version                        \n"
 #endif
 
