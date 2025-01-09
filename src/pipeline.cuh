@@ -3,9 +3,8 @@
 
 #include <sys/stat.h>
 
-//#include <sstream>
 #ifdef _WIN32
-#include <direct.h> // for Windows _mkdir
+#include <direct.h>
 #endif
 
 #ifndef CPIPELINE
@@ -1976,6 +1975,7 @@ private:
 
     int mat_type;
 
+    // These are only here for pretty printing...
     double min_gamma;
     double min_E;
     double min_nu;
