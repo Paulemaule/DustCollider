@@ -10,11 +10,17 @@
 #ifndef CPIPELINE
 #define CPIPELINE
 
+/**
+ * @brief A class for managing the simulation pipeline.
+ * 
+ * This class contains fields that represent the run parameters and functions to prepare, process, summarize and save the data.
+ */
 class CPipeline
 {
 public:
     CPipeline()
     {
+        // Initializing the run parameters.
         pos_A.x = 0;
         pos_A.y = 0;
         pos_A.z = 0;
@@ -23,7 +29,6 @@ public:
         pos_B.y = 0;
         pos_B.z = 0;
 
-
         vel_A.x = 0;
         vel_A.y = 0;
         vel_A.z = 0;
@@ -31,7 +36,6 @@ public:
         vel_B.x = 0;
         vel_B.y = 0;
         vel_B.z = 0;
-
 
         ang_A.x = 0;
         ang_A.y = 0;
@@ -69,14 +73,16 @@ public:
         save_mag = false;
         save_ovito = false;
 
-
-        Bext.x = 0;  //T
+        Bext.x = 0;
         Bext.y = 0;
         Bext.z = 0;
-        T_dust = 15; //K
 
+        T_dust = 15;
+
+        // Assume initially that the materials are non magnetic.
         mat_type = MAT_TYPE_NONE;
 
+        // Initializing values for min/max parameter determination.
         min_gamma = MIN_DEF;
         min_E = MIN_DEF;
         min_nu = MIN_DEF;
@@ -106,6 +112,13 @@ public:
 
     ~CPipeline() {}
 
+    /**
+     * @brief This function parses the command line input to extract the command file location.
+     * 
+     * @param argc: The count of command line arguments.
+     * @param argv: The command line arguments.
+     * @return True if the function was successful, False otherwise.
+     */
     bool init(int argc, const char** argv)
     {
         cout << SEP_LINE;
@@ -128,92 +141,112 @@ public:
         return true;
     }
 
+    /**
+     * @brief A function that sanitizes a string for command file reading.
+     * 
+     * @param &line: A reference to the string that is to be formatted.
+     */
     void formatLine(string& line) {
         string::size_type pos = 0;
+
+        // Search for and remove substrings of the form "...".
         string tmp_str = seperateString(line);
 
         if (line.size() == 0)
             return;
 
+        // Replace '>' with '> '
         if (line.find(">") != string::npos)
         {
             pos = line.find(">");
             line.replace(pos, 1, "> ");
         }
 
+        // Replace '=' with ' = '
         if (line.find("=") != string::npos)
         {
             pos = line.find("=");
             line.replace(pos, 1, " = ");
         }
 
+        // Delete ';'
         while (line.find(";") != string::npos)
         {
             pos = line.find(";");
             line.replace(pos, 1, " ");
         }
 
+        // Delete '?'
         while (line.find("?") != string::npos)
         {
             pos = line.find("?");
             line.replace(pos, 1, " ");
         }
 
+        // Delete '*'
         while (line.find("*") != string::npos)
         {
             pos = line.find("*");
             line.replace(pos, 1, " ");
         }
 
+        // Delete '\t'
         while (line.find('\t') != string::npos)
         {
             pos = line.find('\t');
             line.replace(pos, 1, " ");
         }
 
+        // Delete ' \r\n'
         while (line.find(" \r\n") != string::npos)
         {
             pos = line.find(" \r\n");
             line.replace(pos, 3, " ");
         }
 
+        // Delete ' \r'
         while (line.find(" \r") != string::npos)
         {
             pos = line.find(" \r");
             line.replace(pos, 2, " ");
         }
 
+        // Delete ' \n'
         while (line.find(" \n") != string::npos)
         {
             pos = line.find(" \n");
             line.replace(pos, 2, " ");
         }
 
+        // Delete '/r/n'
         while (line.find("\r\n") != string::npos)
         {
             pos = line.find("\r\n");
             line.replace(pos, 2, " ");
         }
 
+        // Delete '/r'
         while (line.find("\r") != string::npos)
         {
             pos = line.find("\r");
             line.replace(pos, 1, " ");
         }
 
+        // Delete '\n'
         while (line.find("\n") != string::npos)
         {
             pos = line.find("\n");
             line.replace(pos, 1, " ");
         }
-        //***
 
+        // Replace '  ' with ' ' (double space with space)
         while (line.find("  ") != string::npos)
         {
             pos = line.find("  ");
             line.replace(pos, 2, " ");
         }
 
+        // Replace ',' with '.'
         while (line.find(",") != string::npos)
         {
             pos = line.find(",");
@@ -223,6 +256,7 @@ public:
         if (line == " ")
             line = "";
 
+        // Remove trailing ' '
         if (line.size() > 0)
         {
             while (line.c_str()[line.size() - 1] == ' ')
@@ -232,12 +266,14 @@ public:
             }
         }
 
+        // Remove leading ' '
         while (line.c_str()[0] == ' ')
         {
-            // pos=line.find_first_of(' ');
             line.erase(0, 1);
         }
 
+        // If the line contains '#', everything after it will be removed.
+        // If the first character is '#', extracted substrings ("...") will be removed.
         if (line.find_first_of("#") != string::npos)
         {
             pos = line.find("#");
@@ -247,6 +283,7 @@ public:
             line.erase(pos, line.length() - pos);
         }
 
+        // Same as with '#' comments.
         if (line.find_first_of("!") != string::npos)
         {
             pos = line.find("!");
@@ -256,17 +293,24 @@ public:
             line.erase(pos, line.length() - pos);
         }
 
+        // If there was a substring of the type "..." add it back to the line.
         if (tmp_str.size() != 0)
             line += " \"" + tmp_str + "\"";
     };
 
-
+    /**
+     * @brief Extracts the first substring of the type "..." from a string.
+     * 
+     * @param &str: A reference to the string that is to be extracted from. The substring will be removed from this.
+     * @return The substring. If no such string is found return ''.
+     */
     string seperateString(string& str)
     {
         string::size_type pos1 = 0, pos2 = 0;
         string ret = "";
         int len = -1;
 
+        // Search for the first "..." pattern and extract substring.
         if (str.find_first_of("\"") != string::npos)
         {
             pos1 = str.find("\"");
@@ -281,6 +325,7 @@ public:
             str.erase(pos1, len);
         }
 
+        // Remove '"' from the extracted substring.
         while (ret.find("\"") != string::npos)
         {
             pos1 = ret.find("\"");
@@ -290,6 +335,12 @@ public:
         return ret;
     };
 
+    /**
+     * @brief Split a string at each space and convert all substring into floats.
+     * 
+     * @param &str: The string from which numbers are to be extracted. Remains untouched.
+     * @return A list of the floats. Strings that are not numbers are converted to 0.0
+     */
     dlist parseValues(string& str)
     {
         int pos;
@@ -298,9 +349,11 @@ public:
 
         formatLine(str);
 
+        // If no pattern is found return an empty container.
         if (str.size() == 0)
             return values;
 
+        // Split the string at ' ' and convert the substring into floats which are added to `values`.
         while (str.find(" ") != string::npos)
         {
             pos = int(str.find(" "));
@@ -309,11 +362,17 @@ public:
             values.push_back(atof(v.c_str()));
         }
 
+        // When the string contains only one substring.
         values.push_back(atof(str.c_str()));
 
         return values;
     };
 
+    /**
+     * @brief Load the command file and parse the line one by one.
+     * 
+     * @return True on success, False on failure.
+     */
     bool parse()
     {
         ifstream reader(cmd_filename.c_str());
@@ -335,17 +394,20 @@ public:
 
             formatLine(line);
 
+            // When the line is empty skip
             if (line.compare("") == 0)
                 continue;
 
+            // When the line starts with '#' skip
             if (line.c_str()[0] == '#')
                 continue;
 
-
+            // Searching for the command file pattern '<tag> value'
             pos = line.find(">");
 
             if (pos != string::npos)
             {
+                // Extract the tag and value from the pattern.
                 cmd = line.substr(0, pos + 1);
                 line.erase(0, pos + 2);
             }
@@ -355,12 +417,15 @@ public:
                 return false;
             }
 
+            // If the tag is emtpy, skip
             if (cmd.compare("") == 0)
                 continue;
 
+            // If the tag is a space, skip
             if (cmd.compare(" ") == 0)
                 continue;
 
+            // Parse the line. When it fails, raise an error.
             if (!parseLine(cmd, line))
             {
                 cout << "ERROR: Cannot parse command \"" << cmd << "\" in line " << line_counter << endl << flush;
@@ -370,6 +435,14 @@ public:
 
         return true;
     };
+
+    /**
+     * @brief Checks the run parameter validity.
+     * 
+     * Checks the run parameters for validity. Issues some warnings for unconventional parameters. Creates the ouput directories.
+     * 
+     * @return True on success, False on failure.
+     */
     bool checkParameters()
     {
         int len = int(lst_matID.size());
@@ -401,6 +474,7 @@ public:
             }
         }
 
+        // Check each of the material parameters.
         for (int i = 0; i < len; i++)
         {
             if ((abs(lst_Msat[i]) == 0 && lst_Tc[i] > 0) || (abs(lst_Msat[i]) > 0 && lst_Tc[i] == 0))
@@ -426,6 +500,7 @@ public:
             }
         }
 
+        // Create the output directories.
         if (path_results.length() > 5)
         {
             if (!createPath(path_results))
@@ -458,10 +533,9 @@ public:
             return false;
         }
 
-        //TODO: check overlap between entire aggregates
-
-        double len_pos_A = sqrt(pos_A.x * pos_A.x + pos_A.y * pos_A.y + pos_A.z * pos_A.z);
-        double len_pos_B = sqrt(pos_B.x * pos_B.x + pos_B.y * pos_B.y + pos_B.z * pos_B.z);
+        //TODO: Use the functions here?
+        double len_pos_A = sqrt(pos_A.x * pos_A.x + pos_A.y * pos_A.y + pos_A.z * pos_A.z); // Distance of aggregate A from the origin.
+        double len_pos_B = sqrt(pos_B.x * pos_B.x + pos_B.y * pos_B.y + pos_B.z * pos_B.z); // Distance of aggregate B from the origin.
 
         if (len_pos_A + len_pos_B == 0)
         {
@@ -475,22 +549,22 @@ public:
             return false;
         }
 
+        // TODO: Check if this is implemented.
         if (T_dust == -1)
         {
             cout << "WARNING: Impact of dust temperature is ignored! \n";
         }
 
-        double len_vel_A = sqrt(vel_A.x * vel_A.x + vel_A.y * vel_A.y + vel_A.z * vel_A.z);
-        double len_vel_B = sqrt(vel_B.x * vel_B.x + vel_B.y * vel_B.y + vel_B.z * vel_B.z);
+        double len_vel_A = sqrt(vel_A.x * vel_A.x + vel_A.y * vel_A.y + vel_A.z * vel_A.z); // The initial absolute velocity of aggregate A.
+        double len_vel_B = sqrt(vel_B.x * vel_B.x + vel_B.y * vel_B.y + vel_B.z * vel_B.z); // The initial absolute velocity of aggregate B.
 
         if (len_vel_A + len_vel_B == 0)
         {
             cout << "WARNING: Both aggregate velocities are zero! \n";
-            //return false;
         }
 
-        double len_ang_A = sqrt(ang_A.x * ang_A.x + ang_A.y * ang_A.y + ang_A.z * ang_A.z);
-        double len_ang_B = sqrt(ang_B.x * ang_B.x + ang_B.y * ang_B.y + ang_B.z * ang_B.z);
+        double len_ang_A = sqrt(ang_A.x * ang_A.x + ang_A.y * ang_A.y + ang_A.z * ang_A.z); // The initial absolute angular velocity of aggregate A.
+        double len_ang_B = sqrt(ang_B.x * ang_B.x + ang_B.y * ang_B.y + ang_B.z * ang_B.z); // The initial absolute angular velocity of aggregate B.
 
         if (len_ang_A + len_ang_B == 0)
         {
@@ -506,19 +580,24 @@ public:
         if (time_start < 0)
         {
             cout << "WARNING: Invalid starting time! \n";
-            //return false;
         }
 
         if (time_stop <= 0)
         {
             cout << "WARNING: Invalid stopping time! \n";
-            //return false;
         }
 
-        //TODO: check time step?
+        // TODO: check time step?
         return true;
     };
 
+    /**
+     * @brief Uses a parameter name and value pair to set a run parameter.
+     * 
+     * @param cmd: The name of the parameter.
+     * @param data: The value of the parameter.
+     * @return True if successful, False if failure.
+     */
     bool parseLine(string cmd, string data)
     {
         if (cmd.compare("<path_results>") == 0)
@@ -594,7 +673,6 @@ public:
 
             return true;
         }
-
 
         if (cmd.compare("<vel_A>") == 0)
         {
@@ -704,8 +782,6 @@ public:
             return true;
         }
 
-
-
         if (cmd.compare("<N_save>") == 0)
         {
             ullong i = ullong(atof(data.c_str()));
@@ -799,10 +875,8 @@ public:
             string str_m = seperateString(data);
             string str_id = seperateString(data);
             int ID = int(atof(str_id.c_str()));
-            //formatLine()
 
             dlist values = parseValues(data);
-
             int length = int(values.size());
 
             if (values.size() == 6)
@@ -823,11 +897,14 @@ public:
                 lst_chi.push_back(0);
                 lst_Tc.push_back(0);
 
+                // TODO: Add warning that magnetic values have not been read
+
                 return true;
             }
 
             if (values.size() == 11)
-            {
+            {   
+                // Magnetic materials are defined.
                 mat_type = MAT_TYPE_MAG;
 
                 lst_matName.push_back(str_m);
@@ -855,9 +932,24 @@ public:
 
         return false;
     };
-    bool prepareData(vec3D*& pos, vec3D*& vel, vec3D*& omega_tot, vec3D*& mag, 
-        double*& amon, double*& mass, double*& moment, int*& matIDs, int& Nmon)
+
+    /**
+     * @brief Reads the aggregates from files and calculates the initial state.
+     * 
+     * @param *&pos: An array of the momomer positions will get placed here.
+     * @param *&vel: An array of the monomer velocities will be placed here.
+     * @param *&omega_tot: An array of the monomer angular velocities will be placed here.
+     * @param *&mag: An array of the monomer magnetizations will be placed here.
+     * @param *&amon: An array of the monomer radii will be placed here.
+     * @param *&mass: An array of the monomer masses will be placed here.
+     * @param *&moment: An array of the monomer moment of inertias will be placed here.
+     * @param *&matIDs: An array of the momomer material IDs will be placed here.
+     * @param *&Nmon: The total number of monomers will be placed here.
+     * @returns True if successful, False if failure.
+     */
+    bool prepareData(vec3D*& pos, vec3D*& vel, vec3D*& omega_tot, vec3D*& mag, double*& amon, double*& mass, double*& moment, int*& matIDs, int& Nmon)
     {
+        // Initialize readers for aggregate files.
         ifstream reader_A, reader_B;
 
         vlist lst_pos_A, lst_pos_B;
@@ -870,6 +962,7 @@ public:
         agg_filename_A = path_A;
         agg_filename_B = path_B;
 
+        // Read the monomer data for aggregate A and aggregate B.
         reader_A.open(agg_filename_A.c_str());
 
         if (reader_A.fail())
@@ -886,13 +979,16 @@ public:
             return false;
         }
 
+        // Initialize values for min and max value determination.
         a_mon_min = 1e200;
         a_mon_max = 0;
 
+        // Read aggregate files.
         while (getline(reader_A, line_A))
         {
             line_counter_A++;
 
+            // Use the first line to determine the number of monomers.
             if (line_counter_A == 1)
             {
                 dlist values = parseValues(line_A);
@@ -901,37 +997,44 @@ public:
                 a_eff_A = 1e-9 * values[2];
             }
 
+            // Read the monomer data from line 5 onward.
             if (line_counter_A > 5)
             {
                 dlist values = parseValues(line_A);
 
+                // Skip empty lines.
                 if (values.size() == 0)
                     continue;
-
+                
                 if (line_counter_A % 50 == 0)
                     cout << "Reading aggregate A: " << 100.0 * float(line_counter_A) / float(Nmon_A) << "                 \r" << flush;
 
+                // Read monomer positions from the first three numbers.
                 vec3D tmp_pos;
-
                 tmp_pos.x = 1e-9 * values[0];
                 tmp_pos.y = 1e-9 * values[1];
                 tmp_pos.z = 1e-9 * values[2];
+                
                 lst_pos_A.push_back(tmp_pos);
 
+                // Read monomer radius from 5th number
                 double a_mon = 1e-9 * values[4];
                 lst_amon_A.push_back(a_mon);
 
+                // Determine min and max monomer radii
                 if (a_mon_min > a_mon)
                     a_mon_min = a_mon;
 
                 if (a_mon_max < a_mon)
                     a_mon_max = a_mon;
 
+                // Determine the maximum for the outer most surface from the origin of aggregate A
                 double distance = sqrt(tmp_pos.x * tmp_pos.x + tmp_pos.y * tmp_pos.y + tmp_pos.z * tmp_pos.z) + a_mon;
 
                 if (a_out_A < distance)
                     a_out_A = distance;
 
+                // Read the material ID from the 7th number
                 int mat_id = int(values[6] - 1);
 
                 if (!isMatID(mat_id))
@@ -1003,6 +1106,7 @@ public:
 
         Nmon = Nmon_A + Nmon_B;
 
+        // Create arrays to contain position, velocity, magnetization, angular velocities, material IDs, monomer radii
         pos = new vec3D[Nmon];
         vel = new vec3D[Nmon];
         mag = new vec3D[Nmon];
@@ -1013,19 +1117,21 @@ public:
         moment = new double[Nmon];
         mass = new double[Nmon];
 
+        // Iterate over the 
         for (int i = 0; i < Nmon_A; i++)
         {
+            // Determine monomer position in experimental frame.
             pos[i].x = lst_pos_A[i].x + pos_A.x;
             pos[i].y = lst_pos_A[i].y + pos_A.y;
             pos[i].z = lst_pos_A[i].z + pos_A.z;
 
             amon[i] = lst_amon_A[i];
 
+            // Determine the velocity of the monomers due to aggregate rotation.
             vec3D r;
-
-            r.x = 0;
+            r.x = 0; // FIXME: This should be a bug?
             r.y = lst_pos_A[i].y;
-            r.z = lst_pos_A[i].z; //todo: r needs to be perp. to ang_A
+            r.z = lst_pos_A[i].z;
 
             vec3D vel_tan = cpu_vec3D_cross(ang_A, r);
 
@@ -1033,26 +1139,35 @@ public:
             vel[i].y = vel_A.y + vel_tan.y;
             vel[i].z = vel_A.z + vel_tan.z;
 
+            // The angular momentum of the monomers is equal to the aggregates angular momentum.
             omega_tot[i] = ang_A;
 
+            // FIXME: Is mat_id not redundant?
             int mat_id = lst_matID_A[i];
             matIDs[i] = mat_id;
 
             double rho = lst_rho[mat_id];
 
+            // Calculate moment of inertia and mass of the monomer.
             mass[i] = 4. / 3. * PI * rho * amon[i] * amon[i] * amon[i];
             moment[i] = 2. / 5. * mass[i] * amon[i] * amon[i];
 
+            // TODO: Code from the physics engine should be used here...
+            // The magnetic susceptibility.
             double chi = lst_chi[mat_id];
 
+            // Set initial magnetization depending on run setup
             if (abs(chi) != 0)
             {
-                if (abs(chi) > LIMIT_FER) //ferromagnetic
+                if (abs(chi) > LIMIT_FER)
                 {
+                    // Ferromagnetic materials
                     double len_Bext = cpu_vec3D_length(Bext);
 
-                    if (len_Bext > 0.) //set initial direction to Bext
+                    if (len_Bext > 0.)
                     {
+                        // Saturation magnetization in direction of external field.
+                        // FIXME: Magnetization initialization
                         //mag[i].x = lst_Msat[mat_id] * Bext.x / len_Bext;
                         //mag[i].y = lst_Msat[mat_id] * Bext.y / len_Bext;
                         //mag[i].z = lst_Msat[mat_id] * Bext.z / len_Bext;
@@ -1062,16 +1177,18 @@ public:
                         mag[i].z = 0.173648178 * lst_Msat[mat_id];
                     }
                     else
-                    {
+                    {   
                         double len_omega = cpu_vec3D_length(omega_tot[i]);
-                        if (len_omega > 0.) //set initial direction to omega
+                        if (len_omega > 0.)
                         {
+                            // Saturation magnetization in direction of angular momentum.
                             mag[i].x = lst_Msat[mat_id] * omega_tot[i].x / len_omega;
                             mag[i].y = lst_Msat[mat_id] * omega_tot[i].y / len_omega;
                             mag[i].z = lst_Msat[mat_id] * omega_tot[i].z / len_omega;
                         }
-                        else //set initial direction to x-direction
+                        else
                         {
+                            // Saturation magnetization in direction of x axis.
                             mag[i].x = lst_Msat[mat_id];
                             mag[i].y = 0.;
                             mag[i].z = 0.;
@@ -1080,6 +1197,7 @@ public:
                 }
                 else
                 {
+                    // Para + Diamagnetic materials
                     vec3D M_ind, M_Bar;
                     double chi_fac = chi / (chi + 1.);
 
@@ -1091,12 +1209,14 @@ public:
                     M_Bar.y = chi * omega_tot[i].y / PROD_BARR;
                     M_Bar.z = chi * omega_tot[i].z / PROD_BARR;
 
+                    // Set the magnetization of the monomer to the induced and Barnett moment.
                     mag[i].x = M_ind.x + M_Bar.x;
                     mag[i].y = M_ind.y + M_Bar.y;
                     mag[i].z = M_ind.z + M_Bar.z;
 
                     double len_mag = cpu_vec3D_length(mag[i]);
 
+                    // Clip the magnetization to saturation.
                     if (len_mag > lst_Msat[mat_id])
                     {
                         mag[i].x = lst_Msat[mat_id] * mag[i].x / len_mag;
@@ -1104,6 +1224,7 @@ public:
                         mag[i].z = lst_Msat[mat_id] * mag[i].z / len_mag;
                     }
 
+                    // FIXME: This needs to go.
                     mag[i].x = 0.984807753 * lst_Msat[mat_id];
                     mag[i].y = 0;
                     mag[i].z = 0.173648178 * lst_Msat[mat_id];
@@ -1111,12 +1232,15 @@ public:
             }
             else
             {
+                // Nonmagnetic materials.
                 mag[i].x = 0;
                 mag[i].y = 0;
                 mag[i].z = 0;
             }
         }
 
+        // FIXME: This should just be a single loop, the logic should not be duplicated.
+        // Iterate over the monomers of aggregate B
         for (int i = Nmon_A; i < Nmon; i++)
         {
             int index = i - Nmon_A;
@@ -1222,11 +1346,12 @@ public:
             }
         }
 
-        //find smallest time step
+        // Find the smallest timestep.
         if (time_step == 0)
         {
             time_step = 1e200;
 
+            // Iterate over monomer pairs.
             for (int i = 0; i < Nmon; i++)
             {
                 for (int j = 0; j < Nmon; j++)
@@ -1264,6 +1389,7 @@ public:
 
                     double tc = sqrt(mass * delta_c / F_c);
 
+                    // TODO: Should this stay commented out?
                     //double tc = 0.95 * (pow(R, 7. / 6.) * sqrt(lst_rho[mat_id_A])) / (pow(gamma, 1. / 6.) * pow(Es, 1. / 3.));
 
                     if (time_step > tc)
@@ -1289,14 +1415,21 @@ public:
                     if (time_step > tsl)
                         time_step = tsl;
                 }
-            }/**/
+            }
 
+            // Set the timestep to 1/200 of the minimum physical timescale of the system.
             time_step = 0.005 * time_step;
         }
 
         return true;
     };
     
+    /**
+     * @brief Processes the material parameters and places them in arrays.
+     * 
+     * @param *&mat An array of materials will be placed here.
+     * @param &int The ammount of materials will be placed here.
+     */
     void prepareMaterial(material*& mat, int& Nmat)
     {
         Nmat = int(lst_matName.size());
@@ -1304,6 +1437,7 @@ public:
         mat = new material[Nmat];
         for (int i = 0; i < Nmat; i++)
         {
+            // Transfer the material parameters into the 
             mat[i].gamma = lst_gamma[i];
             mat[i].E = lst_E[i];
             mat[i].nu = lst_nu[i];
@@ -1317,14 +1451,14 @@ public:
             mat[i].chi = lst_chi[i];
             mat[i].Tc = lst_Tc[i];
 
-            //T_dust == -1: Impact of dust temp. is not considdered
-            if (T_dust != -1)
+            // Adjust material parameters based on dust temperature.
+            if (T_dust != -1) // When T_dust is -1, dust temperature impact is ignored.
             {
                 double corr;
 
                 // Curie's law
                 corr = CHI_20 / T_dust;
-                //mat[i].chi *= corr;
+                //mat[i].chi *= corr; // FIXME: Turn on the temperature impact.
 
                 if (abs(mat[i].Msat) > 0 && mat[i].Tc > 0)
                 {
@@ -1334,20 +1468,20 @@ public:
                     if (corr < 0.0)
                         corr = 0.0;
 
-                    //mat[i].Msat *= corr;
+                    //mat[i].Msat *= corr; // FIXME: Turn on the temperature impact
                 }
 
                 // reduced surface energy Bogdan+ 2020
                 corr = SLOPE * T_dust + INTERCEPT;
-                //mat[i].gamma *= corr;
+                //mat[i].gamma *= corr; // FIXME: Turn on the energy correction!
             }
 
+            // Determine minimum and maximum values for the material parameters.
             if (min_gamma > mat[i].gamma)
                 min_gamma = mat[i].gamma;
 
             if (max_gamma < mat[i].gamma)
                 max_gamma = mat[i].gamma;
-
 
             if (min_E > mat[i].E)
                 min_E = mat[i].E;
@@ -1355,13 +1489,11 @@ public:
             if (max_E < mat[i].E)
                 max_E = mat[i].E;
 
-
             if (min_nu > mat[i].nu)
                 min_nu = mat[i].nu;
 
             if (max_nu < mat[i].nu)
                 max_nu = mat[i].nu;
-
 
             if (min_rho > mat[i].rho)
                 min_rho = mat[i].rho;
@@ -1369,13 +1501,11 @@ public:
             if (max_rho < mat[i].rho)
                 max_rho = mat[i].rho;
 
-
             if (min_xi > mat[i].xi)
                 min_xi = mat[i].xi;
 
             if (max_xi < mat[i].xi)
                 max_xi = mat[i].xi;
-
 
             if (min_Tvis > mat[i].tvis)
                 min_Tvis = mat[i].tvis;
@@ -1429,6 +1559,12 @@ public:
             }
         }
     };
+
+    /**
+     * @brief Checks if a material of the specified ID exists.
+     * 
+     * @param id: The material ID that is to be checked.
+     */
     bool isMatID(int id)
     {
         int len = int(lst_matID.size());
@@ -1442,8 +1578,23 @@ public:
         return false;
     };
 
-    bool writeAllOVITO(const vec3D* pos, const vec3D* vel, const vec3D* force, const vec3D* torque, const vec3D* omega, 
-        const vec3D* mag, const int* cluserIDs, const double* amon, const int* matID, int Nmon, int Nsto)
+    // TODO: Make Nmon and Nsto consants.
+    /**
+     * @brief Writes the provided data into an ovito dump file.
+     * 
+     * @param *pos: Monomer positions.
+     * @param *vel: Monomer velocities.
+     * @param *force: Total forces on the monomers.
+     * @param *torque: Total torques on the monomers.
+     * @param *omega: Monomer angular momenta.
+     * @param *mag: Monomer magnetizations.
+     * @param *cluserIDs: Monomer cluster IDs.
+     * @param *amon: Monomer radii.
+     * @param *matID: Monomer material IDs.
+     * @param *Nmon: Number of monomers.
+     * @param *Nsto: // TODO: determine what this is.
+     */
+    bool writeAllOVITO(const vec3D* pos, const vec3D* vel, const vec3D* force, const vec3D* torque, const vec3D* omega, const vec3D* mag, const int* cluserIDs, const double* amon, const int* matID, int Nmon, int Nsto)
     {
         char str_tmp[1024];
         char str_end[1024];
@@ -1511,7 +1662,6 @@ public:
             }
         }
 
-
         for (int i = 0; i < steps; i++)
         {
             #ifdef _WIN32
@@ -1534,11 +1684,8 @@ public:
 
             writer << "ITEM: TIMESTEP\n";
             writer << i << "\n";
-
             writer << "ITEM: NUMBER OF ATOMS\n";
-            //writer << int(3 * Nmol)  << "\n";
             writer << Nmon << "\n";
-
             writer << "ITEM: BOX BOUNDS pp pp pp\n";
             
             #ifdef _WIN32
@@ -1553,7 +1700,7 @@ public:
             writer << str_end;
             writer << str_end;
 
-            writer << "ITEM: ATOMS id mol type x y z vx vy vz fx fy fz tqx tqy tqz omegax omegay omegaz mux muy muz radius\n"; //add velocity later
+            writer << "ITEM: ATOMS id mol type x y z vx vy vz fx fy fz tqx tqy tqz omegax omegay omegaz mux muy muz radius\n";
 
             for (int j = 0; j < Nmon; j++)
             {
@@ -1621,10 +1768,7 @@ public:
                     double len_mag = cpu_vec3D_length(mag[i * Nmon + j]);
                     if (len_mag != 0)
                     {
-                        //mx = mag[i * Nmon + j].x / max_mag;
-                        //my = mag[i * Nmon + j].y / max_mag;
-                        //mz = mag[i * Nmon + j].z / max_mag;
-
+                        // Rescaling the magnetization to make it usefull.
                         mx = mag[i * Nmon + j].x / len_mag * pow(len_mag, 1.0 / 8.0);
                         my = mag[i * Nmon + j].y / len_mag * pow(len_mag, 1.0 / 8.0);
                         mz = mag[i * Nmon + j].z / len_mag * pow(len_mag, 1.0 / 8.0);
@@ -1645,14 +1789,15 @@ public:
                 
                 writer << str_end;
             }
-
             writer.close();
         }
 
         return true;
     };
 
-
+    /**
+     * @brief Prints a summary of the run parameters.
+     */
     void printParameters()
     {
         cout << SEP_LINE;
@@ -1748,6 +1893,8 @@ public:
         cout << SEP_LINE << flush;
     };
 
+    // Defining getter functions.
+
     bool savePos() { return save_pos; }
     bool saveVel() { return save_vel; }
     bool saveForce() { return save_force; }
@@ -1760,6 +1907,11 @@ public:
 
     vec3D getBext() { return Bext; }
 
+    /**
+     * @brief Writes a header file that contains important information for the run.
+     * 
+     * @return True on success, False on failure.
+     */
     bool writeHeader()
     {
         string str_file = path_binary;
@@ -1778,12 +1930,19 @@ public:
         writer << "#N_iter\tNmon_A\tNmon_B\tN_save\tN_mat\ttime_step [s]\n";
         writer << N_iter << "\t" << Nmon_A << "\t" << Nmon_B << "\t" << N_save << "\t" << Nmat << "\t" << time_step << "\n";
 
-        //further header information can be written here...
-
         writer.close();
         return true;
     };
 
+    /**
+     * @brief Saves a list of vectors into the binary output directory.
+     * 
+     * @param name_file: The name of the file.
+     * @param *data: The array of vectors that is to be saved.
+     * @param N: // TODO: Determine what exactly this is.
+     * 
+     * @return True on success, False on failure.
+     */
     bool writeBinaryVec(string name_file, const vec3D* data, ullong N)
     {
         string path_tmp = path_binary + name_file;
@@ -1932,48 +2091,77 @@ private:
         return false;
     };
 
-    string cmd_filename;
-    string path_results;
+    // Field definition starts here:
+    string cmd_filename; // The path to the command file.
+    string path_results; // The path to the output directory.
 
-    string path_binary;
-    string path_ovito;
-    string path_plots;
+    string path_binary; // The path to the binary output directory.
+    string path_ovito; // The path to the ovito output directory.
+    string path_plots; // The path to the plot directory.
 
-    string path_A;
-    string path_B;
+    string path_A; // Temporary variable for the path to aggregate A.
+    string path_B; // Temporary variable for the path to aggregate B.
 
-    vec3D pos_A;
-    vec3D pos_B;
+    string agg_filename_A; // Path to aggregate A.
+    string agg_filename_B; // Path to aggregate B.
 
-    vec3D vel_A;
-    vec3D vel_B;
+    vec3D pos_A; // The position of aggregate A.
+    vec3D pos_B; // The position of aggregate B.
 
-    vec3D ang_A;
-    vec3D ang_B;
+    vec3D vel_A; // The initial velocity of aggregate A.
+    vec3D vel_B; // The initial velocity of aggregate B.
 
-    ullong N_iter;
-    ullong N_save;
+    vec3D ang_A; // The initial angular velocity of aggregate A.
+    vec3D ang_B; // The initial angular velocity of aggregate B.
+
+    ullong N_iter; // The number of total iterations.
+    ullong N_save; // The save interval.
 
     double time_start;
     double time_stop;
-    double time_step;
+    double time_step; // The timestep size of the simulation.
 
-    strlist lst_matName;
-    ilist lst_matID;  //material id
-    dlist lst_gamma;  //surface energy
-    dlist lst_E;      //Young's modulus
-    dlist lst_nu;     //Poisson number 
-    dlist lst_rho;    //density
-    dlist lst_xi;     //critical rolling length
-    dlist lst_Tvis;   //viscous dumping time 
+    strlist lst_matName; // List of material names.
+    ilist lst_matID;  // List of material ids.
+    dlist lst_gamma;  // List of material surface energies
+    dlist lst_E;      // List of material Young's moduli
+    dlist lst_nu;     // List of material Poisson numbers
+    dlist lst_rho;    // List of material densities.
+    dlist lst_xi;     // List of material critical rolling lengths
+    dlist lst_Tvis;   // List of materialviscous dumping time 
 
-    dlist lst_tss;     //spin-spin time scale
-    dlist lst_tsl;     //spin-lattice time scale
-    dlist lst_Msat;    //spont. magnetization
-    dlist lst_chi;     //mag. susceptibillity
-    dlist lst_Tc;      //Curie temperature
+    dlist lst_tss;     // List of material spin-spin time scale
+    dlist lst_tsl;     // List of material spin-lattice time scale
+    dlist lst_Msat;    // List of material spont. magnetization
+    dlist lst_chi;     // List of material mag. susceptibillity
+    dlist lst_Tc;      // List of material Curie temperature
 
-    int mat_type;
+    // TODO: Check if this is used to control the behavior of the code or if its just for printing.
+    int mat_type; // MAT_TYPE_NONE if no material has magnetic properties defined. MAT_TYPE_MAG if at least on material has magnetic properties defined.
+
+    double a_eff_A; // Effective radius of aggregate A.
+    double a_eff_B; // Effective radius of aggregate B.
+
+    double a_out_A; // Outer radius of aggregate A (???).
+    double a_out_B; // Outer radius of aggregate B (???)
+
+    double a_mon_min; // ???
+    double a_mon_max; // ???
+
+    int Nmon_A; // Number of monomers in aggregate A.
+    int Nmon_B; // Number of monomers in aggregate B.
+
+    bool save_pos;
+    bool save_vel;
+    bool save_force;
+    bool save_torque;
+    bool save_cluster;
+    bool save_omega;
+    bool save_mag;
+    bool save_ovito;
+
+    vec3D Bext; // The external magnetic field.
+    double T_dust; // The temperature of the dust.
 
     // These are only here for pretty printing...
     double min_gamma;
@@ -2001,33 +2189,6 @@ private:
     double max_Msat;
     double max_chi;
     double max_Tc;
-
-    double a_eff_A;
-    double a_eff_B;
-
-    double a_out_A;
-    double a_out_B;
-
-    double a_mon_min;
-    double a_mon_max;
-
-    int Nmon_A;
-    int Nmon_B;
-
-    string agg_filename_A;
-    string agg_filename_B;
-
-    bool save_pos;
-    bool save_vel;
-    bool save_force;
-    bool save_torque;
-    bool save_cluster;
-    bool save_omega;
-    bool save_mag;
-    bool save_ovito;
-
-    vec3D Bext;
-    double T_dust;
 };
 
 #endif
