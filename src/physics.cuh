@@ -1,9 +1,18 @@
 #pragma once
 #include "typedefs.cuh"
 #include "vector.cuh"
-//#include <cmath>
 
-// Function to perform Depth-First Search (DFS) using recursion
+/**
+ * @brief Depth-First search for single cluster recognition.
+ * 
+ * Searches the entire graph starting from node to find all connected nodes and assigns the current cluster ID to it.
+ * 
+ * @param node: The current node that is being looked at.
+ * @param n: The number of monomers.
+ * @param *matrix: The connection graph.
+ * @param *cluster: The cluster memberships.
+ * @param currentCluster: The ID of the current cluster.
+ */
 inline void cpu_dfs(int node, int n, const double* matrix, int* cluster, int currentCluster)
 {
     // Assign the current cluster ID to the node
@@ -18,6 +27,13 @@ inline void cpu_dfs(int node, int n, const double* matrix, int* cluster, int cur
     }
 }
 
+/**
+ * @brief Determines clustermembership of all monomers.
+ * 
+ * @param Nmon: The number of monomers.
+ * @param *matrix: The connection graph.
+ * @param *cluster: The cluster memberships.
+ */
 inline void cpu_findConnectedComponents(int Nmon, const double* matrix, int* cluster)
 {
     int currentCluster = 0;  // Cluster ID counter
@@ -33,10 +49,24 @@ inline void cpu_findConnectedComponents(int Nmon, const double* matrix, int* clu
     }
 }
 
-
-//update sticking
+/**
+ * @brief Updates the contact matrices.
+ * 
+ * This functions checks if monomers are close enough to make contact or far enough to break contact and initializes/zeros the contact matrices accordingly.
+ * 
+ * @param *pos: Array of positions.
+ * @param *matrix_con: Array of contact pointers.
+ * @param *matrix_norm: Array of contact normals.
+ * @param *matrix_rot: Array of contact rotations.
+ * @param *matrix_comp: Array of contact compression lenghts.
+ * @param *matrix_twist: Array of contact twisting angles.
+ * @param *amon: Array of monomer radii.
+ * @param *matIDs: Array of material IDs.
+ * @param *Nmon: Number of monomers.
+ */
 inline void cpu_updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3D* matrix_norm, quat* matrix_rot, double* matrix_comp, double* matrix_twist, double* amon, material* mat, int* matIDs, int Nmon)
 {
+    // Iterate over monomer pairs
     for (int i = 0; i < Nmon; i++)
     {
         for (int j = 1; j < Nmon; j++)
@@ -44,6 +74,7 @@ inline void cpu_updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3
             if (i == j)
                 continue;
 
+            // Determine and calculate necessary values.
             vec3D pos_A = pos[i];
             vec3D pos_B = pos[j];
 
@@ -52,7 +83,7 @@ inline void cpu_updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3
 
             double a_mon_A = amon[i];
             double a_mon_B = amon[j];
-            double R = (a_mon_A * a_mon_B) / (a_mon_A + a_mon_B);
+            double R = (a_mon_A * a_mon_B) / (a_mon_A + a_mon_B); // Reduced radius
 
             double nu_A = mat[mat_id_A].nu;
             double nu_B = mat[mat_id_B].nu;
@@ -60,12 +91,12 @@ inline void cpu_updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3
             double E_A = mat[mat_id_A].E;
             double E_B = mat[mat_id_B].E;
 
-            double Es = (1 - nu_A * nu_A) / E_A + (1 - nu_B * nu_B) / E_B;
+            double Es = (1 - nu_A * nu_A) / E_A + (1 - nu_B * nu_B) / E_B; // "Reduced" Young's modulus
             Es = 1. / Es;
 
             double gamma_A = mat[mat_id_A].gamma;
             double gamma_B = mat[mat_id_B].gamma;
-            double gamma = gamma_A + gamma_B - 2. / (1. / gamma_A + 1. / gamma_B);
+            double gamma = gamma_A + gamma_B - 2. / (1. / gamma_A + 1. / gamma_B); // Contact surface energy
 
             double a0 = pow(9 * PI * gamma * R * R / Es, 1. / 3.);
             double delta_c = 0.5 * a0 * a0 / (R * pow(6.0, 1.0 / 3.0));
@@ -77,38 +108,33 @@ inline void cpu_updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3
             int index_A = 0 * Nmon * Nmon + i * Nmon + j;
             int index_B = 1 * Nmon * Nmon + i * Nmon + j;
 
-            /*if (index_A > 2 * Nmon * Nmon)
-                int tt = 0;
-
-            if (index_B > 2 * Nmon * Nmon)
-                int tt = 0;*/
-
+            // Check if monomer surfaces are in contact.
             if (distance < contact_distance)
             {
-                //new connection is established
+                // Check if monomers are allready marked as in contact
                 if (matrix_comp[i * Nmon + j] == -1.)
                 {
                     vec3D n = cpu_vec3D_get_normal(pos_A, pos_B);
 
-                    // init. contact pointer
+                    // Initialize contact pointers
                     matrix_con[index_A].x = -n.x;
                     matrix_con[index_A].y = -n.y;
                     matrix_con[index_A].z = -n.z;
-
                     matrix_con[index_B].x = n.x;
                     matrix_con[index_B].y = n.y;
                     matrix_con[index_B].z = n.z;
 
+                    // Initialize contact pointer rotation
                     matrix_rot[index_A].e0 = 1;
                     matrix_rot[index_A].e1 = 0;
                     matrix_rot[index_A].e2 = 0;
                     matrix_rot[index_A].e3 = 0;
-
                     matrix_rot[index_B].e0 = 1;
                     matrix_rot[index_B].e1 = 0;
                     matrix_rot[index_B].e2 = 0;
                     matrix_rot[index_B].e3 = 0;
 
+                    // Initialize contact normal
                     matrix_norm[i * Nmon + j].x = n.x;
                     matrix_norm[i * Nmon + j].x = n.y;
                     matrix_norm[i * Nmon + j].x = n.x;
@@ -122,35 +148,56 @@ inline void cpu_updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3
 
             if (distance > breaking_dist)
             {
+                // Empty the contact pointers.
                 matrix_con[index_A].x = 0;
                 matrix_con[index_A].y = 0;
                 matrix_con[index_A].z = 0;
-
                 matrix_con[index_B].x = 0;
                 matrix_con[index_B].y = 0;
                 matrix_con[index_B].z = 0;
 
-                matrix_comp[i * Nmon + j] = -1.; //mark as disconnected
+                // TODO: What about matrix_rot ?
+
+                // Mark the monomers as disconnected.
+                matrix_comp[i * Nmon + j] = -1.;
                 matrix_twist[i * Nmon + j] = 0;
             }
         }
     }
 }
 
-//update sticking
+/**
+ * @brief Updates the contact matrices.
+ * 
+ * This functions checks if monomers are close enough to make contact or far enough to break contact and initializes/zeros the contact matrices accordingly.
+ * 
+ * @param *pos: Array of positions.
+ * @param *matrix_con: Array of contact pointers.
+ * @param *matrix_rot: Array of contact pointer rotations.
+ * @param *matrix_comp: Array of contact compression lenghts.
+ * @param *matrix_twist: Array of contact twisting angles.
+ * @param *amon: Array of monomer radii.
+ * @param *mat: Array of material parameters.
+ * @param *matIDs: Array of material IDs.
+ * @param Nmon: Number of monomers.
+ */
 __global__ void gpu_updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3D* matrix_norm, quat* matrix_rot, double* matrix_comp, double* matrix_twist, double* amon, material* mat, int* matIDs, int Nmon)
 {
+    // Calculate the index of the current thread, this index is associated with a single monomer.
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
+    // Skip all threads that dont correnspond to a monomer.
     if (i < Nmon)
     {
+        // Iterate over all other monomers.
         for (int j = 1; j < Nmon; j++)
         {
             if (i == j)
                 continue;
-
+            
+            // Determine necessary values.
             vec3D pos_A = pos[i];
-            vec3D pos_B = pos[j];
+            vec3D pos_B = pos[j]; // FIXME: Memory race issues?
 
             int mat_id_A = matIDs[i];
             int mat_id_B = matIDs[j];
@@ -182,51 +229,54 @@ __global__ void gpu_updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, 
             int index_A = 0 * Nmon * Nmon + i * Nmon + j;
             int index_B = 1 * Nmon * Nmon + i * Nmon + j;
 
-            /*if (index_A > 2 * Nmon * Nmon)
-                int tt = 0;
-
-            if (index_B > 2 * Nmon * Nmon)
-                int tt = 0;*/
-
+            // Check if the monomers are close enough to be in contact.
             if (distance < contact_distance)
             {
-                //new connection is established
+                // Check if the monomers are allready marked as in contact.
                 if (matrix_comp[i * Nmon + j] == -1.)
                 {
                     vec3D n = gpu_vec3D_get_normal(pos_A, pos_B);
 
-                    // init. contact pointer
+                    // Initialize contact pointers
                     matrix_con[index_A].x = -n.x;
                     matrix_con[index_A].y = -n.y;
                     matrix_con[index_A].z = -n.z;
 
+                    // FIXME: Memory race issues!
                     matrix_con[index_B].x = n.x;
                     matrix_con[index_B].y = n.y;
                     matrix_con[index_B].z = n.z;
 
+                    // Initialize contact pointer rotation.
                     matrix_rot[index_A].e0 = 1;
                     matrix_rot[index_A].e1 = 0;
                     matrix_rot[index_A].e2 = 0;
                     matrix_rot[index_A].e3 = 0;
 
+                    // FIXME: Memory race issues!
                     matrix_rot[index_B].e0 = 1;
                     matrix_rot[index_B].e1 = 0;
                     matrix_rot[index_B].e2 = 0;
                     matrix_rot[index_B].e3 = 0;
 
+                    // Initialize contact normal.
                     matrix_norm[i * Nmon + j].x = n.x;
                     matrix_norm[i * Nmon + j].x = n.y;
                     matrix_norm[i * Nmon + j].x = n.x;
 
-                    double compression_length = a_mon_A + a_mon_B - distance;
-
+                    // Initialize compression lenght.
+                    double compression_length = a_mon_A + a_mon_B - distance; // TODO: Redundand line.
                     matrix_comp[i * Nmon + j] = compression_length;
+
+                    // Initialize twisting angle.
                     matrix_twist[i * Nmon + j] = 0;
                 }
             }
 
+            // Check if monomers are far enough from each other to break contact.
             if (distance > breaking_dist)
             {
+                // Zero the contact pointers.
                 matrix_con[index_A].x = 0;
                 matrix_con[index_A].y = 0;
                 matrix_con[index_A].z = 0;
@@ -235,15 +285,32 @@ __global__ void gpu_updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, 
                 matrix_con[index_B].y = 0;
                 matrix_con[index_B].z = 0;
 
-                matrix_comp[i * Nmon + j] = -1.; //mark as disconnected
+                // TODO: What about contact normal and contact pointer rotation?
+
+                // Mark the monomer pair as disconnected.
+                matrix_comp[i * Nmon + j] = -1.;
+
+                // Zero the twisting angle.
                 matrix_twist[i * Nmon + j] = 0;
             }
         }
     }
 }
 
+/**
+ * @brief Rotates the contact pointers according to the contact pointer rotation matrix.
+ * 
+ * @param &n_A: // TODO: Determine what this is. Something to do with the quaternion rotation...
+ * @param &n_B: 
+ * @param *matrix_con: An array of contact pointers.
+ * @param *matrix_rot: An array of contact pointer rotations.
+ * @param i: Index of the first monomer.
+ * @param j: Index of the second monomer.
+ * @param Nmon: Number of monomers.
+ */
 inline void cpu_updateNormal(vec3D& n_A, vec3D& n_B, vec3D* matrix_con, quat* matrix_rot, int i, int j, int Nmon)
 {
+    // Determine the indices of the contact pointers and rotations in the matrices.
     int index_A = 0 * Nmon * Nmon + i * Nmon + j;
     int index_B = 1 * Nmon * Nmon + i * Nmon + j;
 
@@ -252,6 +319,7 @@ inline void cpu_updateNormal(vec3D& n_A, vec3D& n_B, vec3D* matrix_con, quat* ma
 
     vec3D init_n_A, init_n_B;
 
+    // Perform quaternion rotation on the contact pointers according to the contact pointer rotation matrix.
     init_n_A.x = 2.0 * ((0.5 - rot_A.e2 * rot_A.e2 - rot_A.e3 * rot_A.e3) * n_A.x + (rot_A.e1 * rot_A.e2 + rot_A.e3 * rot_A.e0) * n_A.y + (rot_A.e1 * rot_A.e3 - rot_A.e2 * rot_A.e0) * n_A.z);
     init_n_A.y = 2.0 * ((rot_A.e1 * rot_A.e2 - rot_A.e3 * rot_A.e0) * n_A.x + (0.5 - rot_A.e1 * rot_A.e1 - rot_A.e3 * rot_A.e3) * n_A.y + (rot_A.e2 * rot_A.e3 + rot_A.e1 * rot_A.e0) * n_A.z);
     init_n_A.z = 2.0 * ((rot_A.e1 * rot_A.e3 + rot_A.e2 * rot_A.e0) * n_A.x + (rot_A.e2 * rot_A.e3 - rot_A.e1 * rot_A.e0) * n_A.y + (0.5 - rot_A.e1 * rot_A.e1 - rot_A.e2 * rot_A.e2) * n_A.z);
@@ -260,6 +328,7 @@ inline void cpu_updateNormal(vec3D& n_A, vec3D& n_B, vec3D* matrix_con, quat* ma
     init_n_B.y = 2.0 * ((rot_B.e1 * rot_B.e2 - rot_B.e3 * rot_B.e0) * n_B.x + (0.5 - rot_B.e1 * rot_B.e1 - rot_B.e3 * rot_B.e3) * n_B.y + (rot_B.e2 * rot_B.e3 + rot_B.e1 * rot_B.e0) * n_B.z);
     init_n_B.z = 2.0 * ((rot_B.e1 * rot_B.e3 + rot_B.e2 * rot_B.e0) * n_B.x + (rot_B.e2 * rot_B.e3 - rot_B.e1 * rot_B.e0) * n_B.y + (0.5 - rot_B.e1 * rot_B.e1 - rot_B.e2 * rot_B.e2) * n_B.z);
 
+    // Store the rotated contact pointers.
     matrix_con[index_A].x = init_n_A.x;
     matrix_con[index_A].y = init_n_A.y;
     matrix_con[index_A].z = init_n_A.z;
@@ -269,14 +338,27 @@ inline void cpu_updateNormal(vec3D& n_A, vec3D& n_B, vec3D* matrix_con, quat* ma
     matrix_con[index_B].z = init_n_B.z;
 }
 
+/**
+ * @brief Rotates the contact pointers according to the contact pointer rotation matrix.
+ * 
+ * @param &n_A: // TODO: Determine what this is. Something to do with the quaternion rotation...
+ * @param &n_B: 
+ * @param *matrix_con: An array of contact pointers.
+ * @param *matrix_rot: An array of contact pointer rotations.
+ * @param i: Index of the first monomer.
+ * @param j: Index of the second monomer.
+ * @param Nmon: Number of monomers.
+ */
 __device__ void gpu_updateNormal(vec3D& n_A, vec3D& n_B, vec3D* matrix_con, quat* matrix_rot, int i, int j, int Nmon)
 {
+    // Determine the indices of the contact pointers and rotations in the matrices.
     int index_A = 0 * Nmon * Nmon + i * Nmon + j;
     int index_B = 1 * Nmon * Nmon + i * Nmon + j;
 
     quat rot_A = matrix_rot[index_A];
     quat rot_B = matrix_rot[index_B];
 
+    // Perform quaternion based rotation on the contact pointers.
     vec3D init_n_A, init_n_B;
 
     init_n_A.x = 2.0 * ((0.5 - rot_A.e2 * rot_A.e2 - rot_A.e3 * rot_A.e3) * n_A.x + (rot_A.e1 * rot_A.e2 + rot_A.e3 * rot_A.e0) * n_A.y + (rot_A.e1 * rot_A.e3 - rot_A.e2 * rot_A.e0) * n_A.z);
@@ -287,6 +369,7 @@ __device__ void gpu_updateNormal(vec3D& n_A, vec3D& n_B, vec3D* matrix_con, quat
     init_n_B.y = 2.0 * ((rot_B.e1 * rot_B.e2 - rot_B.e3 * rot_B.e0) * n_B.x + (0.5 - rot_B.e1 * rot_B.e1 - rot_B.e3 * rot_B.e3) * n_B.y + (rot_B.e2 * rot_B.e3 + rot_B.e1 * rot_B.e0) * n_B.z);
     init_n_B.z = 2.0 * ((rot_B.e1 * rot_B.e3 + rot_B.e2 * rot_B.e0) * n_B.x + (rot_B.e2 * rot_B.e3 - rot_B.e1 * rot_B.e0) * n_B.y + (0.5 - rot_B.e1 * rot_B.e1 - rot_B.e2 * rot_B.e2) * n_B.z);
 
+    // Store the results.
     matrix_con[index_A].x = init_n_A.x;
     matrix_con[index_A].y = init_n_A.y;
     matrix_con[index_A].z = init_n_A.z;
@@ -296,61 +379,110 @@ __device__ void gpu_updateNormal(vec3D& n_A, vec3D& n_B, vec3D* matrix_con, quat
     matrix_con[index_B].z = init_n_B.z;
 }
 
+/**
+ * @brief Updates the monomer positions based on current velocity and force.
+ * 
+ * @param *pos_old: The old positions array.
+ * @param *pos_new: The new positions array.
+ * @param *force_old: The old forces array.
+ * @param *vel: The array of monomer velocities.
+ * @param *double: An array of monomer masses.
+ * @param time_step: The timestep of the simulation.
+ * @param Nmon: The number of monomers.
+ */
 inline void cpu_predictor(vec3D* pos_old, vec3D* pos_new, vec3D* force_old, vec3D* vel, double* mass, double time_step, int Nmon)
 {
+    // Iterate over the monomers.
     for (int i = 0; i < Nmon; i++)
     {
         double mass_inv = 1. / mass[i];
 
+        // TODO: Understand why force plays a role here...
+        // Update the monomer positions.
         pos_new[i].x = pos_old[i].x + time_step * vel[i].x + 0.5 * mass_inv * time_step * time_step * force_old[i].x;
         pos_new[i].y = pos_old[i].y + time_step * vel[i].y + 0.5 * mass_inv * time_step * time_step * force_old[i].y;
         pos_new[i].z = pos_old[i].z + time_step * vel[i].z + 0.5 * mass_inv * time_step * time_step * force_old[i].z;
     }
 }
 
+/**
+ * @brief Updates a monomers position based on its current velocity and force.
+ * 
+ * @param *pos_old: The old positions array.
+ * @param *pos_new: The new positions array.
+ * @param *force_old: The old forces array.
+ * @param *vel: The array of monomer velocities.
+ * @param *double: An array of monomer masses.
+ * @param time_step: The timestep of the simulation.
+ * @param Nmon: The number of monomers.
+ */
 __global__ void gpu_predictor(vec3D* pos_old, vec3D* pos_new, vec3D* force_old, vec3D* vel, double* mass, double time_step, int Nmon)
 {
+    // Determines the index of the current thread, which is associated with a single monomer.
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
+    // Skip all threads that dont correspond to a monomer.
     if (i < Nmon)
     {
         double mass_inv = 1. / mass[i];
 
+        // Update the position of the monomer.
         pos_new[i].x = pos_old[i].x + time_step * vel[i].x + 0.5 * mass_inv * time_step * time_step * force_old[i].x;
         pos_new[i].y = pos_old[i].y + time_step * vel[i].y + 0.5 * mass_inv * time_step * time_step * force_old[i].y;
         pos_new[i].z = pos_old[i].z + time_step * vel[i].z + 0.5 * mass_inv * time_step * time_step * force_old[i].z;
     }
 }
 
-
+/**
+ * @brief Updates velocity, angular velocity and magnetization.
+ * 
+ * @param *force_old: Array of old forces.
+ * @param *force_new: Array of new forces.
+ * @param *torque_old: Array of old torques.
+ * @param *torque_new: Array of new torques.
+ * @param *dMdt_old: Array of old change in magnetization.
+ * @param *dMdt_new: Array of new change in magnetization.
+ * @param *vel: Array of velocities.
+ * @param *omega: Array of angular velocities.
+ * @param *omega_tot: Array of total angular velocities due to rotation and curved trajectories.
+ * @param *mag: Array of magnetizations.
+ * @param *mass: Array of monomer masses.
+ * @param *moment: Array of monomer moments of inertia.
+ * @param *mat: Array of materials.
+ * @param *int: Array of material IDs of materials.
+ * @param time_step: The timestep of the simulation.
+ * @param Nmon: The number of monomers.
+ */
 inline void cpu_corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_old, vec3D* torque_new, vec3D* dMdt_old, vec3D* dMdt_new, vec3D* vel, vec3D* omega, vec3D* omega_tot, vec3D* mag, double* mass, double* moment, material* mat, int* matIDs, double time_step, int Nmon)
 {
+    // Iterate over the monomers.
     for (int i = 0; i < Nmon; i++)
     {
         double mass_inv = 1. / mass[i];
         double moment_of_inertia_inv = 1. / moment[i];
 
-        vec3D acc;//acceleration
+        // Calculate the acceleration of the monomer
+        vec3D acc;
 
         acc.x = 0.5 * mass_inv * (force_new[i].x + force_old[i].x);
         acc.y = 0.5 * mass_inv * (force_new[i].y + force_old[i].y);
         acc.z = 0.5 * mass_inv * (force_new[i].z + force_old[i].z);
 
-        //vel[i].x += 0.5 * mass_inv * time_step * (force_new[i].x + force_old[i].x);
-        //vel[i].y += 0.5 * mass_inv * time_step * (force_new[i].y + force_old[i].y);
-        //vel[i].z += 0.5 * mass_inv * time_step * (force_new[i].z + force_old[i].z);
-
+        // Update the velocities.
         vel[i].x += acc.x * time_step;
         vel[i].y += acc.y * time_step;
         vel[i].z += acc.z * time_step;
 
+        // Update the angular momenta.
         omega[i].x += 0.5 * moment_of_inertia_inv * time_step * (torque_new[i].x + torque_old[i].x);
         omega[i].y += 0.5 * moment_of_inertia_inv * time_step * (torque_new[i].y + torque_old[i].y);
         omega[i].z += 0.5 * moment_of_inertia_inv * time_step * (torque_new[i].z + torque_old[i].z);
 
+        // Determine the curvature of the trajectory.
         double v_sq = cpu_vec3D_length_sq(vel[i]);
         vec3D cross = cpu_vec3D_cross(vel[i], acc);
 
+        // Update the total angular momentum.
         if (v_sq > 0)
         {
             omega_tot[i].x = omega[i].x + cross.x / v_sq;
@@ -364,30 +496,35 @@ inline void cpu_corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_old,
             omega_tot[i].z = omega[i].z;
         }
 
+        // Update the magnetization.
         int mat_id = matIDs[i];
         double chi = mat[mat_id].chi;
         double Msat = mat[mat_id].Msat;
 
         if (abs(chi) > 0) //magnetic material
         {
+            // Update the magnetization
             mag[i].x += 0.5 * time_step * (dMdt_new[i].x + dMdt_old[i].x);
             mag[i].y += 0.5 * time_step * (dMdt_new[i].y + dMdt_old[i].y);
             mag[i].z += 0.5 * time_step * (dMdt_new[i].z + dMdt_old[i].z);
 
+            // Ensure the magnetization abides by saturation magnetization.
             double len_mag = cpu_vec3D_length(mag[i]);
 
             if (len_mag > 0)
             {
-                if (abs(chi) > LIMIT_FER) //re-scale ferromagnetic material to Msat
+                if (abs(chi) > LIMIT_FER) // Ferromagnetic materials.
                 {
+                    // Rescale magnetization to saturation magnetization.
                     mag[i].x = Msat * mag[i].x / len_mag;
                     mag[i].y = Msat * mag[i].y / len_mag;
                     mag[i].z = Msat * mag[i].z / len_mag;
                 }
-                else
+                else // Non ferromagnetic materials.
                 {
-                    if (len_mag > Msat) //rescale current mag. if saturation is reached
+                    if (len_mag > Msat)
                     {
+                        // Rescale magnetization to saturation magnetization if it exceeds it.
                         mag[i].x = Msat * mag[i].x / len_mag;
                         mag[i].y = Msat * mag[i].y / len_mag;
                         mag[i].z = Msat * mag[i].z / len_mag;
@@ -398,36 +535,59 @@ inline void cpu_corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_old,
     }
 }
 
+/**
+ * @brief Updates velocity, angular velocity and magnetization of a single monomer.
+ * 
+ * @param *force_old: Array of old forces.
+ * @param *force_new: Array of new forces.
+ * @param *torque_old: Array of old torques.
+ * @param *torque_new: Array of new torques.
+ * @param *dMdt_old: Array of old change in magnetization.
+ * @param *dMdt_new: Array of new change in magnetization.
+ * @param *vel: Array of velocities.
+ * @param *omega: Array of angular velocities.
+ * @param *omega_tot: Array of total angular velocities due to rotation and curved trajectories.
+ * @param *mag: Array of magnetizations.
+ * @param *mass: Array of monomer masses.
+ * @param *moment: Array of monomer moments of inertia.
+ * @param *mat: Array of materials.
+ * @param *int: Array of material IDs of materials.
+ * @param time_step: The timestep of the simulation.
+ * @param Nmon: The number of monomers.
+ */
 __global__ void gpu_corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_old, vec3D* torque_new, vec3D* dMdt_old, vec3D* dMdt_new, vec3D* vel, vec3D* omega, vec3D* omega_tot, vec3D* mag, double* mass, double* moment, material* mat, int* matIDs, double time_step, int Nmon)
 {
+    // Determine thread index which corrensponds to a single monomer.
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
+    // Skips indices which do not correnspond to a monomer.
     if (i < Nmon)
     {
         double mass_inv = 1. / mass[i];
         double moment_of_inertia_inv = 1. / moment[i];
 
-        vec3D acc;//acceleration
+        // Calculate the acceleration.
+        vec3D acc;
 
         acc.x = 0.5 * mass_inv * (force_new[i].x + force_old[i].x);
         acc.y = 0.5 * mass_inv * (force_new[i].y + force_old[i].y);
         acc.z = 0.5 * mass_inv * (force_new[i].z + force_old[i].z);
 
-        //vel[i].x += 0.5 * mass_inv * time_step * (force_new[i].x + force_old[i].x);
-        //vel[i].y += 0.5 * mass_inv * time_step * (force_new[i].y + force_old[i].y);
-        //vel[i].z += 0.5 * mass_inv * time_step * (force_new[i].z + force_old[i].z);
-
+        // Update the velocity.
         vel[i].x += acc.x * time_step;
         vel[i].y += acc.y * time_step;
         vel[i].z += acc.z * time_step;
 
+        // Update the angular momentum.
         omega[i].x += 0.5 * moment_of_inertia_inv * time_step * (torque_new[i].x + torque_old[i].x);
         omega[i].y += 0.5 * moment_of_inertia_inv * time_step * (torque_new[i].y + torque_old[i].y);
         omega[i].z += 0.5 * moment_of_inertia_inv * time_step * (torque_new[i].z + torque_old[i].z);
 
+        // Calculate the trajectories curvature.
         double v_sq = gpu_vec3D_length_sq(vel[i]);
         vec3D cross = gpu_vec3D_cross(vel[i], acc);
 
+        // Calculate the total angular momentum.
         if (v_sq > 0)
         {
             omega_tot[i].x = omega[i].x + cross.x / v_sq;
@@ -441,12 +601,14 @@ __global__ void gpu_corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_
             omega_tot[i].z = omega[i].z;
         }
 
+        // Update the magnetization.
         int mat_id = matIDs[i];
         double chi = mat[mat_id].chi;
         double Msat = mat[mat_id].Msat;
 
-        if (abs(chi) > 0) //magnetic material
+        if (abs(chi) > 0)
         {
+            // Update the magnetization.
             mag[i].x += 0.5 * time_step * (dMdt_new[i].x + dMdt_old[i].x);
             mag[i].y += 0.5 * time_step * (dMdt_new[i].y + dMdt_old[i].y);
             mag[i].z += 0.5 * time_step * (dMdt_new[i].z + dMdt_old[i].z);
@@ -455,15 +617,17 @@ __global__ void gpu_corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_
 
             if (len_mag > 0)
             {
-                if (abs(chi) > LIMIT_FER) //re-scale ferromagnetic material to Msat
+                if (abs(chi) > LIMIT_FER) // Ferromagnetic materials.
                 {
+                    // Rescale the magnetization to the saturation magnetization.
                     mag[i].x = Msat * mag[i].x / len_mag;
                     mag[i].y = Msat * mag[i].y / len_mag;
                     mag[i].z = Msat * mag[i].z / len_mag;
                 }
-                else
+                else // Non ferromagnetic materials.
                 {
-                    if (len_mag > Msat) //rescale current mag. if saturation is reached
+                    // Rescale the magnetization to saturation magnetization if it is exceeded.
+                    if (len_mag > Msat)
                     {
                         mag[i].x = Msat * mag[i].x / len_mag;
                         mag[i].y = Msat * mag[i].y / len_mag;
@@ -475,6 +639,18 @@ __global__ void gpu_corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_
     }
 }
 
+/**
+ * @brief Exchanges the old pointers for position, force, torque and magnetization change with the new.
+ * 
+ * @param *&pos_old: The old positions array.
+ * @param *&pos_new: The new positions array.
+ * @param *&force_old: The old forces array.
+ * @param *&force_new: The new forces array.
+ * @param *&torque_old: The old torques array.
+ * @param *&torque_new: The new torques array.
+ * @param *&dMdt_old: The old changes in magnetization array.
+ * @param *&dMdt_new: The new changes in magnetization array.
+ */
 inline void switch_pointer(vec3D*& pos_old, vec3D*& pos_new, vec3D*& force_old, vec3D*& force_new, vec3D*& torque_old, vec3D*& torque_new, vec3D*& dMdt_old, vec3D*& dMdt_new)
 {
     vec3D* temp;
@@ -496,6 +672,18 @@ inline void switch_pointer(vec3D*& pos_old, vec3D*& pos_new, vec3D*& force_old, 
     dMdt_new = temp;
 }
 
+/**
+ * @brief Exchanges the old pointers for position, force, torque and magnetization change with the new.
+ * 
+ * @param *&pos_old: The old positions array.
+ * @param *&pos_new: The new positions array.
+ * @param *&force_old: The old forces array.
+ * @param *&force_new: The new forces array.
+ * @param *&torque_old: The old torques array.
+ * @param *&torque_new: The new torques array.
+ * @param *&dMdt_old: The old changes in magnetization array.
+ * @param *&dMdt_new: The new changes in magnetization array.
+ */
 __device__ void gpu_switch_pointer(vec3D*& pos_old, vec3D*& pos_new, vec3D*& force_old, vec3D*& force_new, vec3D*& torque_old, vec3D*& torque_new, vec3D*& dMdt_old, vec3D*& dMdt_new)
 {
     vec3D* temp;
@@ -517,8 +705,22 @@ __device__ void gpu_switch_pointer(vec3D*& pos_old, vec3D*& pos_new, vec3D*& for
     dMdt_new = temp;
 }
 
+/**
+ * @brief
+ * 
+ * @param *omega: Array of the angular momenta.
+ * @param *omega_tot: Array of the total angular momenta (self rotation + curved trajectory).
+ * @param *torque: Array of the torques.
+ * @param *mag: Array of the magnetizations.
+ * @param *matrix_rot: Array of the contact pointer rotations.
+ * @param *matrix_comp: Array of the contact compression lenghts.
+ * @param *moment: Array of the moments of inertia.
+ * @param Nmon: Number of monomers.
+ * @param time_step: The timestep of the simulation.
+ */
 inline void cpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque, vec3D* mag, quat* matrix_rot, double* matrix_comp, double* moment, int Nmon, double time_step)
 {
+    // Iterate over the monomers.
     for (int i = 0; i < Nmon; i++)
     {
         vec3D omega_A;
