@@ -1965,6 +1965,13 @@ public:
         return true;
     };
 
+    /**
+     * @brief Saves a list of doubles into the ouput directory.
+     * 
+     * @param name_file: The name of the file.
+     * @param *data: An array of doubles that is to be saved.
+     * @param N: // TODO: Determine what exactly this is.
+     */
     bool writeBinaryDouble(string name_file, const double* data, ullong N)
     {
         string path_tmp = path_binary + name_file;
@@ -1987,6 +1994,13 @@ public:
         return true;
     };
 
+    /**
+     * @brief Saves a list of integers into the ouput directory.
+     * 
+     * @param name_file: The name of the file.
+     * @param *data: An array of doubles that is to be saved.
+     * @param N: // TODO: Determine what exactly this is.
+     */
     bool writeBinaryInt(string name_file, const int* data, ullong N)
     {
         string path_tmp = path_binary + name_file;
@@ -2009,21 +2023,22 @@ public:
         return true;
     };
 
-
     //getter and setter
     ullong getNIter() { return N_iter; }
     ullong getNSave() { return N_save; }
 
     double getTimeStep() { return time_step; };
+
 private:
+    /**
+     * @brief Creates a directory.
+     * 
+     * @param path: The path of the directory.
+     * @return True if success, False if failure.
+     */
     bool createPath(string path) 
     {
-        /*cout << path << endl;
-
-        path = "F:\\test\\";
-        cout << path << endl;*/
-
-#ifdef _WIN32
+        #ifdef _WIN32
         // Windows-specific 
         if (_mkdir(path.c_str()) == 0)
         {
@@ -2068,14 +2083,14 @@ private:
                 }
             }
         }
-#elif __linux__
-        // Linux-specific 
+        #elif __linux__
+        // This function creates the directory with full permissions for everyone. // TODO: Restrict permissions?
         if (mkdir(path.c_str(), S_IRWXU | S_IRWXG | S_IRWXO) == 0)
         {
             cout << "Directory created successfully on Linux:\n\t" << path << std::endl;
             return true;
-    }
-        else
+        } 
+        else 
         {
             if (errno == EEXIST)
             {
@@ -2083,11 +2098,14 @@ private:
                 return true;
             }
             else
+            {
                 cout << "Failed to create directory on Linux: " << strerror(errno) << std::endl;
+            }
         }
-#else
+        #else
         cout << "Unsupported OS" << std::endl;
-#endif
+        #endif
+        
         return false;
     };
 
