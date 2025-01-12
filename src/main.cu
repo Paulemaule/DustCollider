@@ -25,28 +25,35 @@ int main(const int argc, const char** argv)
 
     auto start = high_resolution_clock::now();
 
+    // Check command line input for command file.
     if (!pipeline.init(argc, argv))
         return -1;
 
+    // Read the command file.
     if (!pipeline.parse())
         return -1;
 
+    // Check run parametes and create output directories.
     if (!pipeline.checkParameters())
         return -1;
 
-    material* mat = 0;
-    material* buff_mat = 0;
+    // FIXME: Change nullpointers to 'nullptr' and check for dangling pointers.
+    material* mat = 0;          // An array containing the material parameters.
+    material* buff_mat = 0;     // An array containing the material parameters in GPU memory.
 
-    int Nmat = 0;
+    int Nmat = 0;               // The number of materials.
 
+    // Reading and preparing the material parameters.
     pipeline.prepareMaterial(mat, Nmat);
 
     cudaMalloc(&buff_mat, Nmat * sizeof(material));
 
-    vec3D* vel = 0;
-    vec3D* omega = 0;     //angular velocity due to monomer spin
-    vec3D* omega_tot = 0; //angular velocity due to monomer spin + curved trajectory
-    vec3D* mag = 0;
+    // Definition of variables.
+    vec3D* vel = 0;                 // An array of the monomer velocities.
+    // FIXME: This is unphysical ?
+    vec3D* omega = 0;               // An array of the monomer angular velocities due to self rotation.
+    vec3D* omega_tot = 0;           // An array of the monomer angular velocities due to self rotation and curved trajectories.
+    vec3D* mag = 0;                 // An array of the monomer magnetizations.
 
     vec3D* pos_old = 0;
     vec3D* pos_new = 0;
@@ -73,86 +80,82 @@ int main(const int argc, const char** argv)
     vec3D* buff_dMdt_old = 0;
     vec3D* buff_dMdt_new = 0;
 
+    vec3D* storage_pos = 0;         // Array of monomer position that are to be stored after simulation.
+    vec3D* storage_vel = 0;         // Array of monomer velocities that are to be stored after simulation.
+    vec3D* storage_force = 0;       // Array of monomer forces that are to be stored after simulation.
+    vec3D* storage_torque = 0;      // Array of monomer torques that are to be stored after simulation.
+    vec3D* storage_omega = 0;       // Array of monomer angular velocities that are to be stored after simulation.
+    vec3D* storage_mag = 0;         // Array of monomer magnetizations that are to be stored after simulation.
+    int* storage_cluster = 0;       // Array of monomer (// TODO: ?) that are to be stored after simulation.
 
-    vec3D* storage_pos = 0;
-    vec3D* storage_vel = 0;
-    vec3D* storage_force = 0;
-    vec3D* storage_torque = 0;
-    vec3D* storage_omega = 0;
-    vec3D* storage_mag = 0;
-    int* storage_cluster = 0;
+    vec3D* matrix_con = 0;          // contact pointer between monomers
+    vec3D* matrix_norm = 0;         // normal vectors between monomers
+    quat* matrix_rot = 0;           // contact pointer rotation direction
+    double* matrix_comp = 0;        // old compression lengths, also used to track connection
+    double* matrix_twist = 0;       // old twisting displacement
 
-    vec3D* matrix_con = 0; //contact pointer between monomers
-    vec3D* matrix_norm = 0; //normal vectors between monomers
-    quat* matrix_rot = 0; //contact pointer rotation direction
-    double* matrix_comp = 0; //old compression lengths, also used to track connection
-    double* matrix_twist = 0; //old twisting displacement
+    vec3D* buff_matrix_con = 0;     // GPU contact pointer
+    vec3D* buff_matrix_norm = 0;    // GPU normal vectors
+    quat* buff_matrix_rot = 0;      // GPU contact pointer rotation
+    double* buff_matrix_comp = 0;   // GPU old compression lenghts
+    double* buff_matrix_twist = 0;  // GPU old twisting displacement
 
-    vec3D* buff_matrix_con = 0;
-    vec3D* buff_matrix_norm = 0;
-    quat* buff_matrix_rot = 0;
-    double* buff_matrix_comp = 0;
-    double* buff_matrix_twist = 0;
+    int* matIDs = 0;                // material IDs
+    double* amon = 0;               // Monomer radii
+    double* moment = 0;             // Monomer moments of inertia
+    double* mass = 0;               // Monomer masses
+    int* clusterIDs = 0;            // Monomer cluster membership
 
-    int* matIDs = 0;
-    double* amon = 0;
-    double* moment = 0;
-    double* mass = 0;
-    int* clusterIDs = 0;
-
-    int* buff_matIDs = 0;
-    double* buff_amon = 0;
-    double* buff_moment = 0;
-    double* buff_mass = 0;
+    int* buff_matIDs = 0;           // GPU material IDs
+    double* buff_amon = 0;          // GPU monomer radii
+    double* buff_moment = 0;        // GPU monomer moments of inertia
+    double* buff_mass = 0;          // GPU monomer masses
     
-    int Nmon = 0;
+    int Nmon = 0;                   // Number of monomers
 
+    // Read the aggregate files and initialize the state.
     pipeline.prepareData(pos_old, vel, omega_tot, mag, amon, mass, moment, matIDs, Nmon);
+
+    // Print run summary.
     pipeline.printParameters();
 
+    // Initialize the vectors.
     omega = new vec3D[Nmon];
-
     pos_new = new vec3D[Nmon];
-
     force_old = new vec3D[Nmon];
     force_new = new vec3D[Nmon];
-
     torque_old = new vec3D[Nmon];
     torque_new = new vec3D[Nmon];
-
     dMdt_old = new vec3D[Nmon];
     dMdt_new = new vec3D[Nmon];
 
+    // Sets the values of the vectors in CPU memory to 0
     memset(omega, 0, Nmon * sizeof(vec3D));
-
     memset(pos_new, 0, Nmon * sizeof(vec3D));
-
     memset(force_old, 0, Nmon * sizeof(vec3D));
     memset(force_new, 0, Nmon * sizeof(vec3D));
-
     memset(torque_old, 0, Nmon * sizeof(vec3D));
     memset(torque_new, 0, Nmon * sizeof(vec3D));
-
     memset(dMdt_old, 0, Nmon * sizeof(vec3D));
     memset(dMdt_new, 0, Nmon * sizeof(vec3D));
 
+    // Allocate memory in the GPU
     cudaMalloc(&buff_vel, Nmon*sizeof(vec3D));
     cudaMalloc(&buff_omega, Nmon*sizeof(vec3D));
     cudaMalloc(&buff_omega_tot, Nmon*sizeof(vec3D));
     cudaMalloc(&buff_mag, Nmon*sizeof(vec3D));
-
     cudaMalloc(&buff_pos_old, Nmon*sizeof(vec3D));
     cudaMalloc(&buff_pos_new, Nmon*sizeof(vec3D));
     cudaMalloc(&buff_force_old, Nmon*sizeof(vec3D));
     cudaMalloc(&buff_force_new, Nmon*sizeof(vec3D));
     cudaMalloc(&buff_torque_old, Nmon*sizeof(vec3D));
     cudaMalloc(&buff_torque_new, Nmon*sizeof(vec3D));
-
     cudaMalloc(&buff_dMdt_old, Nmon*sizeof(vec3D));
     cudaMalloc(&buff_dMdt_new, Nmon*sizeof(vec3D));
 
-    int Ncon = Nmon * Nmon;
+    int Ncon = Nmon * Nmon; // Square of the number of monomers Nmon^2.
 
+    // Initialize the matrices.
     matrix_con = new vec3D[2 * Ncon];
     matrix_rot = new quat[2 * Ncon];
     matrix_norm = new vec3D[Ncon];
@@ -170,19 +173,19 @@ int main(const int argc, const char** argv)
     cudaMalloc(&buff_matrix_norm, Ncon * sizeof(vec3D));
     cudaMalloc(&buff_matrix_comp, Ncon * sizeof(double));
     cudaMalloc(&buff_matrix_twist, Ncon * sizeof(double));
-
     cudaMalloc(&buff_matIDs, Nmon * sizeof(int));
     cudaMalloc(&buff_amon, Nmon * sizeof(double));
     cudaMalloc(&buff_moment, Nmon * sizeof(double));
     cudaMalloc(&buff_mass, Nmon * sizeof(double));
 
+    // Get some run parameters.
     ullong N_iter = pipeline.getNIter();
     ullong N_save = pipeline.getNSave();
     double time_step = pipeline.getTimeStep();
     bool save_ovito = pipeline.saveOvito();
     vec3D B_ext = pipeline.getBext();
 
-    int N_store = 0;
+    int N_store = 0; // The number of individual monomer states that need to be stored.
 
     if (N_save > 0)
     {
@@ -234,42 +237,27 @@ int main(const int argc, const char** argv)
         }
     }
 
-    int nBlocks = (Nmon + BLOCK_SIZE + 1) / BLOCK_SIZE;
+    // Calculate the number of blocks
+    int nBlocks = (Nmon + BLOCK_SIZE + 1) / BLOCK_SIZE; // FIXME: This should be Nmon + BLOCK_SIZE - 1
 
-    /* 
-    
-    vec3D* buff_force_old = 0;
-    vec3D* buff_force_new = 0;
-    vec3D* buff_torque_old = 0;
-    vec3D* buff_torque_new = 0;
-
-    vec3D* buff_dMdt_old = 0;
-    vec3D* buff_dMdt_new = 0;*/
-
+    // Copy memory into GPU
     cudaMemcpy(buff_mat, mat, Nmat * sizeof(material), cudaMemcpyHostToDevice);
-
     cudaMemcpy(buff_pos_old, pos_old, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
     cudaMemcpy(buff_pos_new, pos_new, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
-
     cudaMemcpy(buff_force_old, force_old, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
     cudaMemcpy(buff_force_new, force_new, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
-
     cudaMemcpy(buff_torque_old, torque_old, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
     cudaMemcpy(buff_torque_new, torque_new, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
-
     cudaMemcpy(buff_dMdt_old, dMdt_old, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
     cudaMemcpy(buff_dMdt_new, dMdt_new, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
-
     cudaMemcpy(buff_vel, vel, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
     cudaMemcpy(buff_omega, omega, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
     cudaMemcpy(buff_omega_tot, omega_tot, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
     cudaMemcpy(buff_mag, mag, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
-
     cudaMemcpy(buff_matIDs, matIDs, Nmon * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(buff_amon, amon, Nmon * sizeof(double), cudaMemcpyHostToDevice);
     cudaMemcpy(buff_moment, moment, Nmon * sizeof(double), cudaMemcpyHostToDevice);
     cudaMemcpy(buff_mass, mass, Nmon * sizeof(double), cudaMemcpyHostToDevice);
-
     cudaMemcpy(buff_matrix_con, matrix_con, Ncon * sizeof(vec3D), cudaMemcpyHostToDevice);
     cudaMemcpy(buff_matrix_rot, matrix_rot, Ncon * sizeof(quat), cudaMemcpyHostToDevice);
     cudaMemcpy(buff_matrix_norm, matrix_norm, Ncon * sizeof(vec3D), cudaMemcpyHostToDevice);
@@ -278,9 +266,10 @@ int main(const int argc, const char** argv)
 
     ullong counter_save = 0;
 
-    for (ullong iter = 0; iter < N_iter; iter++)
+    // THE MAIN SIMULATION LOOP
+    for (ullong iter = 0; iter < N_iter; iter++) // The simulation iteration count
     {
-#ifdef RUN_ON_GPU
+        #ifdef RUN_ON_GPU
 
         gpu_predictor << < nBlocks, BLOCK_SIZE >> > (buff_pos_old, buff_pos_new, buff_force_old, buff_vel, buff_mass, time_step, Nmon);
         cudaDeviceSynchronize();
@@ -288,7 +277,6 @@ int main(const int argc, const char** argv)
         gpu_updateNeighbourhoodRelations << < nBlocks, BLOCK_SIZE >> >  (buff_pos_new, buff_matrix_con, buff_matrix_norm, buff_matrix_rot,
                                 buff_matrix_comp, buff_matrix_twist, buff_amon, buff_mat, buff_matIDs, Nmon);
         cudaDeviceSynchronize();
-
 
         gpu_updateContacts << < nBlocks, BLOCK_SIZE >> >  (buff_omega, buff_omega_tot, buff_torque_old, buff_mag, buff_matrix_rot, buff_matrix_comp, buff_moment, Nmon, time_step);
         cudaDeviceSynchronize();
@@ -304,7 +292,8 @@ int main(const int argc, const char** argv)
         cudaDeviceSynchronize();
 
         switch_pointer(buff_pos_old, buff_pos_new, buff_force_old, buff_force_new, buff_torque_old, buff_torque_new, buff_dMdt_old, buff_dMdt_new);
-#else
+        
+        #else
         cpu_predictor(pos_old, pos_new, force_old, vel, mass, time_step, Nmon);
         cpu_updateNeighbourhoodRelations(pos_new, matrix_con, matrix_norm, matrix_rot, matrix_comp, matrix_twist, amon, mat, matIDs, Nmon);
         cpu_updateContacts(omega, omega_tot, torque_old, mag, matrix_rot, matrix_comp, moment, Nmon, time_step);
@@ -313,7 +302,9 @@ int main(const int argc, const char** argv)
         cpu_corrector(force_old, force_new, torque_old, torque_new, dMdt_old, dMdt_new, vel, omega, omega_tot, mag, mass, moment, mat, matIDs, time_step, Nmon);
 
         switch_pointer(pos_old, pos_new, force_old, force_new, torque_old, torque_new, dMdt_old, dMdt_new);
-#endif
+        #endif
+
+        // 
         if (N_save > 0)
         {
             if (iter % N_save == 0)
@@ -327,53 +318,53 @@ int main(const int argc, const char** argv)
                     return -1;
                 }
 
-                if (start_index < N_store) //just a failesave if there was a rounding error in N_store
+                if (start_index < N_store) //just a failsave if there was a rounding error in N_store
                 {
                     if (storage_pos != 0)
                     {
-#ifdef RUN_ON_GPU
+                        #ifdef RUN_ON_GPU
                         cudaMemcpy(pos_old, buff_pos_old, Nmon * sizeof(vec3D), cudaMemcpyDeviceToHost);
-#endif
+                        #endif
                         copy(pos_old, pos_old + Nmon, storage_pos + start_index);
                     }
 
                     if (storage_vel != 0)
                     {
-#ifdef RUN_ON_GPU
+                        #ifdef RUN_ON_GPU
                         cudaMemcpy(vel, buff_vel, Nmon * sizeof(vec3D), cudaMemcpyDeviceToHost);
-#endif
+                        #endif
                         copy(vel, vel + Nmon, storage_vel + start_index);
                     }
 
                     if (storage_force != 0)
                     {
-#ifdef RUN_ON_GPU
+                        #ifdef RUN_ON_GPU
                         cudaMemcpy(force_old, buff_force_old, Nmon * sizeof(vec3D), cudaMemcpyDeviceToHost);
-#endif
+                        #endif
                         copy(force_old, force_old + Nmon, storage_force + start_index);
                     }
 
                     if (storage_torque != 0)
                     {
-#ifdef RUN_ON_GPU
+                        #ifdef RUN_ON_GPU
                         cudaMemcpy(torque_old, buff_torque_old, Nmon * sizeof(vec3D), cudaMemcpyDeviceToHost);
-#endif
+                        #endif
                         copy(torque_old, torque_old + Nmon, storage_torque + start_index);
                     }
 
                     if (storage_omega != 0)
                     {
-#ifdef RUN_ON_GPU
+                        #ifdef RUN_ON_GPU
                         cudaMemcpy(omega_tot, buff_omega_tot, Nmon * sizeof(vec3D), cudaMemcpyDeviceToHost);
-#endif
+                        #endif
                         copy(omega_tot, omega_tot + Nmon, storage_omega + start_index);
                     }
 
                     if (storage_mag != 0)
                     {
-#ifdef RUN_ON_GPU
+                        #ifdef RUN_ON_GPU
                         cudaMemcpy(mag, buff_mag, Nmon * sizeof(vec3D), cudaMemcpyDeviceToHost);
-#endif
+                        #endif
                         copy(mag, mag + Nmon, storage_mag + start_index);
                     }
 
@@ -402,18 +393,16 @@ int main(const int argc, const char** argv)
 
         cout << "Writing simulation data:    \n" << flush;
 
-        // write ovito files
+        // Write ouput files
         if (save_ovito && storage_pos != 0)
         {
             if (!pipeline.writeAllOVITO(storage_pos, storage_vel, storage_force, storage_torque, storage_omega, storage_mag, storage_cluster, amon, matIDs, Nmon, N_store))
                 return -1;
         }
 
-        //write header
         if (!pipeline.writeHeader())
             return -1;
 
-        //write aggregate parameters
         if (!pipeline.writeBinaryDouble("agg_a_mon.bin", amon, Nmon))
             return -1;
 
@@ -426,7 +415,6 @@ int main(const int argc, const char** argv)
         if (!pipeline.writeBinaryInt("agg_matid_mon.bin", matIDs, Nmon))
             return -1;
 
-        // write simulation data
         if (storage_pos != 0)
         {
             if (!pipeline.writeBinaryVec("sim_pos.bin", storage_pos, N_store))
@@ -450,8 +438,9 @@ int main(const int argc, const char** argv)
                 return -1;
     }
 
-    cout << "-> Final clanup ...              \r" << flush;
+    cout << "-> Final cleanup ...              \r" << flush;
 
+    // Free allocated memory
     if (omega != 0)
         delete[] omega;
 
@@ -518,8 +507,6 @@ int main(const int argc, const char** argv)
     if (mat != 0)
         delete[] mat;
 
-
-
     if (storage_pos != 0)
         delete[] storage_pos;
 
@@ -577,8 +564,6 @@ int main(const int argc, const char** argv)
     auto elapsed = chrono::duration_cast<std::chrono::nanoseconds>(end - start);
     printf("Run time for %llu iterations : %.3f seconds.\n", N_iter, elapsed.count() * 1e-9);
     cout << SEP_LINE;
-
-    //cout << "All done\n";
 
     return 0;
 }
