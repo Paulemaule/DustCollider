@@ -298,10 +298,10 @@ __global__ void gpu_updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, 
 }
 
 /**
- * @brief Rotates the contact pointers according to the contact pointer rotation matrix.
+ * @brief Update the contact pointers (???).
  * 
- * @param &n_A: // TODO: Determine what this is. Something to do with the quaternion rotation...
- * @param &n_B: 
+ * @param &n_A: The current contact pointer of monomer A.
+ * @param &n_B: The current contact pointer of monomer B.
  * @param *matrix_con: An array of contact pointers.
  * @param *matrix_rot: An array of contact pointer rotations.
  * @param i: Index of the first monomer.
@@ -339,10 +339,10 @@ inline void cpu_updateNormal(vec3D& n_A, vec3D& n_B, vec3D* matrix_con, quat* ma
 }
 
 /**
- * @brief Rotates the contact pointers according to the contact pointer rotation matrix.
+ * @brief Update the contact pointers (???).
  * 
- * @param &n_A: // TODO: Determine what this is. Something to do with the quaternion rotation...
- * @param &n_B: 
+ * @param &n_A: The current contact pointer of monomer A.
+ * @param &n_B: The current contact pointer of monomer B.
  * @param *matrix_con: An array of contact pointers.
  * @param *matrix_rot: An array of contact pointer rotations.
  * @param i: Index of the first monomer.
@@ -706,7 +706,7 @@ __device__ void gpu_switch_pointer(vec3D*& pos_old, vec3D*& pos_new, vec3D*& for
 }
 
 /**
- * @brief
+ * @brief Corotates the magnetization and calculates the new rotation matrix for the contact pointers.
  * 
  * @param *omega: Array of the angular momenta.
  * @param *omega_tot: Array of the total angular momenta (self rotation + curved trajectory).
@@ -731,21 +731,25 @@ inline void cpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque, ve
         quat e_ddot;
         double temp = 0;
 
+        // Calculate change in angular momentum based on total torque
         omega_A_dot.x = moment_A_inv * torque[i].x;
         omega_A_dot.y = moment_A_inv * torque[i].y;
         omega_A_dot.z = moment_A_inv * torque[i].z;
 
+        // FIXME: This is unphysical, the rotation of the magnetization is tied to self rotation NOT trajectory curvature...
         omega_A.x = omega_tot[i].x;
         omega_A.y = omega_tot[i].y;
         omega_A.z = omega_tot[i].z;
 
         double len_mag = cpu_vec3D_length(mag[i]);
         double len_omega_A = cpu_vec3D_length(omega_A);
-        //double len_omega_A_dot = cpu_vec3D_length(omega_A_dot);//len_omega_A_dot
-
+        
+        // When both magnetization and total anuglar momentum are not zero.
         if (len_mag * len_omega_A > 0)
         {
             quat q_mag;
+
+            // Calculate a normalized magnetization.
             vec3D tmp_mag;
 
             tmp_mag.x = mag[i].x;
@@ -754,6 +758,7 @@ inline void cpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque, ve
 
             cpu_vec3D_normalize(tmp_mag);
 
+            // Corotate the magnetization based on the total angular momentum (// TODO: ?).
             q_mag.e0 = 0;
             q_mag.e1 = tmp_mag.x;
             q_mag.e2 = tmp_mag.y;
@@ -782,6 +787,7 @@ inline void cpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque, ve
 
             double len_tmp = cpu_vec3D_length(tmp_mag);
 
+            // FIXME: Enable the corotation of magnetization.
             /*if (len_tmp > 0)
             {
                 mag[i].x = len_mag * tmp_mag.x / len_tmp;
@@ -790,21 +796,20 @@ inline void cpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque, ve
             }*/
         }
 
+        // Iterate over all monomer pairs.
         for (int j = 1; j < Nmon; j++)
         {
             if (i == j)
                 continue;
 
+            // Skip unconnected particle pairs.
             if (matrix_comp[i * Nmon + j] == -1.)
                 continue;
-
-
-            //--- > Rotate contact pointer
 
             vec3D omega_B;
             vec3D omega_B_dot;
 
-
+            // Calculate the change in angular momentum due to torque for monomers A and B.
             omega_A_dot.x = moment_A_inv * torque[i].x;
             omega_A_dot.y = moment_A_inv * torque[i].y;
             omega_A_dot.z = moment_A_inv * torque[i].z;
@@ -823,13 +828,14 @@ inline void cpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque, ve
             omega_B.y = omega[j].y;
             omega_B.z = omega[j].z;
 
+            // Determine the index of the monomers in the contact matrices.
             int index_A = 0 * Nmon * Nmon + i * Nmon + j;
             int index_B = 1 * Nmon * Nmon + i * Nmon + j;
 
             quat rot_A = matrix_rot[index_A];
             quat rot_B = matrix_rot[index_B];
 
-            // first particle
+            // Determine contact pointer rotation quaternion for both monomers.
             e_dot.e0 = -0.5 * (rot_A.e1 * omega_A.x + rot_A.e2 * omega_A.y + rot_A.e3 * omega_A.z);
             e_dot.e1 = 0.5 * (rot_A.e0 * omega_A.x - rot_A.e2 * omega_A.z + rot_A.e3 * omega_A.y);
             e_dot.e2 = 0.5 * (rot_A.e0 * omega_A.y - rot_A.e3 * omega_A.x + rot_A.e1 * omega_A.z);
@@ -847,7 +853,6 @@ inline void cpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque, ve
             rot_A.e2 += time_step * e_dot.e2 + 0.5 * time_step * time_step * e_ddot.e2;
             rot_A.e3 += time_step * e_dot.e3 + 0.5 * time_step * time_step * e_ddot.e3;
 
-            // second particle
             e_dot.e0 = -0.5 * (rot_B.e1 * omega_B.x + rot_B.e2 * omega_B.y + rot_B.e3 * omega_B.z);
             e_dot.e1 = 0.5 * (rot_B.e0 * omega_B.x - rot_B.e2 * omega_B.z + rot_B.e3 * omega_B.y);
             e_dot.e2 = 0.5 * (rot_B.e0 * omega_B.y - rot_B.e3 * omega_B.x + rot_B.e1 * omega_B.z);
@@ -868,6 +873,7 @@ inline void cpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque, ve
             cpu_quat_normalize(rot_A);
             cpu_quat_normalize(rot_B);
 
+            // Store the new rotation matrices.
             matrix_rot[index_A].e0 = rot_A.e0;
             matrix_rot[index_A].e1 = rot_A.e1;
             matrix_rot[index_A].e2 = rot_A.e2;
@@ -877,17 +883,29 @@ inline void cpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque, ve
             matrix_rot[index_B].e1 = rot_B.e1;
             matrix_rot[index_B].e2 = rot_B.e2;
             matrix_rot[index_B].e3 = rot_B.e3;
-
-
-            //--- > Rotate magnetization
         }
     }
 }
 
+/**
+ * @brief Corotates the magnetization and calculates the new rotation matrix for the contact pointers.
+ * 
+ * @param *omega: Array of the angular momenta.
+ * @param *omega_tot: Array of the total angular momenta (self rotation + curved trajectory).
+ * @param *torque: Array of the torques.
+ * @param *mag: Array of the magnetizations.
+ * @param *matrix_rot: Array of the contact pointer rotations.
+ * @param *matrix_comp: Array of the contact compression lenghts.
+ * @param *moment: Array of the moments of inertia.
+ * @param Nmon: Number of monomers.
+ * @param time_step: The timestep of the simulation.
+ */
 __global__ void gpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque, vec3D* mag, quat* matrix_rot, double* matrix_comp, double* moment, int Nmon, double time_step)
 {
+    // Determine the thread index which corresponds to a single monomer.
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
+    // Skip threads that do not correspond to a monomer.
     if (i < Nmon)
     {
         vec3D omega_A;
@@ -902,17 +920,20 @@ __global__ void gpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque
         omega_A_dot.y = moment_A_inv * torque[i].y;
         omega_A_dot.z = moment_A_inv * torque[i].z;
 
+        // FIXME: The corotation of magnetization is based on omega not omega_tot!
         omega_A.x = omega_tot[i].x;
         omega_A.y = omega_tot[i].y;
         omega_A.z = omega_tot[i].z;
 
         double len_mag = gpu_vec3D_length(mag[i]);
         double len_omega_A = gpu_vec3D_length(omega_A);
-        //double len_omega_A_dot = gpu_vec3D_length(omega_A_dot);//len_omega_A_dot
 
+        // When both magnetization and total angular momentum are not zero.
         if (len_mag * len_omega_A > 0)
         {
             quat q_mag;
+
+            // Calculate the normalized magnetization
             vec3D tmp_mag;
 
             tmp_mag.x = mag[i].x;
@@ -921,6 +942,7 @@ __global__ void gpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque
 
             gpu_vec3D_normalize(tmp_mag);
 
+            // Corotate the magnetization based on the total angular momentum.
             q_mag.e0 = 0;
             q_mag.e1 = tmp_mag.x;
             q_mag.e2 = tmp_mag.y;
@@ -949,6 +971,7 @@ __global__ void gpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque
 
             double len_tmp = gpu_vec3D_length(tmp_mag);
 
+            // FIXME: Activate the corotation of magnetization.
             /*if (len_tmp > 0)
             {
                 mag[i].x = len_mag * tmp_mag.x / len_tmp;
@@ -957,21 +980,20 @@ __global__ void gpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque
             }*/
         }
 
+        // Iterate over all monomer pairs.
         for (int j = 1; j < Nmon; j++)
         {
             if (i == j)
                 continue;
 
+            // Skip monomers that are not in contact.
             if (matrix_comp[i * Nmon + j] == -1.)
                 continue;
-
-
-            //--- > Rotate contact pointer
 
             vec3D omega_B;
             vec3D omega_B_dot;
 
-
+            // Calculate the change in angular momentum due to torque.
             omega_A_dot.x = moment_A_inv * torque[i].x;
             omega_A_dot.y = moment_A_inv * torque[i].y;
             omega_A_dot.z = moment_A_inv * torque[i].z;
@@ -990,13 +1012,14 @@ __global__ void gpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque
             omega_B.y = omega[j].y;
             omega_B.z = omega[j].z;
 
+            // Determine the indices of the monomers in the contact matrices.
             int index_A = 0 * Nmon * Nmon + i * Nmon + j;
             int index_B = 1 * Nmon * Nmon + i * Nmon + j;
 
             quat rot_A = matrix_rot[index_A];
             quat rot_B = matrix_rot[index_B];
 
-            // first particle
+            // Determine contact pointer rotation quaternions.
             e_dot.e0 = -0.5 * (rot_A.e1 * omega_A.x + rot_A.e2 * omega_A.y + rot_A.e3 * omega_A.z);
             e_dot.e1 = 0.5 * (rot_A.e0 * omega_A.x - rot_A.e2 * omega_A.z + rot_A.e3 * omega_A.y);
             e_dot.e2 = 0.5 * (rot_A.e0 * omega_A.y - rot_A.e3 * omega_A.x + rot_A.e1 * omega_A.z);
@@ -1014,7 +1037,7 @@ __global__ void gpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque
             rot_A.e2 += time_step * e_dot.e2 + 0.5 * time_step * time_step * e_ddot.e2;
             rot_A.e3 += time_step * e_dot.e3 + 0.5 * time_step * time_step * e_ddot.e3;
 
-            // second particle
+            // FIXME: Memory race!
             e_dot.e0 = -0.5 * (rot_B.e1 * omega_B.x + rot_B.e2 * omega_B.y + rot_B.e3 * omega_B.z);
             e_dot.e1 = 0.5 * (rot_B.e0 * omega_B.x - rot_B.e2 * omega_B.z + rot_B.e3 * omega_B.y);
             e_dot.e2 = 0.5 * (rot_B.e0 * omega_B.y - rot_B.e3 * omega_B.x + rot_B.e1 * omega_B.z);
@@ -1035,6 +1058,7 @@ __global__ void gpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque
             gpu_quat_normalize(rot_A);
             gpu_quat_normalize(rot_B);
 
+            // Store the new rotation matrices.
             matrix_rot[index_A].e0 = rot_A.e0;
             matrix_rot[index_A].e1 = rot_A.e1;
             matrix_rot[index_A].e2 = rot_A.e2;
@@ -1044,13 +1068,17 @@ __global__ void gpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque
             matrix_rot[index_B].e1 = rot_B.e1;
             matrix_rot[index_B].e2 = rot_B.e2;
             matrix_rot[index_B].e3 = rot_B.e3;
-
-
-            //--- > Rotate magnetization
         }
     }
 }
 
+/**
+ * @brief Calculates the JKR contact radius.
+ * 
+ * @param compression_lenght: The compression lenght of the 
+ * @param r0: The equilibrium contact surface radius.
+ * @param R: Reduced radius (?)
+ */
 inline double cpu_getJKRContactRadius(double compression_length, double r0, double R)
 {
     double c1_contact_radius = sqrt(r0);
@@ -1063,6 +1091,7 @@ inline double cpu_getJKRContactRadius(double compression_length, double r0, doub
     double x_new;
     double x_old = c1_contact_radius;
 
+    // TODO: Check this algorithm.
     // use Newton-Raphson method to find root
     for (int i = 0; i < 20; ++i)
     {
@@ -1075,23 +1104,17 @@ inline double cpu_getJKRContactRadius(double compression_length, double r0, doub
         x_old = x_new;
     }
 
-    /*    int i = 100;
-        do
-        {
-            x_pow3 = x_old * x_old * x_old;
-            x_new = 0.75 * (x_pow3 * x_old + k) / (x_pow3 - c2_contact_radius);
-
-            if (std::abs(x_new - x_old) / particle_radius < 0.0001)
-                break;
-
-            x_old = x_new;
-        } while (--i > 0);*/
-
-
     return x_new * x_new;
 }
 
-
+// TODO: Check this algorithm.
+/**
+ * @brief Calculates the JKR contact radius.
+ * 
+ * @param compression_lenght: The compression lenght of the 
+ * @param r0: (?)
+ * @param R: Reduced radius (?)
+ */
 __device__ double gpu_getJKRContactRadius(double compression_length, double r0, double R)
 {
     double c1_contact_radius = sqrt(r0);
@@ -1116,32 +1139,41 @@ __device__ double gpu_getJKRContactRadius(double compression_length, double r0, 
         x_old = x_new;
     }
 
-    /*    int i = 100;
-        do
-        {
-            x_pow3 = x_old * x_old * x_old;
-            x_new = 0.75 * (x_pow3 * x_old + k) / (x_pow3 - c2_contact_radius);
-
-            if (std::abs(x_new - x_old) / particle_radius < 0.0001)
-                break;
-
-            x_old = x_new;
-        } while (--i > 0);*/
-
-
     return x_new * x_new;
 }
 
-
-
+/**
+ * @brief Calculates the forces and torques updates the contact normal and compression lenght.
+ * 
+ * @param *pos_new:
+ * @param *force_new:
+ * @param *torque_old:
+ * @param *dMdt_new:
+ * @param *matrix_con:
+ * @param *matrix_norm:
+ * @param *omega:
+ * @param *omega_tot:
+ * @param *mag:
+ * @param *matrix_rot:
+ * @param *matrix_comp:
+ * @param *matrix_twist:
+ * @param *amon:
+ * @param *moment:
+ * @param *mat:
+ * @param *matIDs:
+ * @param B_ext:
+ * @param N_mon:
+ * @param time_step:
+ */
 inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3D* torque_old, vec3D* torque_new, vec3D* dMdt_new, vec3D* matrix_con,
     vec3D* matrix_norm, vec3D* omega, vec3D* omega_tot, vec3D* mag, quat* matrix_rot, double* matrix_comp, double* matrix_twist, double* amon, double* moment, material* mat, int* matIDs, vec3D B_ext, int Nmon, double time_step)
 {
-    // init forces & torques with 0
+    // Initialize forces, torques and chenge in magnetization to zero.
     memset(force_new, 0, Nmon * sizeof(vec3D));
     memset(torque_new, 0, Nmon * sizeof(vec3D));
     memset(dMdt_new, 0, Nmon * sizeof(vec3D));
 
+    // Iterate over all particle pairs.
     for (int i = 0; i < Nmon; i++)
     {
         for (int j = 0; j < Nmon; j++)
@@ -1161,10 +1193,12 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
             double a_mon_A = amon[i];
             double a_mon_B = amon[j];
 
+            // Calculate current contact pointer and monomer distance.
             vec3D n_c = cpu_vec3D_diff(pos_A, pos_B);
             double particle_distance = cpu_vec3D_length(n_c);
             cpu_vec3D_normalize(n_c);
 
+            // TODO: What does this do?? It initializes force_new to an extremely small value proportional to n_c. And why do you need force_temp here?
             vec3D force_tmp;
 
             force_tmp.x = 1e-12 * n_c.x;
@@ -1175,7 +1209,9 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
             force_new[i].y += force_tmp.y;
             force_new[i].z += force_tmp.z;
 
-            //calculate magnetization
+            // FIXME: Activate magnetization calculation.
+            // TODO: Document the magnetization code.
+            // ###############    MAGNETIZATION CALCULATIONS FROM HERE    ###############
             /*double chi_A = mat[mat_id_A].chi;
 
             if (abs(chi_A) > 0)
@@ -1402,18 +1438,19 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
                     torque_new[i].z += torque_B.z;
                 }
             }*/
-            // end of magnetization
 
-
-            //calc. surface forces only for con. monomers
+            // Skip monomer pairs that are not in contact.
             if (matrix_comp[i * Nmon + j] == -1.)
                 continue;
 
+            // This tracks if any of the displacements have reached a critical value.
             bool update_contact_pointers = false;
 
+            // Determine monomer indices in the contact matrices.
             int index_A = 0 * Nmon * Nmon + i * Nmon + j;
             int index_B = 1 * Nmon * Nmon + i * Nmon + j;
 
+            // Calculate required quantities for the force calculation.
             vec3D omega_A = omega[i];
             vec3D omega_B = omega[j];
 
@@ -1448,17 +1485,16 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
             double a0 = pow(9 * PI * gamma * R * R / Es, 1. / 3.);
             double delta_c = 0.5 * a0 * a0 / (R * pow(6.0, 1.0 / 3.0));
 
-            // calculate current contact pointers
+            // Calculate the current contact pointers.
             vec3D n_A = matrix_con[index_A];
             vec3D n_B = matrix_con[index_B];
             vec3D delta_n = cpu_vec3D_diff(n_A, n_B);
 
-            // determine distance between particles & contact normal
-
-
-            // -> elastic force
+            // ###############      FORCE CALCULATIONS FROM HERE      ###############
             double compression_length = a_mon_A + a_mon_B - particle_distance;
             double contact_radius = cpu_getJKRContactRadius(compression_length, a0, R);
+
+            // Calculate the COMPRESSION FORCE.
             double Fc = 3 * PI * gamma * R;
             double force_elastic = 4.0 * Fc * (pow(contact_radius / a0, 3.0) - pow(contact_radius / a0, 3.0 / 2.0));
 
@@ -1466,7 +1502,8 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
             force_new[i].y += force_elastic * n_c.y;
             force_new[i].z += force_elastic * n_c.z;
 
-            // -> damping force
+            // TODO: Research this.
+            // Calculate the DAMPING FORCE.
             double old_compression_length = matrix_comp[i * Nmon + j];
             double vis_damp_const = 2.0 * T_vis / (nu_A * nu_B) * Es;
             double delta_dot = (compression_length - old_compression_length) / time_step;
@@ -1476,10 +1513,10 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
             force_new[i].y += force_damp * n_c.y;
             force_new[i].z += force_damp * n_c.z;
 
-            // -> sliding
+            // Determine if sliding and rolling displacements are critical
             double dot = cpu_vec3D_dot(delta_n, n_c);
 
-            //is a_mon_A correct here?
+            // TODO: Is a_mon_A correct here?
             vec3D displacement;
             displacement.x = a_mon_A * (delta_n.x - dot * n_c.x);
             displacement.y = a_mon_A * (delta_n.y - dot * n_c.y);
@@ -1490,16 +1527,16 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
             double crit_sliding_displacement_modifier = 1.0;
             double crit_sliding_displacement = crit_sliding_displacement_modifier * (2.0 - nu_A) / (16.0 * PI) * a0;
 
-            // check if we are in the inelastic regime
+            // When the inelastic sliding regime is reached
             if (displacement_norm > crit_sliding_displacement)
             {
-                // determine correction of contact pointers
+                // Determine the correction to contact pointers.
                 vec3D displacement_correction;
                 displacement_correction.x = (1.0 - crit_sliding_displacement / displacement_norm) * displacement.x;
                 displacement_correction.y = (1.0 - crit_sliding_displacement / displacement_norm) * displacement.y;
                 displacement_correction.z = (1.0 - crit_sliding_displacement / displacement_norm) * displacement.z;
 
-                // calculate correction factor (see Wada et al. 2007 appendix for details)
+                // Calculate the correction factor (see Wada et al. 2007 appendix).
                 double inv_norm = 1.0 / cpu_vec3D_length_sq(displacement_correction);
 
                 dot = cpu_vec3D_dot(n_A, displacement_correction);
@@ -1508,7 +1545,7 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
                 dot = cpu_vec3D_dot(n_A, displacement_correction);
                 double alpha_B = 1.0 / (1.0 - dot * dot * inv_norm);
 
-                // correct contact pointers
+                // Apply contact pointer corrections to the current contact pointers.
                 double particle_radius_inv = 1.0 / a_mon_A;
                 n_A.x -= 0.5 * particle_radius_inv * alpha_A * displacement_correction.x;
                 n_A.y -= 0.5 * particle_radius_inv * alpha_A * displacement_correction.y;
@@ -1521,10 +1558,10 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
                 cpu_vec3D_normalize(n_A);
                 cpu_vec3D_normalize(n_B);
 
+                // Track that the contact pointers need to be updated.
                 update_contact_pointers = true;
             }
 
-            // -> rolling
             double crit_rolling_displacement = 0.5 * (mat[mat_id_A].xi + mat[mat_id_B].xi);
 
             displacement.x = R * (n_A.x + n_B.x);
@@ -1532,15 +1569,16 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
             displacement.z = R * (n_A.z + n_B.z);
             displacement_norm = cpu_vec3D_length(displacement);
 
+            // When the inelastic rolling regime is reached.
             if (displacement_norm > crit_rolling_displacement)
             {
-                // determine correction of contact pointers
+                // Determine the correction to the contact pointers.
                 vec3D displacement_correction;
                 displacement_correction.x = (1.0 - crit_rolling_displacement / displacement_norm) * displacement.x;
                 displacement_correction.y = (1.0 - crit_rolling_displacement / displacement_norm) * displacement.y;
                 displacement_correction.z = (1.0 - crit_rolling_displacement / displacement_norm) * displacement.z;
 
-                // calculate correction factor (see Wada et al. _B007 appendix for details)
+                // Calculate the correction factor (see Wada et al. _B007 appendix).
                 double inv_norm = 1.0 / cpu_vec3D_length_sq(displacement_correction);
 
                 dot = cpu_vec3D_dot(n_A, displacement_correction);
@@ -1549,7 +1587,7 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
                 dot = cpu_vec3D_dot(n_B, displacement_correction);
                 double alpha_B = 1.0 / (1.0 - dot * dot * inv_norm);
 
-                // correct contact pointers
+                // Apply the correction to the current contact pointers.
                 double particle_radius_inv = 1.0 / a_mon_A;
                 n_A.x -= particle_radius_inv * alpha_A * displacement_correction.x;
                 n_A.y -= particle_radius_inv * alpha_A * displacement_correction.y;
@@ -1562,45 +1600,52 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
                 cpu_vec3D_normalize(n_A);
                 cpu_vec3D_normalize(n_B);
 
+                // Track that the contact pointers need to be updated.
                 update_contact_pointers = true;
             }
 
+            // Update the contact pointers when neccessary.
             if (update_contact_pointers)
             {
                 cpu_updateNormal(n_A, n_B, matrix_con, matrix_rot, i, j, Nmon);
-                //delta_n = cpu_vec3D_diff(n_A, n_B);
             }
 
-            //sliding force
-            double sliding_modifier = 1.0;
+            // Calculate the SLIDING FORCE
+            double sliding_modifier = 1.0; // TODO: Change this into a macro or remove it.
             double k_s = sliding_modifier * 8.0 * Gs * a0;
+
+            // Sliding displacement
             vec3D displacement_zeta;
             double tmp_A = a_mon_A * cpu_vec3D_dot(n_A, n_c);
             double tmp_B = a_mon_B * cpu_vec3D_dot(n_B, n_c);
 
+            // FIXME: Check this in Wada07, but: This formula is incorrect it should read r_i * n_i - r_j * n_j + (r_i + r_j) * n_c
             displacement_zeta.x = a_mon_A * n_A.x - a_mon_B * n_B.x - (tmp_A - tmp_B) * n_c.x;
             displacement_zeta.y = a_mon_A * n_A.y - a_mon_B * n_B.y - (tmp_A - tmp_B) * n_c.y;
             displacement_zeta.z = a_mon_A * n_A.z - a_mon_B * n_B.z - (tmp_A - tmp_B) * n_c.z;
 
-            //-> sliding force sliding torque
-            vec3D tmp; //helper variable
+            // FIXME: The following equations are using zeta and not zeta_0, see Wada07
 
+            vec3D tmp;
             tmp.x = a_mon_B * n_B.x - a_mon_A * n_A.x;
             tmp.y = a_mon_B * n_B.y - a_mon_A * n_A.y;
             tmp.z = a_mon_B * n_B.z - a_mon_A * n_A.z;
 
+            // FIXME: This can't be correct, right?
             double force_sliding = -k_s * cpu_vec3D_dot(displacement_zeta, tmp) / particle_distance;
 
+            // FIXME: This might resolve itself once the bugs are fixed.
+            // Clamp the sliding force to a maximum value
             if (abs(force_sliding) > 1.0e-10)
                 force_sliding = 1e-10;
 
-            //cout << force_sliding << endl << flush;
             force_new[i].x += force_sliding * n_c.x;
             force_new[i].y += force_sliding * n_c.y;
             force_new[i].z += force_sliding * n_c.z;
 
+            // Calculate the SLIDING TORQUE
             vec3D torque_sliding;
-            tmp = cpu_vec3D_cross(n_A, displacement_zeta);
+            tmp = cpu_vec3D_cross(n_A, displacement_zeta); // FIXME: This uses zeta_0 and not zeta. See Wada07.
 
             torque_sliding.x = -a_mon_A * k_s * tmp.x;
             torque_sliding.y = -a_mon_A * k_s * tmp.y;
@@ -1610,18 +1655,19 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
             torque_new[i].y += torque_sliding.y;
             torque_new[i].z += torque_sliding.z;
 
-            //-> rolling torque
+            // Calculate the ROLLING TORQUE.
             vec3D displacement_xi;
             vec3D torque_rolling;
-            double rolling_modifier = 1.0;
-            double k_r = rolling_modifier * 4.0 * Fc / R;
 
+            double rolling_modifier = 1.0; // TODO: Change this into a macro or remove it.
+            double k_r = rolling_modifier * 4.0 * Fc / R; // TODO: Remove /R here, because R is multiplied later anyways ?
+
+            // The rolling displacement.
             displacement_xi.x = R * (n_A.x + n_B.x);
             displacement_xi.y = R * (n_A.y + n_B.y);
             displacement_xi.z = R * (n_A.z + n_B.z);
 
             tmp = cpu_vec3D_cross(n_A, displacement_xi);
-
             torque_rolling.x = -k_r * R * tmp.x;
             torque_rolling.y = -k_r * R * tmp.y;
             torque_rolling.z = -k_r * R * tmp.z;
@@ -1630,18 +1676,22 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
             torque_new[i].y += torque_rolling.y;
             torque_new[i].z += torque_rolling.z;
 
-            //-> twisting torque
+            // Calculating the TWISTING FORCE.
             vec3D delta_omega_old, delta_omega_new, twisting_torque;
             double crit_twisting_displacement = 1.0 / (16.0 * PI);
-            double twisting_modifier = 1.0;
-            double k_t = twisting_modifier * 16.0 / 3.0 * Gs * a0 * a0 * a0;
+
+            double twisting_modifier = 1.0; // TODO: Change this into a macro or remove it.
+            double k_t = twisting_modifier * 16.0 / 3.0 * Gs * a0 * a0 * a0; // FIXME: This equation does not use Gs but rather the reduced shear modulus, see Wada07.
+
+            // TODO: Check if this is true, when exactly does matrix_twist get updated?
             double twisting_displacement = matrix_twist[i * Nmon + j];
             double moment_inv_A = 1.0 / moment_A;
             double moment_inv_B = 1.0 / moment_B;
 
-            //store old normal vector
+            // Store current contact normal.
             vec3D n_c_old = matrix_norm[i * Nmon + j];
 
+            // Difference in angular momenta, ie change in 
             delta_omega_old.x = omega_A.x - omega_B.x;
             delta_omega_old.y = omega_A.y - omega_B.y;
             delta_omega_old.z = omega_A.z - omega_B.z;
@@ -1653,6 +1703,7 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
 
             twisting_displacement += 0.5 * time_step * (cpu_vec3D_dot(delta_omega_old, n_c_old) + cpu_vec3D_dot(delta_omega_new, n_c));
 
+            // Clamps the twisting displacement to the critical displacement, but only in the positive direction...
             if (twisting_displacement > crit_twisting_displacement)
                 twisting_displacement = crit_twisting_displacement;
 
@@ -1662,9 +1713,9 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
 
             torque_new[i].x -= twisting_torque.x;
             torque_new[i].y -= twisting_torque.y;
-            torque_new[i].z -= twisting_torque.z;/**/
+            torque_new[i].z -= twisting_torque.z;
 
-            // store current state for next update step
+            // Update the contact normal and compression lenghts.
             matrix_norm[i * Nmon + j].x = n_c.x;
             matrix_norm[i * Nmon + j].y = n_c.y;
             matrix_norm[i * Nmon + j].z = n_c.z;
@@ -1676,16 +1727,13 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
 __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3D* torque_old, vec3D* torque_new, vec3D* dMdt_new, vec3D* matrix_con,
     vec3D* matrix_norm, vec3D* omega, vec3D* omega_tot, vec3D* mag, quat* matrix_rot, double* matrix_comp, double* matrix_twist, double* amon, double* moment, material* mat, int* matIDs, vec3D B_ext, int Nmon, double time_step)
 {
-    // init forces & torques with 0
-    
-    //memset(force_new, 0, Nmon * sizeof(vec3D));
-    //memset(torque_new, 0, Nmon * sizeof(vec3D));
-    //memset(dMdt_new, 0, Nmon * sizeof(vec3D));
-
+    // Determines the thread index which corresponds to a single monomer.
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
+    // Skip threads that dont correspond to a particle.
     if (i < Nmon)
     {
+        // Initialize some quantities to zero.
         force_new[i].x = 0;
         force_new[i].y = 0;
         force_new[i].z = 0;
@@ -1698,6 +1746,7 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
         dMdt_new[i].y = 0;
         dMdt_new[i].z = 0;
 
+        // Iterate over all monomer pairs.
         for (int j = 0; j < Nmon; j++)
         {
             if (i == j)
@@ -1715,10 +1764,12 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
             double a_mon_A = amon[i];
             double a_mon_B = amon[j];
 
+            // Calculate the current contact pointer and monomer distance.
             vec3D n_c = gpu_vec3D_diff(pos_A, pos_B);
             double particle_distance = gpu_vec3D_length(n_c);
             gpu_vec3D_normalize(n_c);
 
+            // TODO: What does this do?? It initializes force_new to an extremely small value proportional to n_c. And why do you need force_temp here?
             vec3D force_tmp;
 
             force_tmp.x = 1e-12 * n_c.x;
@@ -1729,7 +1780,9 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
             force_new[i].y += force_tmp.y;
             force_new[i].z += force_tmp.z;
 
-            //calculate magnetization
+            // FIXME: Activate magnetization calculation.
+            // TODO: Document the magnetization code.
+            // ###############    MAGNETIZATION CALCULATIONS FROM HERE    ###############
             /*double chi_A = mat[mat_id_A].chi;
 
             if (abs(chi_A) > 0)
@@ -1956,18 +2009,19 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
                     torque_new[i].z += torque_B.z;
                 }
             }*/
-            // end of magnetization
 
-
-            //calc. surface forces only for con. monomers
+            // Skip unconnected monomer pairs.
             if (matrix_comp[i * Nmon + j] == -1.)
                 continue;
 
+            // This tracks if any of the displacements have reached a critical value.
             bool update_contact_pointers = false;
 
+            // Determine monomer indices in the contact matrix.
             int index_A = 0 * Nmon * Nmon + i * Nmon + j;
             int index_B = 1 * Nmon * Nmon + i * Nmon + j;
 
+            // Calculate required quantities for force calculations.
             vec3D omega_A = omega[i];
             vec3D omega_B = omega[j];
 
@@ -2002,17 +2056,16 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
             double a0 = pow(9 * PI * gamma * R * R / Es, 1. / 3.);
             double delta_c = 0.5 * a0 * a0 / (R * pow(6.0, 1.0 / 3.0));
 
-            // calculate current contact pointers
+            // Calculate current contact pointers.
             vec3D n_A = matrix_con[index_A];
             vec3D n_B = matrix_con[index_B];
             vec3D delta_n = gpu_vec3D_diff(n_A, n_B);
 
-            // determine distance between particles & contact normal
-
-
-            // -> elastic force
+            // ###############      FORCE CALCULATIONS FROM HERE      ###############
             double compression_length = a_mon_A + a_mon_B - particle_distance;
             double contact_radius = gpu_getJKRContactRadius(compression_length, a0, R);
+            
+            // Calculate the NORMAL FORCE.
             double Fc = 3 * PI * gamma * R;
             double force_elastic = 4.0 * Fc * (pow(contact_radius / a0, 3.0) - pow(contact_radius / a0, 3.0 / 2.0));
 
@@ -2020,7 +2073,8 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
             force_new[i].y += force_elastic * n_c.y;
             force_new[i].z += force_elastic * n_c.z;
 
-            // -> damping force
+            // TODO: Research this.
+            // Calculate the DAMPING FORCE.
             double old_compression_length = matrix_comp[i * Nmon + j];
             double vis_damp_const = 2.0 * T_vis / (nu_A * nu_B) * Es;
             double delta_dot = (compression_length - old_compression_length) / time_step;
@@ -2030,10 +2084,10 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
             force_new[i].y += force_damp * n_c.y;
             force_new[i].z += force_damp * n_c.z;
 
-            // -> sliding
+            // Determine sliding and rolling displacement.
             double dot = gpu_vec3D_dot(delta_n, n_c);
 
-            //is a_mon_A correct here?
+            // TODO: Is a_mon_A correct here?
             vec3D displacement;
             displacement.x = a_mon_A * (delta_n.x - dot * n_c.x);
             displacement.y = a_mon_A * (delta_n.y - dot * n_c.y);
@@ -2044,16 +2098,16 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
             double crit_sliding_displacement_modifier = 1.0;
             double crit_sliding_displacement = crit_sliding_displacement_modifier * (2.0 - nu_A) / (16.0 * PI) * a0;
 
-            // check if we are in the inelastic regime
+            // When the inelastic sliding regime is regime is reached.
             if (displacement_norm > crit_sliding_displacement)
             {
-                // determine correction of contact pointers
+                // Determine correction of contact pointers
                 vec3D displacement_correction;
                 displacement_correction.x = (1.0 - crit_sliding_displacement / displacement_norm) * displacement.x;
                 displacement_correction.y = (1.0 - crit_sliding_displacement / displacement_norm) * displacement.y;
                 displacement_correction.z = (1.0 - crit_sliding_displacement / displacement_norm) * displacement.z;
 
-                // calculate correction factor (see Wada et al. 2007 appendix for details)
+                // Calculate correction factor (see Wada et al. 2007 appendix for details)
                 double inv_norm = 1.0 / gpu_vec3D_length_sq(displacement_correction);
 
                 dot = gpu_vec3D_dot(n_A, displacement_correction);
@@ -2062,7 +2116,7 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
                 dot = gpu_vec3D_dot(n_A, displacement_correction);
                 double alpha_B = 1.0 / (1.0 - dot * dot * inv_norm);
 
-                // correct contact pointers
+                // Apply contact pointer corrections to the current contact pointers.
                 double particle_radius_inv = 1.0 / a_mon_A;
                 n_A.x -= 0.5 * particle_radius_inv * alpha_A * displacement_correction.x;
                 n_A.y -= 0.5 * particle_radius_inv * alpha_A * displacement_correction.y;
@@ -2075,10 +2129,10 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
                 gpu_vec3D_normalize(n_A);
                 gpu_vec3D_normalize(n_B);
 
+                // Track that the contact pointers need to be updates.
                 update_contact_pointers = true;
             }
 
-            // -> rolling
             double crit_rolling_displacement = 0.5 * (mat[mat_id_A].xi + mat[mat_id_B].xi);
 
             displacement.x = R * (n_A.x + n_B.x);
@@ -2086,15 +2140,16 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
             displacement.z = R * (n_A.z + n_B.z);
             displacement_norm = gpu_vec3D_length(displacement);
 
+            // When the inelastic rolling regime is reached.
             if (displacement_norm > crit_rolling_displacement)
             {
-                // determine correction of contact pointers
+                // Determine correction of contact pointers
                 vec3D displacement_correction;
                 displacement_correction.x = (1.0 - crit_rolling_displacement / displacement_norm) * displacement.x;
                 displacement_correction.y = (1.0 - crit_rolling_displacement / displacement_norm) * displacement.y;
                 displacement_correction.z = (1.0 - crit_rolling_displacement / displacement_norm) * displacement.z;
 
-                // calculate correction factor (see Wada et al. _B007 appendix for details)
+                // Calculate correction factor (see Wada et al. _B007 appendix for details)
                 double inv_norm = 1.0 / gpu_vec3D_length_sq(displacement_correction);
 
                 dot = gpu_vec3D_dot(n_A, displacement_correction);
@@ -2103,7 +2158,7 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
                 dot = gpu_vec3D_dot(n_B, displacement_correction);
                 double alpha_B = 1.0 / (1.0 - dot * dot * inv_norm);
 
-                // correct contact pointers
+                // Apply the correction to the current contact pointers.
                 double particle_radius_inv = 1.0 / a_mon_A;
                 n_A.x -= particle_radius_inv * alpha_A * displacement_correction.x;
                 n_A.y -= particle_radius_inv * alpha_A * displacement_correction.y;
@@ -2116,45 +2171,52 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
                 gpu_vec3D_normalize(n_A);
                 gpu_vec3D_normalize(n_B);
 
+                // Track that the contact pointers need to be updated.
                 update_contact_pointers = true;
             }
 
+            // Update the contact pointers when neccessary.
             if (update_contact_pointers)
             {
                 gpu_updateNormal(n_A, n_B, matrix_con, matrix_rot, i, j, Nmon);
-                //delta_n = gpu_vec3D_diff(n_A, n_B);
             }
 
-            //sliding force
-            double sliding_modifier = 1.0;
+            // Calculate the SLIDING FORCE
+            double sliding_modifier = 1.0; // TODO: Make this a macro or maybe just remove it.
             double k_s = sliding_modifier * 8.0 * Gs * a0;
+
+            // Sliding displacement
             vec3D displacement_zeta;
             double tmp_A = a_mon_A * gpu_vec3D_dot(n_A, n_c);
             double tmp_B = a_mon_B * gpu_vec3D_dot(n_B, n_c);
 
+            // FIXME: Check this in Wada07, but: This formula is incorrect it should read r_i * n_i - r_j * n_j + (r_i + r_j) * n_c
             displacement_zeta.x = a_mon_A * n_A.x - a_mon_B * n_B.x - (tmp_A - tmp_B) * n_c.x;
             displacement_zeta.y = a_mon_A * n_A.y - a_mon_B * n_B.y - (tmp_A - tmp_B) * n_c.y;
             displacement_zeta.z = a_mon_A * n_A.z - a_mon_B * n_B.z - (tmp_A - tmp_B) * n_c.z;
 
-            //-> sliding force sliding torque
-            vec3D tmp; //helper variable
-
+            // FIXME: The following equations are using zeta and not zeta_0, see Wada07
+            
+            vec3D tmp;
             tmp.x = a_mon_B * n_B.x - a_mon_A * n_A.x;
             tmp.y = a_mon_B * n_B.y - a_mon_A * n_A.y;
             tmp.z = a_mon_B * n_B.z - a_mon_A * n_A.z;
 
+            // FIXME: I dont understand what this does, but it cant be right?
             double force_sliding = -k_s * gpu_vec3D_dot(displacement_zeta, tmp) / particle_distance;
 
+            // FIXME: This is a hack, might resolve itself once the formulaes are correct.
+            // Clamp the sliding force to a maximum value
             if (abs(force_sliding) > 1.0e-10)
                 force_sliding = 1e-10;
 
-            //cout << force_sliding << endl << flush;
             force_new[i].x += force_sliding * n_c.x;
             force_new[i].y += force_sliding * n_c.y;
             force_new[i].z += force_sliding * n_c.z;
 
+            // Calculate the SLIDING FORCE
             vec3D torque_sliding;
-            tmp = gpu_vec3D_cross(n_A, displacement_zeta);
+            tmp = gpu_vec3D_cross(n_A, displacement_zeta); // FIXME: This uses zeta_0 and not zeta. See Wada07
 
             torque_sliding.x = -a_mon_A * k_s * tmp.x;
             torque_sliding.y = -a_mon_A * k_s * tmp.y;
@@ -2164,18 +2226,19 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
             torque_new[i].y += torque_sliding.y;
             torque_new[i].z += torque_sliding.z;
 
-            //-> rolling torque
+            // Calculate the ROLLING TORQUE
             vec3D displacement_xi;
             vec3D torque_rolling;
-            double rolling_modifier = 1.0;
-            double k_r = rolling_modifier * 4.0 * Fc / R;
 
+            double rolling_modifier = 1.0; // TODO: Change this into a macro or just remove it.
+            double k_r = rolling_modifier * 4.0 * Fc / R; // Remove /R from here because it gets devided out later anyway.
+
+            // The rolling displacement.
             displacement_xi.x = R * (n_A.x + n_B.x);
             displacement_xi.y = R * (n_A.y + n_B.y);
             displacement_xi.z = R * (n_A.z + n_B.z);
 
             tmp = gpu_vec3D_cross(n_A, displacement_xi);
-
             torque_rolling.x = -k_r * R * tmp.x;
             torque_rolling.y = -k_r * R * tmp.y;
             torque_rolling.z = -k_r * R * tmp.z;
@@ -2184,18 +2247,22 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
             torque_new[i].y += torque_rolling.y;
             torque_new[i].z += torque_rolling.z;
 
-            //-> twisting torque
+            // Calculate the TWISTING FORCE
             vec3D delta_omega_old, delta_omega_new, twisting_torque;
             double crit_twisting_displacement = 1.0 / (16.0 * PI);
-            double twisting_modifier = 1.0;
+
+            double twisting_modifier = 1.0; // TODO: Change this into a macro or just remove it.
             double k_t = twisting_modifier * 16.0 / 3.0 * Gs * a0 * a0 * a0;
+            
+            // TODO: Check if this is true, when exactly does matrix_twist get modified?
             double twisting_displacement = matrix_twist[i * Nmon + j];
             double moment_inv_A = 1.0 / moment_A;
             double moment_inv_B = 1.0 / moment_B;
 
-            //store old normal vector
+            // Store current contact normal.
             vec3D n_c_old = matrix_norm[i * Nmon + j];
 
+            // Difference in angular momenta, ie change in twisting displacement.
             delta_omega_old.x = omega_A.x - omega_B.x;
             delta_omega_old.y = omega_A.y - omega_B.y;
             delta_omega_old.z = omega_A.z - omega_B.z;
@@ -2207,6 +2274,7 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
 
             twisting_displacement += 0.5 * time_step * (gpu_vec3D_dot(delta_omega_old, n_c_old) + gpu_vec3D_dot(delta_omega_new, n_c));
 
+            // Clamps the twisting displacement // TODO: the clamping is only in the positive direction...
             if (twisting_displacement > crit_twisting_displacement)
                 twisting_displacement = crit_twisting_displacement;
 
@@ -2218,7 +2286,7 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
             torque_new[i].y -= twisting_torque.y;
             torque_new[i].z -= twisting_torque.z;/**/
 
-            // store current state for next update step
+            // Update the contact normal and compression lenghts.
             matrix_norm[i * Nmon + j].x = n_c.x;
             matrix_norm[i * Nmon + j].y = n_c.y;
             matrix_norm[i * Nmon + j].z = n_c.z;
