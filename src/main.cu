@@ -22,6 +22,7 @@ using namespace std::chrono;
 #include "vector.cuh"
 #include "pipeline.cuh"
 #include "physics.cuh"
+#include "errors.cuh"
 
 int main(const int argc, const char** argv)
 {
@@ -157,6 +158,9 @@ int main(const int argc, const char** argv)
     cudaMalloc(&buff_dMdt_old, Nmon*sizeof(vec3D));
     cudaMalloc(&buff_dMdt_new, Nmon*sizeof(vec3D));
 
+    // Check for CUDA errors during memory allocation.
+    CUDA_LAST_ERROR_CHECK();
+
     int Ncon = Nmon * Nmon; // Square of the number of monomers Nmon^2.
 
     // Initialize the matrices.
@@ -181,6 +185,9 @@ int main(const int argc, const char** argv)
     cudaMalloc(&buff_amon, Nmon * sizeof(double));
     cudaMalloc(&buff_moment, Nmon * sizeof(double));
     cudaMalloc(&buff_mass, Nmon * sizeof(double));
+
+    // Check for CUDA errors during memory allocation
+    CUDA_LAST_ERROR_CHECK();
 
     // Get some run parameters.
     ullong N_iter = pipeline.getNIter();
@@ -268,6 +275,9 @@ int main(const int argc, const char** argv)
     cudaMemcpy(buff_matrix_comp, matrix_comp, Ncon * sizeof(double), cudaMemcpyHostToDevice);
     cudaMemcpy(buff_matrix_twist, matrix_twist, Ncon * sizeof(double), cudaMemcpyHostToDevice);
 
+    // Check for CUDA errors during the push of initial state to device.
+    CUDA_LAST_ERROR_CHECK();
+
     ullong counter_save = 0;
 
     // THE MAIN SIMULATION LOOP
@@ -277,23 +287,28 @@ int main(const int argc, const char** argv)
 
         gpu_predictor << < nBlocks, BLOCK_SIZE >> > (buff_pos_old, buff_pos_new, buff_force_old, buff_vel, buff_mass, time_step, Nmon);
         cudaDeviceSynchronize();
+        CUDA_LAST_ERROR_CHECK();
 
         gpu_updateNeighbourhoodRelations << < nBlocks, BLOCK_SIZE >> >  (buff_pos_new, buff_matrix_con, buff_matrix_norm, buff_matrix_rot,
                                 buff_matrix_comp, buff_matrix_twist, buff_amon, buff_mat, buff_matIDs, Nmon);
         cudaDeviceSynchronize();
+        CUDA_LAST_ERROR_CHECK();
 
         gpu_updateContacts << < nBlocks, BLOCK_SIZE >> >  (buff_omega, buff_omega_tot, buff_torque_old, buff_mag, buff_matrix_rot, buff_matrix_comp, buff_moment, Nmon, time_step);
         cudaDeviceSynchronize();
+        CUDA_LAST_ERROR_CHECK();
 
         gpu_updateParticleInteraction << < nBlocks, BLOCK_SIZE >> > (buff_pos_new, buff_force_new, buff_torque_old, buff_torque_new, buff_dMdt_new, 
                                 buff_matrix_con, buff_matrix_norm, buff_omega, buff_omega_tot, buff_mag, buff_matrix_rot, buff_matrix_comp, buff_matrix_twist, 
                                 buff_amon, buff_moment, buff_mat, buff_matIDs, B_ext, Nmon, time_step);
         cudaDeviceSynchronize();
+        CUDA_LAST_ERROR_CHECK();
 
         gpu_corrector << < nBlocks, BLOCK_SIZE >> > (buff_force_old, buff_force_new, buff_torque_old, buff_torque_new, buff_dMdt_old, 
                                 buff_dMdt_new, buff_vel, buff_omega, buff_omega_tot, buff_mag, buff_mass, buff_moment, buff_mat, 
                                 buff_matIDs, time_step, Nmon);
         cudaDeviceSynchronize();
+        CUDA_LAST_ERROR_CHECK();
 
         switch_pointer(buff_pos_old, buff_pos_new, buff_force_old, buff_force_new, buff_torque_old, buff_torque_new, buff_dMdt_old, buff_dMdt_new);
         
@@ -308,7 +323,6 @@ int main(const int argc, const char** argv)
         switch_pointer(pos_old, pos_new, force_old, force_new, torque_old, torque_new, dMdt_old, dMdt_new);
         #endif
 
-        // 
         if (N_save > 0)
         {
             if (iter % N_save == 0)
@@ -380,6 +394,9 @@ int main(const int argc, const char** argv)
                     }
                 }
                 counter_save++;
+
+                // Checks if there were CUDA errors while pulling the state from the device.
+                CUDA_LAST_ERROR_CHECK();
             }
         }
 
@@ -559,6 +576,9 @@ int main(const int argc, const char** argv)
     cudaFree(buff_amon);
     cudaFree(buff_moment);
     cudaFree(buff_mass);
+
+    // Check if there were CUDA errors during memory deallocation.
+    CUDA_LAST_ERROR_CHECK();
 
     cout << SEP_LINE;
     cout << "  - Final clanup: done              \n" << flush;
