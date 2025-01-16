@@ -1,3 +1,7 @@
+// TODO: Add std:: , ... back for clarity
+// TODO: Es macht wahrscheinlich Sinn die material eigenschaften nicht in einem seperaten array *mat sondern in arrays the form *pos zu speichern weil die Pattern chi_i = mat[matIDs[i]].chi wahrscheinlich zu race conditions führt.
+// TODO: Einheitliche Variablennamen für monomer radius (r_i) und contact surface radius (a_ij)
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
