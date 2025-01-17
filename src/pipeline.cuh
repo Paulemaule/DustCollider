@@ -1,5 +1,4 @@
-#include "typedefs.cuh"
-#include "vector.cuh"
+#pragma once
 
 #include <sys/stat.h>
 
@@ -7,8 +6,8 @@
 #include <direct.h>
 #endif
 
-#ifndef CPIPELINE
-#define CPIPELINE
+#include "vector.cuh"
+#include "makros/printing.cuh"
 
 /**
  * @brief A class for managing the simulation pipeline.
@@ -121,16 +120,15 @@ public:
      */
     bool init(int argc, const char** argv)
     {
-        cout << SEP_LINE;
-        cout << PROG_ID;
-        cout << SEP_LINE << flush;
+        PRINT_HEADLINE();
+        PRINT_CLR_LINE();
 
         #ifdef RELEASE
         if (argc != 2)
         {
             cout << "\nERROR: Wrong number of arguments!                     \n";
             cout << "       DUST COLLIDER requires only the path of a command file!            \n";
-            cout << SEP_LINE;
+            PRINT_SEP_LINE();
             return false;
         }
         cmd_filename = argv[1];
@@ -1800,7 +1798,8 @@ public:
      */
     void printParameters()
     {
-        cout << SEP_LINE;
+        PRINT_TITLE("Overview of run parameters");
+
         cout << "\nSimulation parameters:\n";
         cout << "  - Nr. of iterations: " << N_iter << "\n";
         cout << "  - command file :\n\t" << cmd_filename << "\n";
@@ -1824,7 +1823,8 @@ public:
 
         cout << "  - dust temp.     : " << T_dust << " K \n\n";
 
-        cout << SEP_LINE;
+        PRINT_SEP_LINE();
+
         cout << "\nMetarial parameters:\n";
 
         cout << "  - surface energy : " << min_gamma << " - " << max_gamma << " J m^-1     \n";
@@ -1857,7 +1857,8 @@ public:
 
         if (save_pos || save_vel || save_force || save_torque || save_cluster)
         {
-            cout << SEP_LINE;
+            PRINT_SEP_LINE();
+
             cout << "\nOutput files every " << N_save << "-th time step: \n";
 
             if (save_pos)
@@ -1876,7 +1877,8 @@ public:
                 cout << "  - clusters  :\n\t" << path_binary << "cluster.dat\n";
         }
 
-        cout << SEP_LINE;
+        PRINT_SEP_LINE();
+        
         cout << "\nAggregate parameters:   \n";
         cout << "   - Nr. of monomers: " << Nmon_A + Nmon_B << "\n";
         cout << "   - monomer radius : " << a_mon_min << " - " << a_mon_max << " m\n\n";
@@ -1890,7 +1892,8 @@ public:
         cout << "   - Nr. of monomers  B: " << Nmon_B << "\n";
         cout << "   - effective radius B: " << a_eff_B << " m\n";
         cout << "   - outer radius     B: " << a_out_B << " m\n";
-        cout << SEP_LINE << flush;
+
+        PRINT_SEP_LINE();
     };
 
     // Defining getter functions.
@@ -1957,8 +1960,7 @@ public:
             return false;
         }
 
-        cout << "   - Writing binary file:\n\t";
-        cout << path_tmp << "\n";
+        PRINT_LOG(std::string("Writing binary file to:\n     ") + path_tmp, 2);
 
         bin_writer.write((const char*)data, len_array);
 
@@ -1986,8 +1988,7 @@ public:
             return false;
         }
 
-        cout << "   - Writing binary file:\n\t";
-        cout << path_tmp << "\n";
+        PRINT_LOG(std::string("Writing binary file to:\n     ") + path_tmp, 2);
 
         bin_writer.write((const char*)data, len_array);
 
@@ -2015,8 +2016,7 @@ public:
             return false;
         }
 
-        cout << "   - Writing binary file:\n\t";
-        cout << path_tmp << "\n";
+        PRINT_LOG(std::string("Writing binary file to:\n     ") + path_tmp, 2);
 
         bin_writer.write((const char*)data, len_array);
 
@@ -2208,6 +2208,3 @@ private:
     double max_chi;
     double max_Tc;
 };
-
-#endif
-

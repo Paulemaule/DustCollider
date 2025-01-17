@@ -1,6 +1,4 @@
 #pragma once
-#include "typedefs.cuh"
-#include "vector.cuh"
 
 /**
  * @brief Depth-First search for single cluster recognition.

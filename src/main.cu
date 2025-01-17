@@ -7,9 +7,8 @@
 #include <stdlib.h>
 #include <chrono>
 #include <string>
-//#include <studio.h>
 #include <iostream>
-#include<fstream>
+#include <fstream>
 #include <algorithm>
 
 using namespace std;
@@ -18,11 +17,16 @@ using namespace std::chrono;
 #include <cuda_runtime.h>
 #include "device_launch_parameters.h"
 
-#include "typedefs.cuh"
+#include "makros/config.cuh"
+#include "makros/constant.cuh"
+#include "makros/errors.cuh"
+#include "makros/printing.cuh"
+#include "makros/typedefs.cuh"
+
 #include "vector.cuh"
 #include "pipeline.cuh"
 #include "physics.cuh"
-#include "errors.cuh"
+#include "makros/errors.cuh"
 
 int main(const int argc, const char** argv)
 {
@@ -30,14 +34,17 @@ int main(const int argc, const char** argv)
 
     auto start = high_resolution_clock::now();
 
+    cout << "+++++++++++++++pipeline.init" << endl;
     // Check command line input for command file.
     if (!pipeline.init(argc, argv))
         return -1;
 
+    std::cout << "++++++++++++++++pipeline.parse\n";
     // Read the command file.
     if (!pipeline.parse())
         return -1;
 
+    std::cout << "+++++++++++++++pipeline.checkParameters\n";
     // Check run parametes and create output directories.
     if (!pipeline.checkParameters())
         return -1;
@@ -49,6 +56,7 @@ int main(const int argc, const char** argv)
     int Nmat = 0;               // The number of materials.
 
     // Reading and preparing the material parameters.
+    cout << "++++++++++++++prepareMaterial" << endl;
     pipeline.prepareMaterial(mat, Nmat);
 
     cudaMalloc(&buff_mat, Nmat * sizeof(material));
@@ -118,9 +126,11 @@ int main(const int argc, const char** argv)
     
     int Nmon = 0;                   // Number of monomers
 
+    cout << "++++++++++++++++prepareData" << endl;
     // Read the aggregate files and initialize the state.
     pipeline.prepareData(pos_old, vel, omega_tot, mag, amon, mass, moment, matIDs, Nmon);
 
+    cout << "+++++++++++++++++++++printParameters" << endl;
     // Print run summary.
     pipeline.printParameters();
 
@@ -406,13 +416,12 @@ int main(const int argc, const char** argv)
         }
     }
 
-    cout << CLR_LINE;
+    PRINT_CLR_LINE();
 
     if (N_save > 0)
     {
-        cout << SEP_LINE;
-
-        cout << "Writing simulation data:    \n" << flush;
+        PRINT_TITLE("WRITING SIMULATION DATA");
+        PRINT_CLR_LINE();
 
         // Write ouput files
         if (save_ovito && storage_pos != 0)
@@ -457,10 +466,14 @@ int main(const int argc, const char** argv)
         if (storage_cluster != 0)
             if (!pipeline.writeBinaryInt("sim_cluster.bin", storage_cluster, N_store))
                 return -1;
+
+        PRINT_CLR_LINE();
     }
 
-    cout << "-> Final cleanup ...              \r" << flush;
+    PRINT_TITLE("FINAL CLEANUP");
+    PRINT_CLR_LINE();
 
+    PRINT_LOG("Freeing host memory.", 3);
     // Free allocated memory
     if (omega != 0)
         delete[] omega;
@@ -549,6 +562,8 @@ int main(const int argc, const char** argv)
     if (storage_cluster != 0)
         delete[] storage_cluster;
 
+    PRINT_LOG("Freeing device memory.\n", 3);
+
     cudaFree(buff_mat);
 
     cudaFree(buff_vel);
@@ -580,14 +595,12 @@ int main(const int argc, const char** argv)
     // Check if there were CUDA errors during memory deallocation.
     CUDA_LAST_ERROR_CHECK();
 
-    cout << SEP_LINE;
-    cout << "  - Final clanup: done              \n" << flush;
-    cout << SEP_LINE;
-
     auto end = high_resolution_clock::now();
     auto elapsed = chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-    printf("Run time for %llu iterations : %.3f seconds.\n", N_iter, elapsed.count() * 1e-9);
-    cout << SEP_LINE;
+    printf("Total runtime : %.3f seconds.\n", elapsed.count() * 1e-9);
+    
+    PRINT_CLR_LINE();
+    PRINT_TITLE("DONE");
 
     return 0;
 }

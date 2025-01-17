@@ -1,9 +1,6 @@
-#include "typedefs.cuh"
+#pragma once
 
-#ifndef CVECTOR
-#define CVECTOR
-
-//  -> CPU implementation
+///////////////////////// HOST CODE /////////////////////////
 
 /** 
  * @brief Calculates the lenght of a quaternion.
@@ -111,7 +108,6 @@ inline double cpu_vec3D_distance_sq(vec3D u, vec3D v)
     return dx * dx + dy * dy + dz * dz;
 }
 
-// TODO: Check if the 
 /**
  * @brief Normalizes a vector.
  * 
@@ -216,8 +212,7 @@ inline void cpu_vec3D_set(vec3D& v, double val)
     v.z = val;
 }
 
-
-//  -> GPU implementation
+///////////////////////// DEVICE CODE /////////////////////////
 
 /**
  * @brief Calculates the lenght of a quaternion
@@ -423,5 +418,3 @@ __device__ void gpu_vec3D_set(vec3D& v, double val)
     v.y = val;
     v.z = val;
 }
-
-#endif

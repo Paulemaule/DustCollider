@@ -1,5 +1,7 @@
 #pragma once
 
+///////////////////////// ERRORS /////////////////////////
+
 // A makro that throws a runtime error with a predefined structure and variable description.
 #define PANIC(description) throw std::runtime_error(std::string("ERROR: ") + description + " | " + "Source: " + __FILE__ + ":" + std::to_string(__LINE__) + "\n")
 
@@ -14,3 +16,4 @@
                                      std::to_string(__LINE__));              \
         }                                                                    \
     } while (0)
+    
