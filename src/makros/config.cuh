@@ -4,6 +4,9 @@
 
 #define VERBOSITY 3
 
+#define PROGRESS_LOG_NUMBER 5
+#define ROLLING_AVERAGE_WEIGHT 0.05
+
 ///////////////////////// CUDA CONFIG /////////////////////////
 
 // A makro that enables code execution on the device.

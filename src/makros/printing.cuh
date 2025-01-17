@@ -14,14 +14,6 @@
     #define VERSION "undefined vesion"
 #endif
 
-// A makro that will print a log message to console, with verbosity control.
-#define PRINT_LOG(message, level) {                                             \
-    if (VERBOSITY >= level) {                                                   \
-        std::string formatted_message = std::string("> ") + message;            \
-        std::cout << formatted_message << std::endl << std::flush;              \
-    }                                                                           \
-}
-
 // A makro that will print the programms headline including name and version ID.
 #define PRINT_HEADLINE() {                                                                                      \
     std::string formatted_title = std::string("****** ") + "DUST COLLIDER - " + VERSION + " " + SEP_LINE;       \
@@ -36,4 +28,18 @@
     std::string formatted_title = std::string("****** ") + title + " " + SEP_LINE;      \
     formatted_title = formatted_title.substr(0, 85);                                    \
     std::cout << formatted_title << std::endl << std::flush;                            \
+}
+
+// A makro that will print a log message to console, with verbosity control.
+#define PRINT_LOG(message, level) {                                             \
+    if (VERBOSITY >= level) {                                                   \
+        std::string formatted_message = std::string("> ") + message;            \
+        std::cout << formatted_message << std::endl << std::flush;              \
+    }                                                                           \
+}
+
+// A makro that will print an error message to console, without throwing an exception.
+#define PRINT_ERROR(message) {                                                  \
+    std::string formatted_message = std::string("ERROR: ") + message;           \
+    std::cout << formatted_message << std::endl << std::flush;                  \
 }

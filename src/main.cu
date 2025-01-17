@@ -10,6 +10,7 @@
 #include <iostream>
 #include <fstream>
 #include <algorithm>
+#include <format>
 
 using namespace std;
 using namespace std::chrono;
@@ -27,6 +28,7 @@ using namespace std::chrono;
 #include "pipeline.cuh"
 #include "physics.cuh"
 #include "makros/errors.cuh"
+#include "makros/config.cuh"
 
 int main(const int argc, const char** argv)
 {
@@ -34,17 +36,18 @@ int main(const int argc, const char** argv)
 
     auto start = high_resolution_clock::now();
 
-    cout << "+++++++++++++++pipeline.init" << endl;
     // Check command line input for command file.
     if (!pipeline.init(argc, argv))
         return -1;
 
-    std::cout << "++++++++++++++++pipeline.parse\n";
+    PRINT_CLR_LINE();
+    PRINT_TITLE("INITIALIZATION")
+    PRINT_CLR_LINE();
+
     // Read the command file.
     if (!pipeline.parse())
         return -1;
 
-    std::cout << "+++++++++++++++pipeline.checkParameters\n";
     // Check run parametes and create output directories.
     if (!pipeline.checkParameters())
         return -1;
@@ -56,7 +59,6 @@ int main(const int argc, const char** argv)
     int Nmat = 0;               // The number of materials.
 
     // Reading and preparing the material parameters.
-    cout << "++++++++++++++prepareMaterial" << endl;
     pipeline.prepareMaterial(mat, Nmat);
 
     cudaMalloc(&buff_mat, Nmat * sizeof(material));
@@ -126,14 +128,13 @@ int main(const int argc, const char** argv)
     
     int Nmon = 0;                   // Number of monomers
 
-    cout << "++++++++++++++++prepareData" << endl;
     // Read the aggregate files and initialize the state.
     pipeline.prepareData(pos_old, vel, omega_tot, mag, amon, mass, moment, matIDs, Nmon);
 
-    cout << "+++++++++++++++++++++printParameters" << endl;
     // Print run summary.
     pipeline.printParameters();
 
+    PRINT_LOG("Allocating memory on host.", 2);
     // Initialize the vectors.
     omega = new vec3D[Nmon];
     pos_new = new vec3D[Nmon];
@@ -154,6 +155,7 @@ int main(const int argc, const char** argv)
     memset(dMdt_old, 0, Nmon * sizeof(vec3D));
     memset(dMdt_new, 0, Nmon * sizeof(vec3D));
 
+    PRINT_LOG("Allocating memory on device.", 2)
     // Allocate memory in the GPU
     cudaMalloc(&buff_vel, Nmon*sizeof(vec3D));
     cudaMalloc(&buff_omega, Nmon*sizeof(vec3D));
@@ -261,6 +263,7 @@ int main(const int argc, const char** argv)
     // Calculate the number of blocks
     int nBlocks = (Nmon + BLOCK_SIZE + 1) / BLOCK_SIZE; // FIXME: This should be Nmon + BLOCK_SIZE - 1
 
+    PRINT_LOG("Push initial state to device.", 2);
     // Copy memory into GPU
     cudaMemcpy(buff_mat, mat, Nmat * sizeof(material), cudaMemcpyHostToDevice);
     cudaMemcpy(buff_pos_old, pos_old, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
@@ -290,11 +293,18 @@ int main(const int argc, const char** argv)
 
     ullong counter_save = 0;
 
-    // THE MAIN SIMULATION LOOP
-    for (ullong iter = 0; iter < N_iter; iter++) // The simulation iteration count
-    {
-        #ifdef RUN_ON_GPU
+    PRINT_CLR_LINE();
+    PRINT_TITLE("SIMULATING");
+    PRINT_CLR_LINE();
 
+    ullong ns_per_iteration = 0;
+
+    // THE MAIN SIMULATION LOOP
+    for (ullong iter = 0; iter < N_iter; iter++) // The simulation iteration count.
+    {
+        auto iteration_start = std::chrono::high_resolution_clock::now();
+
+        #ifdef RUN_ON_GPU
         gpu_predictor << < nBlocks, BLOCK_SIZE >> > (buff_pos_old, buff_pos_new, buff_force_old, buff_vel, buff_mass, time_step, Nmon);
         cudaDeviceSynchronize();
         CUDA_LAST_ERROR_CHECK();
@@ -321,7 +331,8 @@ int main(const int argc, const char** argv)
         CUDA_LAST_ERROR_CHECK();
 
         switch_pointer(buff_pos_old, buff_pos_new, buff_force_old, buff_force_new, buff_torque_old, buff_torque_new, buff_dMdt_old, buff_dMdt_new);
-        
+        CUDA_LAST_ERROR_CHECK();
+
         #else
         cpu_predictor(pos_old, pos_new, force_old, vel, mass, time_step, Nmon);
         cpu_updateNeighbourhoodRelations(pos_new, matrix_con, matrix_norm, matrix_rot, matrix_comp, matrix_twist, amon, mat, matIDs, Nmon);
@@ -341,8 +352,7 @@ int main(const int argc, const char** argv)
 
                 if (long(N_store) - long(start_index) < Nmon)
                 {
-                    cout << "ERROR: 'Storage overrun!  \n";
-                    cout << long(N_store) - long(start_index) << "\t" << Nmon << endl;
+                    PRINT_ERROR("Storage overrun!")
                     return -1;
                 }
 
@@ -410,9 +420,29 @@ int main(const int argc, const char** argv)
             }
         }
 
-        if (iter % 2000 == 0)
-        {
-            printf("-> Simulation progress: %.4f %%      \r", 100.0 * float(iter) / N_iter);
+        // Calculate the time ellapsed during this iteration.
+        auto iteration_current = std::chrono::high_resolution_clock::now();
+        auto iteration_ellapsed = std::chrono::duration_cast <std::chrono::nanoseconds> (iteration_current - iteration_start);
+
+        // Use rolling average to estimate the time per iteration.
+        if (ns_per_iteration == 0) {
+            ns_per_iteration = iteration_ellapsed.count();
+        } else {
+            ns_per_iteration = (ulong) ((1.0 - ROLLING_AVERAGE_WEIGHT) * ((double)ns_per_iteration) + ROLLING_AVERAGE_WEIGHT * ((double)iteration_ellapsed.count()));
+        }
+
+        // Print the simulation progress to console.
+        if ((iter % (N_iter / PROGRESS_LOG_NUMBER)) == 0) {
+            float percentage = 100.0 * float(iter) / N_iter;
+            ullong remaining_ns = ns_per_iteration * (N_iter - iter);
+
+            ullong remaining_hours = remaining_ns / 3'600'000'000'000;
+            remaining_ns %= 3'600'000'000'000;
+            ullong remaining_minutes = remaining_ns / 60'000'000'000;
+            remaining_ns %= 60'000'000'000;
+            double remaining_seconds = remaining_ns * 1e-9;
+
+            printf("Simulation progress  : %.1f %%\n      Remaining time ~ %04llu:%02llu:%05.02f\n", percentage, remaining_hours, remaining_minutes, remaining_seconds);
         }
     }
 

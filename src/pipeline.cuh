@@ -124,6 +124,8 @@ public:
         PRINT_CLR_LINE();
 
         #ifdef RELEASE
+        std::cout << "Compiled in Release build." << std::endl;
+        PRINT_LOG("Parsing command line input", 2);
         if (argc != 2)
         {
             cout << "\nERROR: Wrong number of arguments!                     \n";
@@ -133,7 +135,9 @@ public:
         }
         cmd_filename = argv[1];
         #else
+        std::cout << "Compiled in Debug build." << std::endl;
         cmd_filename = "/home/ilion/0/pzuern/development/TestFiles/setup1/cmd_file";
+        PRINT_LOG("Assuming cmd file location is:\n      " + cmd_filename, 2)
         #endif
 
         return true;
@@ -373,11 +377,12 @@ public:
      */
     bool parse()
     {
+        PRINT_LOG("Reading the command file.", 2);
+
         ifstream reader(cmd_filename.c_str());
 
         string line, cmd;
         string::size_type pos = 0;
-
         int line_counter = 0;
 
         if (reader.fail())
@@ -386,6 +391,7 @@ public:
             return false;
         }
 
+        // Iterate over the lines in the command file.
         while (getline(reader, line))
         {
             line_counter++;
@@ -411,7 +417,7 @@ public:
             }
             else
             {
-                cout << "ERROR: Cannot identify tag \"" << line << "\" in line " << line_counter << "!    \n" << flush;
+                printf("ERROR: Cannot find a tag in command file line %d\n      \'%s\'", line_counter, line.c_str());
                 return false;
             }
 
@@ -423,10 +429,10 @@ public:
             if (cmd.compare(" ") == 0)
                 continue;
 
-            // Parse the line. When it fails, raise an error.
+            // Parse the line and set run parameters accordingly.
             if (!parseLine(cmd, line))
             {
-                cout << "ERROR: Cannot parse command \"" << cmd << "\" in line " << line_counter << endl << flush;
+                printf("ERROR: Cannot parse the command \'%s\' in command file line %d\n      \'%s\'", cmd.c_str(), line_counter, line.c_str());
                 return false;
             }
         }
@@ -443,6 +449,8 @@ public:
      */
     bool checkParameters()
     {
+        PRINT_LOG("Validating run parameters.", 2);
+
         int len = int(lst_matID.size());
 
         if (len == 0)
@@ -498,6 +506,8 @@ public:
             }
         }
 
+        PRINT_LOG("Creating output directories.", 2);
+
         // Create the output directories.
         if (path_results.length() > 5)
         {
@@ -515,19 +525,19 @@ public:
         }
         else
         {
-            cout << "ERROR: Invalid path for simulation results!  \n";
+            std::cout << "ERROR: Invalid path for simulation results!" << std::endl << std::flush;
             return false;
         }
 
         if (path_A.length() <= 5)
         {
-            cout << "ERROR: Invalid path for aggregate A!  \n";
+            std::cout << "ERROR: Invalid path for aggregate A!" << std::endl << std::flush;
             return false;
         }
 
         if (path_B.length() <= 5)
         {
-            cout << "ERROR: Invalid path for aggregate B!  \n";
+            std::cout << "ERROR: Invalid path for aggregate B!" << std::endl << std::flush;
             return false;
         }
 
@@ -537,13 +547,13 @@ public:
 
         if (len_pos_A + len_pos_B == 0)
         {
-            cout << "ERROR: Both aggregate postions are at the center! \n";
+            std::cout << "ERROR: Both aggregate postions are at the center! \n";
             return false;
         }
 
         if (T_dust <= 0 && T_dust != -1)
         {
-            cout << "ERROR: Dust temperature needs to be larger than zero! \n";
+            std::cout << "ERROR: Dust temperature needs to be larger than zero! \n";
             return false;
         }
 
@@ -571,7 +581,7 @@ public:
 
         if (N_iter <= 0)
         {
-            cout << "ERROR: Invalid number of iterations! \n";
+            PRINT_ERROR("Invalid number of iterations!");
             return false;
         }
 
@@ -627,7 +637,7 @@ public:
 
             if (values.size() != 3)
             {
-                cout << "ERROR: Wrong amount of coordinates defined in command " << cmd << "!      \n";
+                PRINT_ERROR(std::string("Wrong ammount of coordinates in command \'") + cmd + "\'!\n");
                 return false;
             }
 
@@ -644,7 +654,7 @@ public:
 
             if (values.size() != 3)
             {
-                cout << "ERROR: Wrong amount of coordinates defined in command " << cmd << "!      \n";
+                PRINT_ERROR(std::string("Wrong ammount of coordinates in command \'") + cmd + "\'!\n");
                 return false;
             }
 
@@ -661,7 +671,7 @@ public:
 
             if (values.size() != 3)
             {
-                cout << "ERROR: Wrong amount of coordinates defined in command " << cmd << "!      \n";
+                PRINT_ERROR(std::string("Wrong ammount of coordinates in command \'") + cmd + "\'!\n");
                 return false;
             }
 
@@ -678,7 +688,7 @@ public:
 
             if (values.size() != 3)
             {
-                cout << "ERROR: Wrong amount of coordinates defined in command " << cmd << "!      \n";
+                PRINT_ERROR(std::string("Wrong ammount of coordinates in command \'") + cmd + "\'!\n");
                 return false;
             }
 
@@ -695,7 +705,7 @@ public:
 
             if (values.size() != 3)
             {
-                cout << "ERROR: Wrong amount of coordinates defined in command " << cmd << "!      \n";
+                PRINT_ERROR(std::string("Wrong ammount of coordinates in command \'") + cmd + "\'!\n");
                 return false;
             }
 
@@ -712,7 +722,7 @@ public:
 
             if (values.size() != 3)
             {
-                cout << "ERROR: Wrong amount of coordinates defined in command " << cmd << "!      \n";
+                PRINT_ERROR(std::string("Wrong ammount of coordinates in command \'") + cmd + "\'!\n");
                 return false;
             }
 
@@ -729,7 +739,7 @@ public:
 
             if (values.size() != 3)
             {
-                cout << "ERROR: Wrong amount of coordinates defined in command " << cmd << "!      \n";
+                PRINT_ERROR(std::string("Wrong ammount of coordinates in command \'") + cmd + "\'!\n");
                 return false;
             }
 
@@ -924,7 +934,7 @@ public:
                 return true;
             }
 
-            cout << "ERROR: Wrong amount of material constants in command file!      \n";
+            PRINT_ERROR("Wrong ammount of material constants in command file!");
             return false;
         }
 
@@ -965,7 +975,7 @@ public:
 
         if (reader_A.fail())
         {
-            cout << "\nERROR: Cannot read aggregate A from :\n\t" << agg_filename_A << "\n" << flush;
+            PRINT_ERROR("Cannot read aggregate A from \n      " + agg_filename_A);
             return false;
         }
 
@@ -973,7 +983,7 @@ public:
 
         if (reader_B.fail())
         {
-            cout << "\nERROR: Cannot read aggregate B from:\n\t" << agg_filename_B << "\n" << flush;
+            PRINT_ERROR("Cannot read aggregate B from \n      " + agg_filename_B);
             return false;
         }
 
@@ -982,6 +992,7 @@ public:
         a_mon_max = 0;
 
         // Read aggregate files.
+        PRINT_LOG("Reading aggregate A from file.", 2);
         while (getline(reader_A, line_A))
         {
             line_counter_A++;
@@ -1045,6 +1056,7 @@ public:
             }
         }
 
+        PRINT_LOG("Reading aggregate B from file.", 2);
         while (getline(reader_B, line_B))
         {
             line_counter_B++;
@@ -1100,11 +1112,11 @@ public:
             }
         }
 
-        cout << CLR_LINE;
-
         Nmon = Nmon_A + Nmon_B;
 
         // Create arrays to contain position, velocity, magnetization, angular velocities, material IDs, monomer radii
+        PRINT_LOG("Calculating initial state.", 2);
+        
         pos = new vec3D[Nmon];
         vel = new vec3D[Nmon];
         mag = new vec3D[Nmon];
@@ -1345,6 +1357,7 @@ public:
         }
 
         // Find the smallest timestep.
+        PRINT_LOG("Determining simulation timestep.", 2);
         if (time_step == 0)
         {
             time_step = 1e200;
@@ -1419,6 +1432,8 @@ public:
             time_step = 0.005 * time_step;
         }
 
+        PRINT_CLR_LINE();
+
         return true;
     };
     
@@ -1430,12 +1445,14 @@ public:
      */
     void prepareMaterial(material*& mat, int& Nmat)
     {
-        Nmat = int(lst_matName.size());
+        PRINT_LOG("Preparing the material parameters.", 2);
 
+        Nmat = int(lst_matName.size());
         mat = new material[Nmat];
+
         for (int i = 0; i < Nmat; i++)
         {
-            // Transfer the material parameters into the 
+            // Transfer the material parameters into the material struct.
             mat[i].gamma = lst_gamma[i];
             mat[i].E = lst_E[i];
             mat[i].nu = lst_nu[i];
@@ -1676,7 +1693,7 @@ public:
 
             if (writer.fail())
             {
-                cout << "\nERROR: Cannot open file:\n" << str_file << endl;
+                PRINT_ERROR("Cannot open file:\n      " + str_file);
                 return false;
             }
 
@@ -1798,23 +1815,24 @@ public:
      */
     void printParameters()
     {
-        PRINT_TITLE("Overview of run parameters");
+        PRINT_TITLE("OVERVIEW OF RUN PARAMETERS");
+        PRINT_CLR_LINE();
+        
+        std::cout << "  - command file :\n\t" << cmd_filename << "\n\n";
 
-        cout << "\nSimulation parameters:\n";
-        cout << "  - Nr. of iterations: " << N_iter << "\n";
-        cout << "  - command file :\n\t" << cmd_filename << "\n";
-        cout << "  - start time   : " << time_start << " sec\n";
-        cout << "  - stop time    : " << time_stop << " sec\n";
-        cout << "  - time step    : " << time_step << " sec\n\n";
+        std::cout << "  - Nr. of iterations: " << N_iter << "\n";
+        std::cout << "  - start time   : " << time_start << " sec\n";
+        std::cout << "  - stop time    : " << time_stop << " sec\n";
+        std::cout << "  - time step    : " << time_step << " sec\n\n";
 
-        cout << "  - position A: (" << pos_A.x << ", " << pos_A.y << ", " << pos_A.z << ") m\n";
-        cout << "  - position B: (" << pos_B.x << ", " << pos_B.y << ", " << pos_B.z << ") m\n\n";
+        std::cout << "  - position A: (" << pos_A.x << ", " << pos_A.y << ", " << pos_A.z << ") m\n";
+        std::cout << "  - position B: (" << pos_B.x << ", " << pos_B.y << ", " << pos_B.z << ") m\n\n";
 
-        cout << "  - velocity A: (" << vel_A.x << ", " << vel_A.y << " " << vel_A.z << ") m/s\n";
-        cout << "  - velocity B: (" << vel_B.x << ", " << vel_B.y << " " << vel_B.z << ") m/s\n\n";
+        std::cout << "  - velocity A: (" << vel_A.x << ", " << vel_A.y << " " << vel_A.z << ") m/s\n";
+        std::cout << "  - velocity B: (" << vel_B.x << ", " << vel_B.y << " " << vel_B.z << ") m/s\n\n";
 
-        cout << "  - ang. velocity A: (" << ang_A.x << ", " << ang_A.y << ", " << ang_A.z << ") m\n";
-        cout << "  - ang. velocity B: (" << ang_B.x << ", " << ang_B.y << ", " << ang_B.z << ") m\n\n";
+        std::cout << "  - ang. velocity A: (" << ang_A.x << ", " << ang_A.y << ", " << ang_A.z << ") m\n";
+        std::cout << "  - ang. velocity B: (" << ang_B.x << ", " << ang_B.y << ", " << ang_B.z << ") m\n\n";
 
         if (Bext.x + Bext.y + Bext.z == 0)
             cout << "  - ext. mag. field: none\n";
@@ -1823,16 +1841,36 @@ public:
 
         cout << "  - dust temp.     : " << T_dust << " K \n\n";
 
-        PRINT_SEP_LINE();
+        if (save_pos || save_vel || save_force || save_torque || save_cluster)
+        {
+            cout << "  - Output files every " << N_save << "-th time step to: \n";
 
-        cout << "\nMetarial parameters:\n";
+            if (save_pos)
+                cout << "    - positions :\n\t" << path_binary << "pos.dat\n";
 
-        cout << "  - surface energy : " << min_gamma << " - " << max_gamma << " J m^-1     \n";
-        cout << "  - Young's modulus: " << min_E << " - " << max_E << " Pa    \n";
-        cout << "  - Poisson's ratio: " << min_nu << " - " << max_nu << "     \n";
-        cout << "  - density        : " << min_rho << " - " << max_rho << " kg    \n";
-        cout << "  - crit. roll.    : " << min_xi << " - " << max_xi << " m    \n";
-        cout << "  - visc. damp time: " << min_Tvis << " - " << max_Tvis << " sec    \n";
+            if (save_vel)
+                cout << "    - velocities:\n\t" << path_binary << "vel.dat\n";
+
+            if (save_force)
+                cout << "    - forces    :\n\t" << path_binary << "force.dat\n";
+
+            if (save_torque)
+                cout << "    - torques   :\n\t" << path_binary << "torque.dat\n";
+
+            if (save_cluster)
+                cout << "    - clusters  :\n\t" << path_binary << "cluster.dat\n";
+        }
+
+        PRINT_CLR_LINE();
+        PRINT_TITLE("OVERVIEW OF MATERIAL PARAMETERS")
+        PRINT_CLR_LINE();
+
+        printf("  - surface energy   : [%6.2e , %6.2e] J m^-1\n", min_gamma, max_gamma);
+        printf("  - Young's modulus  : [%6.2e , %6.2e] Pa\n", min_E, max_E);
+        printf("  - Poisson's number : [%6.2e , %6.2e] \n", min_nu, max_nu);
+        printf("  - density          : [%6.2e , %6.2e] kg m^-3\n", min_rho, max_rho);
+        printf("  - crit. roll.      : [%6.2e , %6.2e] m\n", min_xi, max_xi);
+        printf("  - visc. damp time  : [%6.2e , %6.2e] sec\n", min_Tvis, max_Tvis);
 
         cout << "\n";
         if (mat_type == MAT_TYPE_MAG)
@@ -1855,45 +1893,24 @@ public:
             cout << "\n";
         }
 
-        if (save_pos || save_vel || save_force || save_torque || save_cluster)
-        {
-            PRINT_SEP_LINE();
-
-            cout << "\nOutput files every " << N_save << "-th time step: \n";
-
-            if (save_pos)
-                cout << "  - positions :\n\t" << path_binary << "pos.dat\n";
-
-            if (save_vel)
-                cout << "  - velocities:\n\t" << path_binary << "vel.dat\n";
-
-            if (save_force)
-                cout << "  - forces    :\n\t" << path_binary << "force.dat\n";
-
-            if (save_torque)
-                cout << "  - torques   :\n\t" << path_binary << "torque.dat\n";
-
-            if (save_cluster)
-                cout << "  - clusters  :\n\t" << path_binary << "cluster.dat\n";
-        }
-
-        PRINT_SEP_LINE();
+        PRINT_CLR_LINE();
+        PRINT_TITLE("OVERVIEW OF AGGREGATE PARAMETERS");
+        PRINT_CLR_LINE();
         
-        cout << "\nAggregate parameters:   \n";
-        cout << "   - Nr. of monomers: " << Nmon_A + Nmon_B << "\n";
-        cout << "   - monomer radius : " << a_mon_min << " - " << a_mon_max << " m\n\n";
+        cout << "  - Nr. of monomers: " << Nmon_A + Nmon_B << "\n";
+        cout << "  - monomer radius : " << a_mon_min << " - " << a_mon_max << " m\n\n";
 
-        cout << "   - file A:\n\t" << agg_filename_A << "\n";
-        cout << "   - Nr. of monomers  A: " << Nmon_A << "\n";
-        cout << "   - effective radius A: " << a_eff_A << " m\n";
-        cout << "   - outer radius     A: " << a_out_A << " m\n\n";
+        cout << "  - file A:\n\t" << agg_filename_A << "\n";
+        cout << "  - Nr. of monomers  A: " << Nmon_A << "\n";
+        cout << "  - effective radius A: " << a_eff_A << " m\n";
+        cout << "  - outer radius     A: " << a_out_A << " m\n\n";
 
-        cout << "   - file B:\n\t" << agg_filename_B << "\n";
-        cout << "   - Nr. of monomers  B: " << Nmon_B << "\n";
-        cout << "   - effective radius B: " << a_eff_B << " m\n";
-        cout << "   - outer radius     B: " << a_out_B << " m\n";
+        cout << "  - file B:\n\t" << agg_filename_B << "\n";
+        cout << "  - Nr. of monomers  B: " << Nmon_B << "\n";
+        cout << "  - effective radius B: " << a_eff_B << " m\n";
+        cout << "  - outer radius     B: " << a_out_B << " m\n";
 
-        PRINT_SEP_LINE();
+        PRINT_CLR_LINE();
     };
 
     // Defining getter functions.
@@ -1983,8 +2000,7 @@ public:
 
         if (bin_writer.fail())
         {
-            cout << "\nERROR: Cannot write binary file:\n\t";
-            cout << path_tmp << "\n";
+            PRINT_ERROR("Cannot write binary file:\n      " + path_tmp);
             return false;
         }
 
@@ -2087,23 +2103,23 @@ private:
         // This function creates the directory with full permissions for everyone. // TODO: Restrict permissions?
         if (mkdir(path.c_str(), S_IRWXU | S_IRWXG | S_IRWXO) == 0)
         {
-            cout << "Directory created successfully on Linux:\n\t" << path << std::endl;
+            PRINT_LOG("Creating directory:\n      " + path, 3);
             return true;
         } 
         else 
         {
             if (errno == EEXIST)
             {
-                cout << "Directory exists:\n\t" << path << std::endl;
+                PRINT_LOG("Directory allready exists:\n      " + path, 2);
                 return true;
             }
             else
             {
-                cout << "Failed to create directory on Linux: " << strerror(errno) << std::endl;
+                PRINT_ERROR("Failed to create directory: " + strerror(errno));
             }
         }
         #else
-        cout << "Unsupported OS" << std::endl;
+        PRINT_ERROR("Unsupported operating system.")
         #endif
         
         return false;
