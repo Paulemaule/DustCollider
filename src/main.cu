@@ -434,15 +434,13 @@ int main(const int argc, const char** argv)
         // Print the simulation progress to console.
         if ((iter % (N_iter / PROGRESS_LOG_NUMBER)) == 0) {
             float percentage = 100.0 * float(iter) / N_iter;
+
             ullong remaining_ns = ns_per_iteration * (N_iter - iter);
 
-            ullong remaining_hours = remaining_ns / 3'600'000'000'000;
-            remaining_ns %= 3'600'000'000'000;
-            ullong remaining_minutes = remaining_ns / 60'000'000'000;
-            remaining_ns %= 60'000'000'000;
-            double remaining_seconds = remaining_ns * 1e-9;
+            char buffer[14];
+            ns_to_time_string(remaining_ns, buffer, 14);
 
-            printf("Simulation progress  : %.1f %%\n      Remaining time ~ %04llu:%02llu:%05.02f\n", percentage, remaining_hours, remaining_minutes, remaining_seconds);
+            printf("Simulation progress  : %.1f %%\n      Remaining time ~ %s\n", percentage, buffer);
         }
     }
 
@@ -625,9 +623,13 @@ int main(const int argc, const char** argv)
     // Check if there were CUDA errors during memory deallocation.
     CUDA_LAST_ERROR_CHECK();
 
+    // Calculate and print the final runtime.
     auto end = high_resolution_clock::now();
     auto elapsed = chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-    printf("Total runtime : %.3f seconds.\n", elapsed.count() * 1e-9);
+
+    char buffer[14];
+    ns_to_time_string(elapsed.count(), buffer, 14);
+    printf("Total runtime : %s .\n", buffer);
     
     PRINT_CLR_LINE();
     PRINT_TITLE("DONE");

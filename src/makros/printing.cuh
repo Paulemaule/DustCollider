@@ -1,6 +1,6 @@
 #pragma once
 
-///////////////////////// FORMAT /////////////////////////
+///////////////////////// PRINT FORMAT /////////////////////////
 
 #define SEP_LINE    "*************************************************************************************"
 #define CLR_LINE    "                                                                                     "
@@ -42,4 +42,29 @@
 #define PRINT_ERROR(message) {                                                  \
     std::string formatted_message = std::string("ERROR: ") + message;           \
     std::cout << formatted_message << std::endl << std::flush;                  \
+}
+
+
+/**
+ * @brief Converts a duration in nanoseconds into a string of the form HHHH:MM:SS.mm.
+ * 
+ * @param duration: The duration that is to be converted into a string.
+ * @param buffer: A buffer the resulting string is to be written into, needs to have lenght .
+ */
+void ns_to_time_string(const long duration, char* buffer, size_t buffer_size) {
+    if (buffer_size < 14) {
+        PRINT_ERROR("The supplied buffer was too small. Buffer needs to be at least 14 chars long.");
+    }
+
+    long remaining = duration;
+
+    long hours = remaining / 3'600'000'000'000;
+    remaining %= 3'600'000'000'000;
+
+    long minutes = remaining / 60'000'000'000;
+    remaining %= 60'000'000'000;
+
+    double seconds = static_cast<double>(remaining) / 1'000'000'000.0;
+    
+    std::snprintf(buffer, buffer_size, "%04ld:%02ld:%05.02f\n", hours, minutes, seconds);
 }
