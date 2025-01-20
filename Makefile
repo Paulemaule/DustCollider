@@ -1,9 +1,9 @@
 BUILD ?= Release
 
 ifeq ($(BUILD), Release)
-	BUILD_FLAG = RELEASE
+	BUILD_FLAGS = -DRELEASE -O3
 else ifeq ($(BUILD), Debug)
-	BUILD_FLAG = DEBUG
+	BUILD_FLAGS = -DDEBUG -g -G
 else
 	@echo This line is a hack and will cause make to crash. If this happens the BUILD version was unsupported.
 endif
@@ -18,7 +18,7 @@ else
 endif
 
 COMPILER = nvcc
-COMPILER_FLAGS = -gencode arch=compute_89,code=sm_89 -DVERSION="\"$(VERSION_ID)\"" -D$(BUILD_FLAG)
+COMPILER_FLAGS = -gencode arch=compute_89,code=sm_89 -DVERSION="\"$(VERSION_ID)\"" $(BUILD_FLAGS)
 LINKER_FLAGS =
 
 SOURCE_FILES = $(wildcard ./src/*.cu)
