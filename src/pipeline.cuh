@@ -128,9 +128,7 @@ public:
         PRINT_LOG("Parsing command line input", 2);
         if (argc != 2)
         {
-            cout << "\nERROR: Wrong number of arguments!                     \n";
-            cout << "       DUST COLLIDER requires only the path of a command file!            \n";
-            PRINT_SEP_LINE();
+            PRINT_ERROR("Wrong number of command line inputs. Only the command file location is required.");
             return false;
         }
         cmd_filename = argv[1];
