@@ -136,7 +136,7 @@ public:
         cmd_filename = argv[1];
         #else
         std::cout << "Compiled in Debug build." << std::endl;
-        cmd_filename = "/home/ilion/0/pzuern/development/TestFiles/setup1/cmd_file";
+        cmd_filename = DEBUG_CMD_FILE;
         PRINT_LOG("Assuming cmd file location is:\n      " + cmd_filename, 2)
         #endif
 
