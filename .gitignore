@@ -1,3 +1,4 @@
 dust_collider
-.vscode/
+.vscode/*
+build/*
 

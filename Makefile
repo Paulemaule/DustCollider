@@ -17,38 +17,47 @@ else
 	VERSION_ID = "$(GIT_TAG)"
 endif
 
-COMPILER = nvcc
-COMPILER_FLAGS = -gencode arch=compute_89,code=sm_89 -DVERSION="\"$(VERSION_ID)\"" $(BUILD_FLAGS)
-LINKER_FLAGS =
+SOURCE_DIR = ./src
+BUILD_DIR = ./build
 
-SOURCE_FILES = $(wildcard ./src/*.cu)
-OBJECT_FILES = $(SOURCE_FILES:./src/%.cu=./obj/%.o)
+SOURCE_FILES = $(shell find $(SOURCE_DIR) -name '*.cu')
+OBJECT_FILES = $(SOURCE_FILES:%=$(BUILD_DIR)/%.o)
+
+DEPENDENCIES = $(OBJECT_FILES:.o=.d)
+INCLUDE_DIRS = $(shell find $(SOURCE_DIR) -type d)
+INCLUDE_FLAGS = $(addprefix -I,$(INCLUDE_DIRS)) -MMD -MP
 
 TARGET_FILE = ./dust_collider
 
-all: $(TARGET_FILE) clean
-	@echo ""
+COMPILER = nvcc
+COMPILER_FLAGS = -gencode arch=compute_89,code=sm_89 $(INCLUDE_FLAGS) -DVERSION="\"$(VERSION_ID)\"" $(BUILD_FLAGS)
+LINKER_FLAGS =
+
+all: $(TARGET_FILE)
 	@echo "### COMPILATION COMPLETE"
 	@echo "The executable is $(TARGET_FILE)"
 
 $(TARGET_FILE): $(OBJECT_FILES)
-	@echo $(OBJECT_FILES)
-	@echo ""
 	@echo "### LINKING OBJECT FILES"
 	$(COMPILER) $(LINKER_FLAGS) $(OBJECT_FILES) -o $(TARGET_FILE)
-
-./obj/%.o: ./src/%.cu
 	@echo ""
+
+$(BUILD_DIR)/%.cu.o: %.cu
 	@echo "### COMPILING SOURCE FILE: $<"
-	@mkdir -p ./obj
+	@mkdir -p $(dir $@)
 	$(COMPILER) $(COMPILER_FLAGS) -c $< -o $@
+	@echo ""
 
+-include $(DEPENDENCIES)
+
+.PHONY: clean
 clean:
-	@echo ""
 	@echo "### REMOVING OBJECT DIRECTORY"
-	rm -rf ./obj
-
-very-clean: clean
+	rm -rf $(BUILD_DIR)
 	@echo ""
+
+.PHONE: very-clean
+very-clean: clean
 	@echo "### REMOVING EXECUTABLE"
 	rm -f $(TARGET_FILE)
+	@echo ""
