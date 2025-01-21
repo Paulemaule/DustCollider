@@ -1,5 +1,7 @@
 #pragma once
 
+#include <sstream>
+
 ///////////////////////// PRINT FORMAT /////////////////////////
 
 #define SEP_LINE    "*************************************************************************************"
@@ -40,10 +42,10 @@
 
 // A makro that will print an error message to console, without throwing an exception.
 #define PRINT_ERROR(message) {                                                  \
-    std::string formatted_message = std::string("ERROR: ") + message;           \
-    std::cout << formatted_message << std::endl << std::flush;                  \
+    std::ostringstream oss; \
+    oss << "ERROR: " << message << "\n      at " << __FILE__ << ":" << __LINE__;           \
+    std::cout << oss.str() << std::endl << std::flush;                  \
 }
-
 
 /**
  * @brief Converts a duration in nanoseconds into a string of the form HHHH:MM:SS.mm.
