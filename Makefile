@@ -27,7 +27,7 @@ DEPENDENCIES = $(OBJECT_FILES:.o=.d)
 INCLUDE_DIRS = $(shell find $(SOURCE_DIR) -type d)
 INCLUDE_FLAGS = $(addprefix -I,$(INCLUDE_DIRS)) -MMD -MP
 
-TARGET_FILE = ./dust_collider
+TARGET_FILE = $(BUILD_DIR)/dust_collider
 
 COMPILER = nvcc
 COMPILER_FLAGS = -gencode arch=compute_89,code=sm_89 $(INCLUDE_FLAGS) -DVERSION="\"$(VERSION_ID)\"" $(BUILD_FLAGS)
@@ -54,10 +54,4 @@ $(BUILD_DIR)/%.cu.o: %.cu
 clean:
 	@echo "### REMOVING OBJECT DIRECTORY"
 	rm -rf $(BUILD_DIR)
-	@echo ""
-
-.PHONE: very-clean
-very-clean: clean
-	@echo "### REMOVING EXECUTABLE"
-	rm -f $(TARGET_FILE)
 	@echo ""
