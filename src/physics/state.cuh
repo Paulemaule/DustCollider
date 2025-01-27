@@ -49,45 +49,18 @@ typedef struct {
 void state_allocateHostMemory(hostState& state, size_t Nmon) {
     // Allocate memory of the appropriate size for all fields of the state.
     // This memory is pinned memory!
-    if (cudaMallocHost(& state.position, Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on host for positions.");
-    }
-    if (cudaMallocHost(& state.magnetization, Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on host for magnetization.");
-    }
-    if (cudaMallocHost(& state.velocity, Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on host for velocities.");
-    }
-    if (cudaMallocHost(& state.omega, Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on host for angular velocity.");
-    }
-    if (cudaMallocHost(& state.magnetization_change, Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on host for change in magnetization.");
-    }
-    if (cudaMallocHost(& state.force, Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on host for force.");
-    }
-    if (cudaMallocHost(& state.torque, Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on host for torque.");
-    }
-    if (cudaMallocHost(& state.contact_compression, Nmon * Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on host for contact compression lenght.");
-    }
-    if (cudaMallocHost(& state.contact_twist, Nmon * Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on host for contact twisting angle.");
-    }
-    if (cudaMallocHost(& state.contact_pointer, Nmon * Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on host for contact pointer.");
-    }
-    if (cudaMallocHost(& state.contact_normal, Nmon * Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on host for contact normal.");
-    }
-    if (cudaMallocHost(& state.contact_rotation, Nmon * Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on host for contact pointer rotation.");
-    }
-
-    // Check if any CUDA errors occured.
-    CUDA_LAST_ERROR_CHECK();
+    CHECK_CUDA(cudaMallocHost(& state.position, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMallocHost(& state.magnetization, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMallocHost(& state.velocity, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMallocHost(& state.omega, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMallocHost(& state.magnetization_change, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMallocHost(& state.force, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMallocHost(& state.torque, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMallocHost(& state.contact_compression, Nmon * Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMallocHost(& state.contact_twist, Nmon * Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMallocHost(& state.contact_pointer, Nmon * Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMallocHost(& state.contact_normal, Nmon * Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMallocHost(& state.contact_rotation, Nmon * Nmon * sizeof(double3)));
 }
 
 /**
@@ -97,45 +70,60 @@ void state_allocateHostMemory(hostState& state, size_t Nmon) {
  */
 void state_allocateDeviceMemory(deviceState& state, size_t Nmon) {
     // Allocate memory of the appropriate size on the device for all fields of the state.
-    if (cudaMalloc(& state.position, Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on device for positions.");
-    }
-    if (cudaMalloc(& state.magnetization, Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on device for magnetization.");
-    }
-    if (cudaMalloc(& state.velocity, Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on device for velocities.");
-    }
-    if (cudaMalloc(& state.omega, Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on device for angular velocity.");
-    }
-    if (cudaMalloc(& state.magnetization_change, Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on device for change in magnetization.");
-    }
-    if (cudaMalloc(& state.force, Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on device for force.");
-    }
-    if (cudaMalloc(& state.torque, Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on device for torque.");
-    }
-    if (cudaMalloc(& state.contact_compression, Nmon * Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on device for contact compression lenght.");
-    }
-    if (cudaMalloc(& state.contact_twist, Nmon * Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on device for contact twisting angle.");
-    }
-    if (cudaMalloc(& state.contact_pointer, Nmon * Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on device for contact pointer.");
-    }
-    if (cudaMalloc(& state.contact_normal, Nmon * Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on device for contact normal.");
-    }
-    if (cudaMalloc(& state.contact_rotation, Nmon * Nmon * sizeof(double3))) {
-        PRINT_ERROR("Failed to allocate memory on device for contact pointer rotation.");
-    }
+    CHECK_CUDA(cudaMalloc(& state.position, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMalloc(& state.magnetization, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMalloc(& state.velocity, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMalloc(& state.omega, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMalloc(& state.magnetization_change, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMalloc(& state.force, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMalloc(& state.torque, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMalloc(& state.contact_compression, Nmon * Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMalloc(& state.contact_twist, Nmon * Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMalloc(& state.contact_pointer, Nmon * Nmon * sizeof(double3)))
+    CHECK_CUDA(cudaMalloc(& state.contact_normal, Nmon * Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMalloc(& state.contact_rotation, Nmon * Nmon * sizeof(double3)));
+}
 
-    // Check if there were any CUDA errors.
-    CUDA_LAST_ERROR_CHECK();
+/**
+ * @brief Frees all allocated memory contained by the host state.
+ * 
+ * @param The state contining the pointers that are to be freed.
+ */
+void state_freeHost(hostState& state) {
+    // Free all arrays pointed to by members of the state.
+    CHECK_CUDA(cudaFreeHost(state.position));
+    CHECK_CUDA(cudaFreeHost(state.magnetization));
+    CHECK_CUDA(cudaFreeHost(state.velocity));
+    CHECK_CUDA(cudaFreeHost(state.omega));
+    CHECK_CUDA(cudaFreeHost(state.magnetization_change));
+    CHECK_CUDA(cudaFreeHost(state.force));
+    CHECK_CUDA(cudaFreeHost(state.torque));
+    CHECK_CUDA(cudaFreeHost(state.contact_compression));
+    CHECK_CUDA(cudaFreeHost(state.contact_twist));
+    CHECK_CUDA(cudaFreeHost(state.contact_pointer));
+    CHECK_CUDA(cudaFreeHost(state.contact_normal));
+    CHECK_CUDA(cudaFreeHost(state.contact_rotation));
+}
+
+/**
+ * @brief Frees all allocated memory contained by the device state.
+ * 
+ * @param The state containing the pointers that are to be freed.
+ */
+void state_freeDevice(deviceState& state) {
+    // Free all arrays pointed to by members of the state.
+    CHECK_CUDA(cudaFree(state.position));
+    CHECK_CUDA(cudaFree(state.magnetization));
+    CHECK_CUDA(cudaFree(state.velocity));
+    CHECK_CUDA(cudaFree(state.omega));
+    CHECK_CUDA(cudaFree(state.magnetization_change));
+    CHECK_CUDA(cudaFree(state.force));
+    CHECK_CUDA(cudaFree(state.torque));
+    CHECK_CUDA(cudaFree(state.contact_compression));
+    CHECK_CUDA(cudaFree(state.contact_twist));
+    CHECK_CUDA(cudaFree(state.contact_pointer));
+    CHECK_CUDA(cudaFree(state.contact_normal));
+    CHECK_CUDA(cudaFree(state.contact_rotation));
 }
 
 /**
@@ -147,69 +135,54 @@ void state_allocateDeviceMemory(deviceState& state, size_t Nmon) {
  */
 void state_pushToDevice(hostState& host_state, deviceState& device_state, size_t Nmon) {
     // Copy the contents of the arrays pointed to by the pointers to the device.
-    if (cudaMemcpy(device_state.position, host_state.position, 
-            Nmon * sizeof(double3), 
-            cudaMemcpyKind::cudaMemcpyHostToDevice)) {
-        PRINT_ERROR("Could not push positions to device.");
-    }
-    if (cudaMemcpy(device_state.magnetization, host_state.magnetization, 
-            Nmon * sizeof(double3), 
-            cudaMemcpyKind::cudaMemcpyHostToDevice)) {
-        PRINT_ERROR("Could not push magnetization to device.");
-    }
-    if (cudaMemcpy(device_state.velocity, host_state.velocity,
-            Nmon * sizeof(double3), 
-            cudaMemcpyKind::cudaMemcpyHostToDevice)) {
-        PRINT_ERROR("Could not push velocity to device.");
-    }
-    if (cudaMemcpy(device_state.omega, host_state.omega,
-            Nmon * sizeof(double3),
-            cudaMemcpyKind::cudaMemcpyHostToDevice)) {
-        PRINT_ERROR("Could not push omega to device.");
-    }
-    if (cudaMemcpy(device_state.magnetization_change, host_state.magnetization_change,
-            Nmon * sizeof(double3),
-            cudaMemcpyKind::cudaMemcpyHostToDevice)) {
-        PRINT_ERROR("Could not push change in magnetization to device.");
-    }
-    if (cudaMemcpy(device_state.force, host_state.force,
-            Nmon * sizeof(double3), 
-            cudaMemcpyKind::cudaMemcpyHostToDevice)) {
-        PRINT_ERROR("Could not push force to device.");
-    }
-    if (cudaMemcpy(device_state.torque, host_state.torque, 
-            Nmon * sizeof(double3), 
-            cudaMemcpyKind::cudaMemcpyHostToDevice)) {
-        PRINT_ERROR("Could not push torque to device.");
-    }
-    if (cudaMemcpy(device_state.contact_compression, host_state.contact_compression, 
-            Nmon * Nmon * sizeof(double3), 
-            cudaMemcpyKind::cudaMemcpyHostToDevice)) {
-        PRINT_ERROR("Could not push  to device.");
-    }
-    if (cudaMemcpy(device_state.contact_twist, host_state.contact_twist,
-            Nmon * Nmon * sizeof(double3),
-            cudaMemcpyKind::cudaMemcpyHostToDevice)) {
-        PRINT_ERROR("Could not push  to device.");
-    }
-    if (cudaMemcpy(device_state.contact_pointer, host_state.contact_pointer,
-            Nmon * Nmon * sizeof(double3),
-            cudaMemcpyKind::cudaMemcpyHostToDevice)) {
-        PRINT_ERROR("Could not push  to device.");
-    }
-    if (cudaMemcpy(device_state.contact_normal, host_state.contact_normal,
-            Nmon * Nmon * sizeof(double3),
-            cudaMemcpyKind::cudaMemcpyHostToDevice)) {
-        PRINT_ERROR("Could not push  to device.");
-    }
-    if (cudaMemcpy(device_state.contact_rotation, host_state.contact_rotation,
-            Nmon * Nmon * sizeof(double3),
-            cudaMemcpyKind::cudaMemcpyHostToDevice)) {
-        PRINT_ERROR("Could not push  to device.");
-    }
-
-    // Check if there were any CUDA errors.
-    CUDA_LAST_ERROR_CHECK();
+    CHECK_CUDA(cudaMemcpy(
+        device_state.position, host_state.position, 
+        Nmon * sizeof(double3), 
+        cudaMemcpyKind::cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(
+        device_state.magnetization, host_state.magnetization, 
+        Nmon * sizeof(double3), 
+        cudaMemcpyKind::cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(
+        device_state.velocity, host_state.velocity,
+        Nmon * sizeof(double3), 
+        cudaMemcpyKind::cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(
+        device_state.omega, host_state.omega,
+        Nmon * sizeof(double3),
+        cudaMemcpyKind::cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(
+        device_state.magnetization_change, host_state.magnetization_change,
+        Nmon * sizeof(double3),
+        cudaMemcpyKind::cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(
+        device_state.force, host_state.force,
+        Nmon * sizeof(double3), 
+        cudaMemcpyKind::cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(
+        device_state.torque, host_state.torque, 
+        Nmon * sizeof(double3), 
+        cudaMemcpyKind::cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(
+        device_state.contact_compression, host_state.contact_compression, 
+        Nmon * Nmon * sizeof(double3), 
+        cudaMemcpyKind::cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(
+        device_state.contact_twist, host_state.contact_twist,
+        Nmon * Nmon * sizeof(double3),
+        cudaMemcpyKind::cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(
+        device_state.contact_pointer, host_state.contact_pointer,
+        Nmon * Nmon * sizeof(double3),
+        cudaMemcpyKind::cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(
+        device_state.contact_normal, host_state.contact_normal,
+        Nmon * Nmon * sizeof(double3),
+        cudaMemcpyKind::cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(
+        device_state.contact_rotation, host_state.contact_rotation,
+        Nmon * Nmon * sizeof(double3),
+        cudaMemcpyKind::cudaMemcpyHostToDevice));
 }
 
 /**
@@ -221,163 +194,96 @@ void state_pushToDevice(hostState& host_state, deviceState& device_state, size_t
  */
 void state_pullFromDevice(deviceState& device_state, hostState& host_state, size_t Nmon) {
     // Copy the contents of the arrays pointed to by the pointers to the host.
-    if (cudaMemcpy(host_state.position, device_state.position,
-            Nmon * sizeof(double3), 
-            cudaMemcpyKind::cudaMemcpyDeviceToHost)) {
-        PRINT_ERROR("Could not push positions to device.");
-    }
-    if (cudaMemcpy(host_state.magnetization, device_state.magnetization, 
-            Nmon * sizeof(double3), 
-            cudaMemcpyKind::cudaMemcpyDeviceToHost)) {
-        PRINT_ERROR("Could not push magnetization to device.");
-    }
-    if (cudaMemcpy(host_state.velocity, device_state.velocity,
-            Nmon * sizeof(double3), 
-            cudaMemcpyKind::cudaMemcpyDeviceToHost)) {
-        PRINT_ERROR("Could not push velocity to device.");
-    }
-    if (cudaMemcpy(host_state.omega, device_state.omega,
-            Nmon * sizeof(double3),
-            cudaMemcpyKind::cudaMemcpyDeviceToHost)) {
-        PRINT_ERROR("Could not push omega to device.");
-    }
-    if (cudaMemcpy(host_state.magnetization_change, device_state.magnetization_change,
-            Nmon * sizeof(double3),
-            cudaMemcpyKind::cudaMemcpyDeviceToHost)) {
-        PRINT_ERROR("Could not push change in magnetization to device.");
-    }
-    if (cudaMemcpy(host_state.force, device_state.force,
-            Nmon * sizeof(double3), 
-            cudaMemcpyKind::cudaMemcpyDeviceToHost)) {
-        PRINT_ERROR("Could not push force to device.");
-    }
-    if (cudaMemcpy(host_state.torque, device_state.torque, 
-            Nmon * sizeof(double3), 
-            cudaMemcpyKind::cudaMemcpyDeviceToHost)) {
-        PRINT_ERROR("Could not push torque to device.");
-    }
-    if (cudaMemcpy(host_state.contact_compression, device_state.contact_compression, 
-            Nmon * Nmon * sizeof(double3), 
-            cudaMemcpyKind::cudaMemcpyDeviceToHost)) {
-        PRINT_ERROR("Could not push  to device.");
-    }
-    if (cudaMemcpy(host_state.contact_twist, device_state.contact_twist,
-            Nmon * Nmon * sizeof(double3),
-            cudaMemcpyKind::cudaMemcpyDeviceToHost)) {
-        PRINT_ERROR("Could not push  to device.");
-    }
-    if (cudaMemcpy(host_state.contact_pointer, device_state.contact_pointer,
-            Nmon * Nmon * sizeof(double3),
-            cudaMemcpyKind::cudaMemcpyDeviceToHost)) {
-        PRINT_ERROR("Could not push  to device.");
-    }
-    if (cudaMemcpy(host_state.contact_normal, device_state.contact_normal,
-            Nmon * Nmon * sizeof(double3),
-            cudaMemcpyKind::cudaMemcpyDeviceToHost)) {
-        PRINT_ERROR("Could not push  to device.");
-    }
-    if (cudaMemcpy(host_state.contact_rotation, device_state.contact_rotation,
-            Nmon * Nmon * sizeof(double3),
-            cudaMemcpyKind::cudaMemcpyDeviceToHost)) {
-        PRINT_ERROR("Could not push  to device.");
-    }
-
-    // Check if there were any CUDA errors.
-    CUDA_LAST_ERROR_CHECK();
+    CHECK_CUDA(cudaMemcpy(
+        host_state.position, device_state.position,
+        Nmon * sizeof(double3), 
+        cudaMemcpyKind::cudaMemcpyDeviceToHost));
+    CHECK_CUDA(cudaMemcpy(
+        host_state.magnetization, device_state.magnetization, 
+        Nmon * sizeof(double3), 
+        cudaMemcpyKind::cudaMemcpyDeviceToHost));
+    CHECK_CUDA(cudaMemcpy(
+        host_state.velocity, device_state.velocity,
+        Nmon * sizeof(double3), 
+        cudaMemcpyKind::cudaMemcpyDeviceToHost));
+    CHECK_CUDA(cudaMemcpy(
+        host_state.omega, device_state.omega,
+        Nmon * sizeof(double3),
+        cudaMemcpyKind::cudaMemcpyDeviceToHost))
+    CHECK_CUDA(cudaMemcpy(
+        host_state.magnetization_change, device_state.magnetization_change,
+        Nmon * sizeof(double3),
+        cudaMemcpyKind::cudaMemcpyDeviceToHost));
+    CHECK_CUDA(cudaMemcpy(
+        host_state.force, device_state.force,
+        Nmon * sizeof(double3), 
+        cudaMemcpyKind::cudaMemcpyDeviceToHost));
+    CHECK_CUDA(cudaMemcpy(
+        host_state.torque, device_state.torque, 
+        Nmon * sizeof(double3), 
+        cudaMemcpyKind::cudaMemcpyDeviceToHost));
+    CHECK_CUDA(cudaMemcpy(
+        host_state.contact_compression, device_state.contact_compression, 
+        Nmon * Nmon * sizeof(double3), 
+        cudaMemcpyKind::cudaMemcpyDeviceToHost));
+    CHECK_CUDA(cudaMemcpy(
+        host_state.contact_twist, device_state.contact_twist,
+        Nmon * Nmon * sizeof(double3),
+        cudaMemcpyKind::cudaMemcpyDeviceToHost));
+    CHECK_CUDA(cudaMemcpy(
+        host_state.contact_pointer, device_state.contact_pointer,
+        Nmon * Nmon * sizeof(double3),
+        cudaMemcpyKind::cudaMemcpyDeviceToHost));
+    CHECK_CUDA(cudaMemcpy(
+        host_state.contact_normal, device_state.contact_normal,
+        Nmon * Nmon * sizeof(double3),
+        cudaMemcpyKind::cudaMemcpyDeviceToHost));
+    CHECK_CUDA(cudaMemcpy(
+        host_state.contact_rotation, device_state.contact_rotation,
+        Nmon * Nmon * sizeof(double3),
+        cudaMemcpyKind::cudaMemcpyDeviceToHost));
 }
 
 /**
- * @brief Frees all allocated memory contained by the host state.
+ * @brief Sets the values of all fields of a host state to a specified value.
  * 
- * @param The state contining the pointers that are to be freed.
+ * @param &state: The device state whos values are to be set.
+ * @param value: The value the fields are to be set to.
+ * @param Nmon: The number of monomers.
  */
-void state_freeHost(hostState& state) {
-    // Free all arrays pointed to by members of the state.
-    if(cudaFreeHost(state.position)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFreeHost(state.magnetization)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFreeHost(state.velocity)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFreeHost(state.omega)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFreeHost(state.magnetization_change)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFreeHost(state.force)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFreeHost(state.torque)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFreeHost(state.contact_compression)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFreeHost(state.contact_twist)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFreeHost(state.contact_pointer)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFreeHost(state.contact_normal)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFreeHost(state.contact_rotation)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    
-    // Check if there were any CUDA errors.
-    CUDA_LAST_ERROR_CHECK();
+void state_setValueHost(hostState& state, double value, size_t Nmon) {
+    memset(state.position, value, Nmon * sizeof(double3));
+    memset(state.magnetization, value, Nmon * sizeof(double3));
+    memset(state.velocity, value, Nmon * sizeof(double3));
+    memset(state.omega, value, Nmon * sizeof(double3));
+    memset(state.magnetization_change, value, Nmon * sizeof(double3));
+    memset(state.force, value, Nmon * sizeof(double3));
+    memset(state.torque, value, Nmon * sizeof(double3));
+    memset(state.contact_compression, value, Nmon * Nmon * sizeof(double3));
+    memset(state.contact_twist, value, Nmon * Nmon * sizeof(double3));
+    memset(state.contact_pointer, value, Nmon * Nmon * sizeof(double3));
+    memset(state.contact_normal, value, Nmon * Nmon * sizeof(double3));
+    memset(state.contact_twist, value, Nmon * Nmon * sizeof(double3)); 
 }
 
 /**
- * @brief Frees all allocated memory contained by the device state.
+ * @brief Sets the values of all fields of a device state to a specified value.
  * 
- * @param The state contining the pointers that are to be freed.
+ * @param &state: The device state whos values are to be set.
+ * @param value: The value the fields are to be set to.
+ * @param Nmon: The number of monomers.
  */
-void state_freeDevice(deviceState& state) {
-    // Free all arrays pointed to by members of the state.
-    if(cudaFree(state.position)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFree(state.magnetization)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFree(state.velocity)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFree(state.omega)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFree(state.magnetization_change)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFree(state.force)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFree(state.torque)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFree(state.contact_compression)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFree(state.contact_twist)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFree(state.contact_pointer)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFree(state.contact_normal)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    if(cudaFree(state.contact_rotation)) {
-        PRINT_ERROR("Could not free host memory.")
-    }
-    
-    // Check if there were any CUDA errors.
-    CUDA_LAST_ERROR_CHECK();
+void state_setValueDevice(deviceState& state, double value, size_t Nmon) {
+    CHECK_CUDA(cudaMemset(state.position, value, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMemset(state.magnetization, value, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMemset(state.velocity, value, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMemset(state.omega, value, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMemset(state.magnetization_change, value, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMemset(state.force, value, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMemset(state.torque, value, Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMemset(state.contact_compression, value, Nmon * Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMemset(state.contact_twist, value, Nmon * Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMemset(state.contact_pointer, value, Nmon * Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMemset(state.contact_normal, value, Nmon * Nmon * sizeof(double3)));
+    CHECK_CUDA(cudaMemset(state.contact_twist, value, Nmon * Nmon * sizeof(double3)));
 }
