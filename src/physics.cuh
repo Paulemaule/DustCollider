@@ -1768,6 +1768,7 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
         dMdt_new[i].y = 0;
         dMdt_new[i].z = 0;
 
+        // FIXME: This is badly optimized for GPU calculations.
         // Iterate over all monomer pairs.
         for (int j = 0; j < Nmon; j++)
         {
