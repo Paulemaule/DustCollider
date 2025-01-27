@@ -118,7 +118,7 @@ inline void cpu_updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3
                     matrix_con[index_A].x = -n.x;
                     matrix_con[index_A].y = -n.y;
                     matrix_con[index_A].z = -n.z;
-                    matrix_con[index_B].x = n.x;
+                    matrix_con[index_B].x = n.x; // FIXME: Potential memory race!
                     matrix_con[index_B].y = n.y;
                     matrix_con[index_B].z = n.z;
 
@@ -127,7 +127,7 @@ inline void cpu_updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3
                     matrix_rot[index_A].e1 = 0;
                     matrix_rot[index_A].e2 = 0;
                     matrix_rot[index_A].e3 = 0;
-                    matrix_rot[index_B].e0 = 1;
+                    matrix_rot[index_B].e0 = 1; // FIXME: Potential memroy race!
                     matrix_rot[index_B].e1 = 0;
                     matrix_rot[index_B].e2 = 0;
                     matrix_rot[index_B].e3 = 0;
@@ -372,6 +372,7 @@ __device__ void gpu_updateNormal(vec3D& n_A, vec3D& n_B, vec3D* matrix_con, quat
     matrix_con[index_A].y = init_n_A.y;
     matrix_con[index_A].z = init_n_A.z;
 
+    // FIXME: Potential memory race!
     matrix_con[index_B].x = init_n_B.x;
     matrix_con[index_B].y = init_n_B.y;
     matrix_con[index_B].z = init_n_B.z;
@@ -410,7 +411,7 @@ inline void cpu_predictor(vec3D* pos_old, vec3D* pos_new, vec3D* force_old, vec3
  * @param *pos_new: The new positions array.
  * @param *force_old: The old forces array.
  * @param *vel: The array of monomer velocities.
- * @param *double: An array of monomer masses.
+ * @param *mass: An array of monomer masses.
  * @param time_step: The timestep of the simulation.
  * @param Nmon: The number of monomers.
  */
@@ -432,7 +433,7 @@ __global__ void gpu_predictor(vec3D* pos_old, vec3D* pos_new, vec3D* force_old, 
 }
 
 /**
- * @brief Updates velocity, angular velocity and magnetization.
+ * @brief Updates amonomers velocity, angular velocity and magnetization.
  * 
  * @param *force_old: Array of old forces.
  * @param *force_new: Array of new forces.
@@ -1035,7 +1036,6 @@ __global__ void gpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque
             rot_A.e2 += time_step * e_dot.e2 + 0.5 * time_step * time_step * e_ddot.e2;
             rot_A.e3 += time_step * e_dot.e3 + 0.5 * time_step * time_step * e_ddot.e3;
 
-            // FIXME: Memory race!
             e_dot.e0 = -0.5 * (rot_B.e1 * omega_B.x + rot_B.e2 * omega_B.y + rot_B.e3 * omega_B.z);
             e_dot.e1 = 0.5 * (rot_B.e0 * omega_B.x - rot_B.e2 * omega_B.z + rot_B.e3 * omega_B.y);
             e_dot.e2 = 0.5 * (rot_B.e0 * omega_B.y - rot_B.e3 * omega_B.x + rot_B.e1 * omega_B.z);
@@ -1062,6 +1062,7 @@ __global__ void gpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque
             matrix_rot[index_A].e2 = rot_A.e2;
             matrix_rot[index_A].e3 = rot_A.e3;
 
+            // FIXME: Potential memory race!
             matrix_rot[index_B].e0 = rot_B.e0;
             matrix_rot[index_B].e1 = rot_B.e1;
             matrix_rot[index_B].e2 = rot_B.e2;
@@ -1722,6 +1723,29 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
     }
 }
 
+/**
+ * @brief Calculates the forces and torques updates the contact normal and compression lenght.
+ * 
+ * @param *pos_new:
+ * @param *force_new:
+ * @param *torque_old:
+ * @param *dMdt_new:
+ * @param *matrix_con:
+ * @param *matrix_norm:
+ * @param *omega:
+ * @param *omega_tot:
+ * @param *mag:
+ * @param *matrix_rot:
+ * @param *matrix_comp:
+ * @param *matrix_twist:
+ * @param *amon:
+ * @param *moment:
+ * @param *mat:
+ * @param *matIDs:
+ * @param B_ext:
+ * @param N_mon:
+ * @param time_step:
+ */
 __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3D* torque_old, vec3D* torque_new, vec3D* dMdt_new, vec3D* matrix_con,
     vec3D* matrix_norm, vec3D* omega, vec3D* omega_tot, vec3D* mag, quat* matrix_rot, double* matrix_comp, double* matrix_twist, double* amon, double* moment, material* mat, int* matIDs, vec3D B_ext, int Nmon, double time_step)
 {
