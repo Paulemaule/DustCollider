@@ -2,8 +2,8 @@
 
 #include <iostream>
 
-#include "../makros/printing.cuh"
-#include "../makros/errors.cuh"
+#include "/utils/printing.cuh"
+#include "/utils/errors.cuh"
 
 /**
  * @brief A struct of pointers to host memory of arrays containing system state information.

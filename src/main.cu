@@ -18,17 +18,15 @@ using namespace std::chrono;
 #include <cuda_runtime.h>
 #include "device_launch_parameters.h"
 
-#include "makros/config.cuh"
-#include "makros/constant.cuh"
-#include "makros/errors.cuh"
-#include "makros/printing.cuh"
-#include "makros/typedefs.cuh"
+#include "utils/config.cuh"
+#include "utils/constant.cuh"
+#include "utils/errors.cuh"
+#include "utils/printing.cuh"
+#include "utils/typedefs.cuh"
 
 #include "vector.cuh"
 #include "pipeline.cuh"
 #include "physics.cuh"
-#include "makros/errors.cuh"
-#include "makros/config.cuh"
 
 int main(const int argc, const char** argv)
 {
@@ -332,7 +330,7 @@ int main(const int argc, const char** argv)
 
         switch_pointer(buff_pos_old, buff_pos_new, buff_force_old, buff_force_new, buff_torque_old, buff_torque_new, buff_dMdt_old, buff_dMdt_new);
         CUDA_LAST_ERROR_CHECK();
-
+        
         #else
         cpu_predictor(pos_old, pos_new, force_old, vel, mass, time_step, Nmon);
         cpu_updateNeighbourhoodRelations(pos_new, matrix_con, matrix_norm, matrix_rot, matrix_comp, matrix_twist, amon, mat, matIDs, Nmon);

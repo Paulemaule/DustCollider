@@ -7,7 +7,7 @@
 #endif
 
 #include "vector.cuh"
-#include "makros/printing.cuh"
+#include "utils/printing.cuh"
 
 /**
  * @brief A class for managing the simulation pipeline.
