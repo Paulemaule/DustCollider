@@ -195,7 +195,7 @@ __global__ void gpu_updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, 
             
             // Determine necessary values.
             vec3D pos_A = pos[i];
-            vec3D pos_B = pos[j]; // FIXME: Memory race issues?
+            vec3D pos_B = pos[j];
 
             int mat_id_A = matIDs[i];
             int mat_id_B = matIDs[j];
@@ -980,7 +980,7 @@ __global__ void gpu_updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque
         }
 
         // Iterate over all monomer pairs.
-        for (int j = 1; j < Nmon; j++)
+        for (int j = 1; j < Nmon; j++) // FIXME: Should the iteration not start at 0?
         {
             if (i == j)
                 continue;
