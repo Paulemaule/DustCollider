@@ -26,7 +26,7 @@
 inline void checkErrorCode(cudaError_t code, const char *file, int line, bool abort=true)
 {
    if (code != cudaError::cudaSuccess) {
-      std::printf("A CUDA API failed:\n      \'%s\' at:\n      %s:%d\n", cudaGetErrorString(code), file, line);
+      std::printf("A CUDA API call failed at\n      %s:%d\n      Details: Errorcode %d (%s)\n", file, line, code, cudaGetErrorString(code));
       if (abort) exit(code);
    }
 }
