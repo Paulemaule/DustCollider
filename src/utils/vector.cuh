@@ -6,7 +6,7 @@
  * @param q: The quaternion whos lenght is to be calculated.
  * @return The lenght of the quaternion.
  */
-__device__ double quat_lenght(const double4 q)
+__host__ __device__ double quat_lenght(const double4 q)
 {
     return sqrt(q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z);
 }
@@ -16,7 +16,7 @@ __device__ double quat_lenght(const double4 q)
  * 
  * @param q: The quaternion that is to be normalized.
  */
-__device__ void quat_normalize(double4 q)
+__host__ __device__ void quat_normalize(double4 q)
 {
     double length = quat_lenght(q);
 
@@ -35,7 +35,7 @@ __device__ void quat_normalize(double4 q)
  * @param q: The vector whos lenght is to be calculated.
  * @return The lenght of the vector.
  */
-__device__ double vec_lenght(const double3 v)
+__host__ __device__ double vec_lenght(const double3 v)
 {
     return sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
 }
@@ -46,7 +46,7 @@ __device__ double vec_lenght(const double3 v)
  * @param q: The vector whos lenght is to be calculated.
  * @return The squared lenght of the quaternion.
  */
-__device__ double vec_lenght_sq(const double3 v)
+__host__ __device__ double vec_lenght_sq(const double3 v)
 {
     return v.x * v.x + v.y * v.y + v.z * v.z;
 }
@@ -59,7 +59,7 @@ __device__ double vec_lenght_sq(const double3 v)
  * 
  * @warning This function will also return true if the sum of the vector components is zero.
  */
-__device__ bool vec_is_zero(const double3 v)
+__host__ __device__ bool vec_is_zero(const double3 v)
 {
     return (v.x + v.y + v.z) == 0;
 }
@@ -71,7 +71,7 @@ __device__ bool vec_is_zero(const double3 v)
  * @param v: The vector to which the difference points.
  * @return The lenght of the difference vector |u - v|.
  */
-__device__ double vec_dist_len(const double3 u, const double3 v)
+__host__ __device__ double vec_dist_len(const double3 u, const double3 v)
 {
     double dx = u.x - v.x;
     double dy = u.y - v.y;
@@ -87,7 +87,7 @@ __device__ double vec_dist_len(const double3 u, const double3 v)
  * @param v: The second vector.
  * @return The dot product (u * v).
  */
-__device__ double vec_dot(const double3 u, const double3 v)
+__host__ __device__ double vec_dot(const double3 u, const double3 v)
 {
     return u.x * v.x + u.y * v.y + u.z * v.z;
 }
@@ -99,7 +99,7 @@ __device__ double vec_dot(const double3 u, const double3 v)
  * @param v: The secodn vector.
  * @return The squared lenght of the distance |u - v|².
  */
-__device__ double vec_dist_len_sq(const double3 u, const double3 v)
+__host__ __device__ double vec_dist_len_sq(const double3 u, const double3 v)
 {
     double dx = u.x - v.x;
     double dy = u.y - v.y;
@@ -115,7 +115,7 @@ __device__ double vec_dist_len_sq(const double3 u, const double3 v)
  * 
  * @warning This has undefined behavior at v = (0,0,0)! The function will leave the vector unchanged there.
  */
-__device__ void vec_normalize(double3 v)
+__host__ __device__ void vec_normalize(double3 v)
 {
     double length = vec_lenght(v);
 
@@ -134,7 +134,7 @@ __device__ void vec_normalize(double3 v)
  * @param v: The vector to which the normal will point.
  * @return The normal vector pointing from u to v.
  */
-__device__ double3 vec_get_normal(const double3 u, const double3 v)
+__host__ __device__ double3 vec_get_normal(const double3 u, const double3 v)
 {
     double3 res;
     res.x = u.x - v.x;
@@ -152,7 +152,7 @@ __device__ double3 vec_get_normal(const double3 u, const double3 v)
  * @param v: The vector that is to be normalized.
  * @return The normalized vector.
  */
-__device__ double3 vec_get_normalized(double3 v)
+__host__ __device__ double3 vec_get_normalized(double3 v)
 {
     vec_normalize(v);
 
@@ -166,7 +166,7 @@ __device__ double3 vec_get_normalized(double3 v)
  * @param v: The vector to which the difference will point.
  * @return The difference vector (u - v).
  */
-__device__ double3 vec_diff(const double3 u, const double3 v)
+__host__ __device__ double3 vec_diff(const double3 u, const double3 v)
 {
     double3 res;
     res.x = u.x - v.x;
@@ -183,7 +183,7 @@ __device__ double3 vec_diff(const double3 u, const double3 v)
  * @param v: The second vector (the middle finger in the right hand rule).
  * @return The cross product (u x v) of the two vectors (the thumb in the right hand rule).
  */
-__device__ double3 vec_cross(const double3 u, const double3 v)
+__host__ __device__ double3 vec_cross(const double3& u, const double3& v)
 {
     double3 res;
     res.x = u.y * v.z - u.z * v.y;
@@ -199,7 +199,7 @@ __device__ double3 vec_cross(const double3 u, const double3 v)
  * @param &v: A reference to the vector whos components are to be set.
  * @param val: The value the components are to be set to.
  */
-__device__ void vec_set(double3 v, const double val)
+__host__ __device__ void vec_set(double3 v, const double val)
 {
     v.x = val;
     v.y = val;
