@@ -600,6 +600,7 @@ __global__ void gpu_corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_
             omega_tot[i].z = omega[i].z;
         }
 
+        /*
         // Update the magnetization.
         int mat_id = matIDs[i];
         double chi = mat[mat_id].chi;
@@ -635,6 +636,7 @@ __global__ void gpu_corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_
                 }
             }
         }
+        */
     }
 }
 
@@ -1197,9 +1199,8 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
             double particle_distance = cpu_vec3D_length(n_c);
             cpu_vec3D_normalize(n_c);
 
-            // TODO: What does this do?? It initializes force_new to an extremely small value proportional to n_c. And why do you need force_temp here?
+            // ASK: What is this for?
             vec3D force_tmp;
-
             force_tmp.x = 1e-12 * n_c.x;
             force_tmp.y = 1e-12 * n_c.y;
             force_tmp.z = 1e-12 * n_c.z;
@@ -1447,6 +1448,7 @@ inline void cpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3
 
             // Determine monomer indices in the contact matrices.
             int index_A = 0 * Nmon * Nmon + i * Nmon + j;
+            // ASK: How does this work?
             int index_B = 1 * Nmon * Nmon + i * Nmon + j;
 
             // Calculate required quantities for the force calculation.
@@ -2079,7 +2081,7 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
             double a0 = pow(9 * PI * gamma * R * R / Es, 1. / 3.);
             double delta_c = 0.5 * a0 * a0 / (R * pow(6.0, 1.0 / 3.0));
 
-            // Calculate current contact pointers.
+            // Calculate displacement.
             vec3D n_A = matrix_con[index_A];
             vec3D n_B = matrix_con[index_B];
             vec3D delta_n = gpu_vec3D_diff(n_A, n_B);
@@ -2307,7 +2309,7 @@ __global__ void gpu_updateParticleInteraction(vec3D* pos_new, vec3D* force_new, 
 
             torque_new[i].x -= twisting_torque.x;
             torque_new[i].y -= twisting_torque.y;
-            torque_new[i].z -= twisting_torque.z;/**/
+            torque_new[i].z -= twisting_torque.z;
 
             // Update the contact normal and compression lenghts.
             matrix_norm[i * Nmon + j].x = n_c.x;
