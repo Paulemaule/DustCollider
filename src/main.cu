@@ -24,6 +24,10 @@ using namespace std::chrono;
 #include "utils/printing.cuh"
 #include "utils/typedefs.cuh"
 
+#include "physics/state.cuh"
+#include "physics/materialProperties.cuh"
+#include "physics/integrator.cuh"
+
 #include "vector.cuh"
 #include "pipeline.cuh"
 #include "physics.cuh"
@@ -61,77 +65,82 @@ int main(const int argc, const char** argv)
 
     cudaMalloc(&buff_mat, Nmat * sizeof(material));
 
+    /*
     // Definition of variables.
-    vec3D* vel = 0;                 // An array of the monomer velocities.
-    // FIXME: This is unphysical ?
-    vec3D* omega = 0;               // An array of the monomer angular velocities due to self rotation.
-    vec3D* omega_tot = 0;           // An array of the monomer angular velocities due to self rotation and curved trajectories.
-    vec3D* mag = 0;                 // An array of the monomer magnetizations.
+    // The old variables:
+    vec3D* vel = nullptr;                 // An array of the monomer velocities.
+    vec3D* omega = nullptr;               // An array of the monomer angular velocities due to self rotation.
+    vec3D* omega_tot = nullptr;           // An array of the monomer angular velocities due to self rotation and curved trajectories.
+    vec3D* mag = nullptr;                 // An array of the monomer magnetizations.
 
-    vec3D* pos_old = 0;
-    vec3D* pos_new = 0;
-    vec3D* force_old = 0;
-    vec3D* force_new = 0;
-    vec3D* torque_old = 0;
-    vec3D* torque_new = 0;
+    vec3D* pos_old = nullptr;
+    vec3D* pos_new = nullptr;
+    vec3D* force_old = nullptr;
+    vec3D* force_new = nullptr;
+    vec3D* torque_old = nullptr;
+    vec3D* torque_new = nullptr;
 
-    vec3D* dMdt_old = 0;
-    vec3D* dMdt_new = 0;
+    vec3D* dMdt_old = nullptr;
+    vec3D* dMdt_new = nullptr;
 
-    vec3D* buff_vel = 0;
-    vec3D* buff_omega = 0;
-    vec3D* buff_omega_tot = 0;
-    vec3D* buff_mag = 0;
+    vec3D* buff_vel = nullptr;
+    vec3D* buff_omega = nullptr;
+    vec3D* buff_omega_tot = nullptr;
+    vec3D* buff_mag = nullptr;
 
-    vec3D* buff_pos_old = 0;
-    vec3D* buff_pos_new = 0;
-    vec3D* buff_force_old = 0;
-    vec3D* buff_force_new = 0;
-    vec3D* buff_torque_old = 0;
-    vec3D* buff_torque_new = 0;
+    vec3D* buff_pos_old = nullptr;
+    vec3D* buff_pos_new = nullptr;
+    vec3D* buff_force_old = nullptr;
+    vec3D* buff_force_new = nullptr;
+    vec3D* buff_torque_old = nullptr;
+    vec3D* buff_torque_new = nullptr;
 
-    vec3D* buff_dMdt_old = 0;
-    vec3D* buff_dMdt_new = 0;
+    vec3D* buff_dMdt_old = nullptr;
+    vec3D* buff_dMdt_new = nullptr;
+    */
 
-    vec3D* storage_pos = 0;         // Array of monomer position that are to be stored after simulation.
-    vec3D* storage_vel = 0;         // Array of monomer velocities that are to be stored after simulation.
-    vec3D* storage_force = 0;       // Array of monomer forces that are to be stored after simulation.
-    vec3D* storage_torque = 0;      // Array of monomer torques that are to be stored after simulation.
-    vec3D* storage_omega = 0;       // Array of monomer angular velocities that are to be stored after simulation.
-    vec3D* storage_mag = 0;         // Array of monomer magnetizations that are to be stored after simulation.
-    int* storage_cluster = 0;       // Array of monomer (// TODO: ?) that are to be stored after simulation.
+    double3* storage_pos = nullptr;         // Array of monomer position that are to be stored after simulation.
+    double3* storage_vel = nullptr;         // Array of monomer velocities that are to be stored after simulation.
+    double3* storage_force = nullptr;       // Array of monomer forces that are to be stored after simulation.
+    double3* storage_torque = nullptr;      // Array of monomer torques that are to be stored after simulation.
+    double3* storage_omega = nullptr;       // Array of monomer angular velocities that are to be stored after simulation.
+    double3* storage_mag = nullptr;         // Array of monomer magnetizations that are to be stored after simulation.
+    double* storage_inelastic_N = nullptr;
+    double* storage_inelastic_S = nullptr;
+    double* storage_inelastic_R = nullptr;
+    double* storage_inelastic_T = nullptr;
+    int* storage_cluster = nullptr;         // Array of monomer cluster membership that are to be stored after simulation.
+    int* clusterIDs = nullptr;
 
-    vec3D* matrix_con = 0;          // contact pointer between monomers
-    vec3D* matrix_norm = 0;         // normal vectors between monomers
-    quat* matrix_rot = 0;           // contact pointer rotation direction
-    double* matrix_comp = 0;        // old compression lengths, also used to track connection
-    double* matrix_twist = 0;       // old twisting displacement
+    /*
+    vec3D* matrix_con = nullptr;          // contact pointer between monomers
+    vec3D* matrix_norm = nullptr;         // normal vectors between monomers
+    quat* matrix_rot = nullptr;           // contact pointer rotation direction
+    double* matrix_comp = nullptr;        // old compression lengths, also used to track connection
+    double* matrix_twist = nullptr;       // old twisting displacement
 
-    vec3D* buff_matrix_con = 0;     // GPU contact pointer
-    vec3D* buff_matrix_norm = 0;    // GPU normal vectors
-    quat* buff_matrix_rot = 0;      // GPU contact pointer rotation
-    double* buff_matrix_comp = 0;   // GPU old compression lenghts
-    double* buff_matrix_twist = 0;  // GPU old twisting displacement
+    vec3D* buff_matrix_con = nullptr;     // GPU contact pointer
+    vec3D* buff_matrix_norm = nullptr;    // GPU normal vectors
+    quat* buff_matrix_rot = nullptr;      // GPU contact pointer rotation
+    double* buff_matrix_comp = nullptr;   // GPU old compression lenghts
+    double* buff_matrix_twist = nullptr;  // GPU old twisting displacement
 
-    int* matIDs = 0;                // material IDs
-    double* amon = 0;               // Monomer radii
-    double* moment = 0;             // Monomer moments of inertia
-    double* mass = 0;               // Monomer masses
-    int* clusterIDs = 0;            // Monomer cluster membership
+    int* matIDs = nullptr;                // material IDs
+    double* amon = nullptr;               // Monomer radii
+    double* moment = nullptr;             // Monomer moments of inertia
+    double* mass = nullptr;               // Monomer masses
+    int* clusterIDs = nullptr;            // Monomer cluster membership
 
-    int* buff_matIDs = 0;           // GPU material IDs
-    double* buff_amon = 0;          // GPU monomer radii
-    double* buff_moment = 0;        // GPU monomer moments of inertia
-    double* buff_mass = 0;          // GPU monomer masses
-    
-    int Nmon = 0;                   // Number of monomers
+    int* buff_matIDs = nullptr;           // GPU material IDs
+    double* buff_amon = nullptr;          // GPU monomer radii
+    double* buff_moment = nullptr;        // GPU monomer moments of inertia
+    double* buff_mass = nullptr;          // GPU monomer masses
+    */
 
     // Read the aggregate files and initialize the state.
-    pipeline.prepareData(pos_old, vel, omega_tot, mag, amon, mass, moment, matIDs, Nmon);
+    //pipeline.prepareData(pos_old, vel, omega_tot, mag, amon, mass, moment, matIDs, Nmon);
 
-    // Print run summary.
-    pipeline.printParameters();
-
+    /*
     PRINT_LOG("Allocating memory on host.", 2);
     // Initialize the vectors.
     omega = new vec3D[Nmon];
@@ -195,72 +204,203 @@ int main(const int argc, const char** argv)
     cudaMalloc(&buff_amon, Nmon * sizeof(double));
     cudaMalloc(&buff_moment, Nmon * sizeof(double));
     cudaMalloc(&buff_mass, Nmon * sizeof(double));
+    */
 
     // Check for CUDA errors during memory allocation
     CUDA_LAST_ERROR_CHECK();
 
+    // Read the initial state of the system from the monomer files
+    // Prepare arrays for the monomer data
+    double3* initial_position = nullptr;
+    double3* initial_velocity = nullptr;
+    double3* initial_omega_tot = nullptr;
+    double3* initial_magnetization = nullptr;
+    double* monomer_radius = nullptr;
+    double* monomer_mass = nullptr;
+    double* monomer_moment = nullptr;
+    int* monomer_matID = nullptr;
+    int Nmon = 0;                   // Number of monomers
+
+    pipeline.prepareData_(initial_position, initial_velocity, initial_omega_tot, initial_magnetization, 
+                            monomer_radius, monomer_mass, monomer_moment, monomer_matID, Nmon);
+
+    // Initialize the pointer containers
+    // Allocating memory on the host
+    hostState host_state_curr; // A container for pointers to the state of the monomers in the current timestep, in host memory.
+    hostState host_state_next; // A container for pointers to the state of the monomers in the next timestep, in host memory.
+    state_allocateHostMemory(host_state_curr, Nmon);
+    state_allocateHostMemory(host_state_next, Nmon);
+
+    hostMatProperties host_matProperties; // A container for pointers to the material properties of the monomers, in host memory.
+    matProperties_allocateHostMemory(host_matProperties, Nmon);
+
+    // Allocating memory on the device
+    deviceState device_state_curr; // A container for pointers to the state of the monomers in the current timestep, in device memory.
+    deviceState device_state_next; // A container for pointers to the state of the monomers in the next timestep, in device memory.
+    state_allocateDeviceMemory(device_state_curr, Nmon);
+    state_allocateDeviceMemory(device_state_next, Nmon);
+
+    deviceMatProperties device_matProperties; // A container for pointers to the material properties of the monomers, in device memory.
+    matProperties_allocateDeviceMemory(device_matProperties, Nmon);
+
+    // Zeroing the arrays
+    state_clearHost(host_state_curr, Nmon);
+    state_clearHost(host_state_next, Nmon);
+    matProperties_clearHost(host_matProperties, Nmon);
+
+    // Copy initial values into state container
+    CHECK_CUDA(cudaMemcpy(host_state_curr.position, initial_position, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost));
+    CHECK_CUDA(cudaMemcpy(host_state_curr.velocity, initial_velocity, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost));
+    CHECK_CUDA(cudaMemcpy(host_state_curr.omega, initial_omega_tot, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost));
+    CHECK_CUDA(cudaMemcpy(host_state_curr.magnetization, initial_magnetization, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost));
+    // TODO: This is no longer necessary, I think.
+    // Initially all monomer pairs are marked as unconnected.
+    for (int i = 0; i < Nmon * Nmon; i++) {
+        host_state_curr.contact_compression[i] = -1.0;
+    }
+
+    // Push the initialized states to the device
+    state_pushToDevice(host_state_curr, device_state_curr, Nmon);
+    state_pushToDevice(host_state_next, device_state_next, Nmon);
+
+    // Copy material values into properties container
+    CHECK_CUDA(cudaMemcpy(host_matProperties.radius, monomer_radius, Nmon * sizeof(double), cudaMemcpyKind::cudaMemcpyHostToHost));
+    CHECK_CUDA(cudaMemcpy(host_matProperties.mass, monomer_mass, Nmon * sizeof(double), cudaMemcpyKind::cudaMemcpyHostToHost));
+    CHECK_CUDA(cudaMemcpy(host_matProperties.moment, monomer_moment, Nmon * sizeof(double), cudaMemcpyKind::cudaMemcpyHostToHost));
+    CHECK_CUDA(cudaMemcpy(host_matProperties.matID, monomer_matID, Nmon * sizeof(int), cudaMemcpyKind::cudaMemcpyHostToHost));
+
+    for (int i = 0; i < Nmon; i++) {
+        host_matProperties.density[i] = mat[monomer_matID[i]].rho;
+    }
+    for (int i = 0; i < Nmon; i++) {
+        host_matProperties.surface_energy[i] = mat[monomer_matID[i]].gamma;
+    }
+    for (int i = 0; i < Nmon; i++) {
+        host_matProperties.youngs_modulus[i] = mat[monomer_matID[i]].E;
+    }
+    for (int i = 0; i < Nmon; i++) {
+        host_matProperties.poisson_number[i] = mat[monomer_matID[i]].nu;
+    }
+    for (int i = 0; i < Nmon; i++) {
+        host_matProperties.damping_timescale[i] = mat[monomer_matID[i]].tvis;
+    }
+    for (int i = 0; i < Nmon; i++) {
+        host_matProperties.crit_rolling_disp[i] = mat[monomer_matID[i]].xi;
+    }
+
+    // Push the material values to the device
+    matProperties_pushToDevice(host_matProperties, device_matProperties, Nmon);
+
+    // Free memory of initial values.
+    free(initial_position);
+    free(initial_velocity);
+    free(initial_omega_tot);
+    free(initial_magnetization);
+
+    // Initialize inelastic motion counters
+    double4* device_inelastic_counter = nullptr;
+    CHECK_CUDA(cudaMalloc(& device_inelastic_counter, sizeof(double4)));
+    CHECK_CUDA(cudaMemset(device_inelastic_counter, 0, sizeof(double4)));
+
+    // Print run summary.
+    pipeline.printParameters();
+    
     // Get some run parameters.
     ullong N_iter = pipeline.getNIter();
     ullong N_save = pipeline.getNSave();
     double time_step = pipeline.getTimeStep();
     bool save_ovito = pipeline.saveOvito();
-    vec3D B_ext = pipeline.getBext();
+    double3 B_ext = pipeline.getBext();
 
-    int N_store = 0; // The number of individual monomer states that need to be stored.
+    int N_store = 0; // The number of simulation steps where the state is stored.
+    int N_store_mon = 0; // The number of individual monomer states that need to be stored.
 
     if (N_save > 0)
     {
-        N_store = Nmon * int((double(N_iter) / double(N_save) + 0.5));
+        N_store = int((double(N_iter) / double(N_save) + 0.5));
+        N_store_mon = Nmon * N_store;
 
         clusterIDs = new int[Nmon];
         fill(clusterIDs, clusterIDs + Nmon, -1);
 
         if (pipeline.savePos())
         {
-            storage_pos = new vec3D[N_store];
-            memset(storage_pos, 0, N_store * sizeof(vec3D));
+            storage_pos = new double3[N_store_mon];
+            memset(storage_pos, 0, N_store_mon * sizeof(double3));
         }
 
         if (pipeline.saveVel())
         {
-            storage_vel = new vec3D[N_store];
-            memset(storage_vel, 0, N_store * sizeof(vec3D));
+            storage_vel = new double3[N_store_mon];
+            memset(storage_vel, 0, N_store_mon * sizeof(double3));
         }
 
         if (pipeline.saveForce())
         {
-            storage_force = new vec3D[N_store];
-            memset(storage_force, 0, N_store * sizeof(vec3D));
+            storage_force = new double3[N_store_mon];
+            memset(storage_force, 0, N_store_mon * sizeof(double3));
         }
 
         if (pipeline.saveTorque())
         {
-            storage_torque = new vec3D[N_store];
-            memset(storage_torque, 0, N_store * sizeof(vec3D));
+            storage_torque = new double3[N_store_mon];
+            memset(storage_torque, 0, N_store_mon * sizeof(double3));
         }
 
         if (pipeline.saveOmega())
         {
-            storage_omega = new vec3D[N_store];
-            memset(storage_omega, 0, N_store * sizeof(vec3D));
+            storage_omega = new double3[N_store_mon];
+            memset(storage_omega, 0, N_store_mon * sizeof(double3));
         }
 
         if (pipeline.saveMag())
         {
-            storage_mag = new vec3D[N_store];
-            memset(storage_mag, 0, N_store * sizeof(vec3D));
+            storage_mag = new double3[N_store_mon];
+            memset(storage_mag, 0, N_store_mon * sizeof(double3));
+        }
+
+        if (true) {
+            storage_inelastic_N = new double[N_store];
+            memset(storage_inelastic_N, 0, N_store * sizeof(double));
+            storage_inelastic_S = new double[N_store];
+            memset(storage_inelastic_S, 0, N_store * sizeof(double));
+            storage_inelastic_R = new double[N_store];
+            memset(storage_inelastic_R, 0, N_store * sizeof(double));
+            storage_inelastic_T = new double[N_store];
+            memset(storage_inelastic_T, 0, N_store * sizeof(double));
         }
 
         if (pipeline.saveCluster())
         {
-            storage_cluster = new int[N_store];
-            memset(storage_cluster, 0, N_store * sizeof(int));
+            storage_cluster = new int[N_store_mon];
+            memset(storage_cluster, 0, N_store_mon * sizeof(int));
         }
     }
 
     // Calculate the number of blocks
-    int nBlocks = (Nmon + BLOCK_SIZE + 1) / BLOCK_SIZE; // FIXME: This should be Nmon + BLOCK_SIZE - 1
+    PRINT_TITLE("OVERVIEW OF COMPUTE DEVICE")
+    PRINT_CLR_LINE();
 
+    int device_count;
+    cudaGetDeviceCount(&device_count);
+    int active_device_ID;
+    cudaGetDevice(&active_device_ID);
+
+    printf("Active device: %d of %d\n", active_device_ID + 1, device_count);
+
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties(&prop, active_device_ID);
+
+    printf("   - Name:                  %s\n", prop.name);
+    printf("   - Compute capability:    %d.%d\n", prop.major, prop.minor);
+    printf("   - Total global mem:      %lu bytes\n", prop.totalGlobalMem);
+    printf("   - Warp size:             %d threads\n", prop.warpSize);
+    printf("   - Max threads / block:   %d threads\n", prop.maxThreadsPerBlock);
+    
+    int nBlocks_single = (Nmon + BLOCK_SIZE - 1) / BLOCK_SIZE; // The number of blocks needed to process all monomers.
+    int nBlocks_pair = (Nmon * Nmon + BLOCK_SIZE - 1) / BLOCK_SIZE; // The number of blocks needed to process all monomer pairs.
+
+    /*
     PRINT_LOG("Push initial state to device.", 2);
     // Copy memory into GPU
     cudaMemcpy(buff_mat, mat, Nmat * sizeof(material), cudaMemcpyHostToDevice);
@@ -288,6 +428,7 @@ int main(const int argc, const char** argv)
 
     // Check for CUDA errors during the push of initial state to device.
     CUDA_LAST_ERROR_CHECK();
+    */
 
     ullong counter_save = 0;
 
@@ -302,119 +443,184 @@ int main(const int argc, const char** argv)
     {
         auto iteration_start = std::chrono::high_resolution_clock::now();
 
-        #ifdef RUN_ON_GPU
-        gpu_predictor << < nBlocks, BLOCK_SIZE >> > (buff_pos_old, buff_pos_new, buff_force_old, buff_vel, buff_mass, time_step, Nmon);
-        cudaDeviceSynchronize();
-        CUDA_LAST_ERROR_CHECK();
+#ifdef DEBUG
+        printf("Starting iteration %llu \n", iter);
+        hostState curr, next;
+        state_allocateHostMemory(curr, Nmon);
+        state_allocateHostMemory(next, Nmon);
+        state_pullFromDevice(device_state_curr, curr, Nmon);
+        state_pullFromDevice(device_state_next, next, Nmon);
+        //printf("    Predictor:\n");
+#endif
 
-        gpu_updateNeighbourhoodRelations << < nBlocks, BLOCK_SIZE >> >  (buff_pos_new, buff_matrix_con, buff_matrix_norm, buff_matrix_rot,
-                                buff_matrix_comp, buff_matrix_twist, buff_amon, buff_mat, buff_matIDs, Nmon);
-        cudaDeviceSynchronize();
-        CUDA_LAST_ERROR_CHECK();
-
-        gpu_updateContacts << < nBlocks, BLOCK_SIZE >> >  (buff_omega, buff_omega_tot, buff_torque_old, buff_mag, buff_matrix_rot, buff_matrix_comp, buff_moment, Nmon, time_step);
-        cudaDeviceSynchronize();
-        CUDA_LAST_ERROR_CHECK();
-
-        gpu_updateParticleInteraction << < nBlocks, BLOCK_SIZE >> > (buff_pos_new, buff_force_new, buff_torque_old, buff_torque_new, buff_dMdt_new, 
-                                buff_matrix_con, buff_matrix_norm, buff_omega, buff_omega_tot, buff_mag, buff_matrix_rot, buff_matrix_comp, buff_matrix_twist, 
-                                buff_amon, buff_moment, buff_mat, buff_matIDs, B_ext, Nmon, time_step);
-        cudaDeviceSynchronize();
-        CUDA_LAST_ERROR_CHECK();
-
-        gpu_corrector << < nBlocks, BLOCK_SIZE >> > (buff_force_old, buff_force_new, buff_torque_old, buff_torque_new, buff_dMdt_old, 
-                                buff_dMdt_new, buff_vel, buff_omega, buff_omega_tot, buff_mag, buff_mass, buff_moment, buff_mat, 
-                                buff_matIDs, time_step, Nmon);
-        cudaDeviceSynchronize();
-        CUDA_LAST_ERROR_CHECK();
-
-        switch_pointer(buff_pos_old, buff_pos_new, buff_force_old, buff_force_new, buff_torque_old, buff_torque_new, buff_dMdt_old, buff_dMdt_new);
-        CUDA_LAST_ERROR_CHECK();
+        predictor <<<nBlocks_single, BLOCK_SIZE>>> (
+            device_state_curr.position, device_state_curr.velocity, device_state_curr.force,
+            device_state_next.position,
+            device_matProperties.mass, time_step, Nmon
+        );
         
-        #else
-        cpu_predictor(pos_old, pos_new, force_old, vel, mass, time_step, Nmon);
-        cpu_updateNeighbourhoodRelations(pos_new, matrix_con, matrix_norm, matrix_rot, matrix_comp, matrix_twist, amon, mat, matIDs, Nmon);
-        cpu_updateContacts(omega, omega_tot, torque_old, mag, matrix_rot, matrix_comp, moment, Nmon, time_step);
+        predictor_pointer <<<nBlocks_pair, BLOCK_SIZE>>> (
+            device_state_curr.contact_rotation, device_state_curr.contact_twist, device_state_curr.omega, device_state_curr.torque,
+            device_state_next.contact_rotation, device_state_next.contact_twist, 
+            device_matProperties.moment, time_step, Nmon
+        );
 
-        cpu_updateParticleInteraction(pos_new, force_new, torque_old, torque_new, dMdt_new, matrix_con, matrix_norm, omega, omega_tot, mag, matrix_rot, matrix_comp, matrix_twist, amon, moment, mat, matIDs, B_ext, Nmon, time_step);
-        cpu_corrector(force_old, force_new, torque_old, torque_new, dMdt_old, dMdt_new, vel, omega, omega_tot, mag, mass, moment, mat, matIDs, time_step, Nmon);
+        cudaDeviceSynchronize();
+        CUDA_LAST_ERROR_CHECK();
 
-        switch_pointer(pos_old, pos_new, force_old, force_new, torque_old, torque_new, dMdt_old, dMdt_new);
-        #endif
+#ifdef DEBUG
+        state_pullFromDevice(device_state_curr, curr, Nmon);
+        state_pullFromDevice(device_state_next, next, Nmon);
+        //printf("    Evaluator:\n");
+#endif
 
+        evaluate <<<nBlocks_pair, BLOCK_SIZE>>> (
+            device_state_next.position, device_state_curr.contact_pointer, device_state_next.contact_rotation, device_state_next.contact_twist, device_state_curr.contact_compression,
+            device_state_next.force, device_state_next.torque,
+            device_matProperties.mass, device_matProperties.radius, device_matProperties.youngs_modulus, device_matProperties.poisson_number, device_matProperties.surface_energy, device_matProperties.crit_rolling_disp, device_matProperties.damping_timescale,
+            time_step, Nmon
+        );
+        
+        cudaDeviceSynchronize();
+        CUDA_LAST_ERROR_CHECK();
+
+#ifdef DEBUG
+        state_pullFromDevice(device_state_curr, curr, Nmon);
+        state_pullFromDevice(device_state_next, next, Nmon);
+        //printf("    Corrector:\n");
+#endif
+
+        corrector <<<nBlocks_single, BLOCK_SIZE>>> (
+            device_state_curr.velocity, device_state_curr.omega,
+            device_state_curr.force, device_state_next.force,
+            device_state_curr.torque, device_state_next.torque,
+            device_state_next.velocity, device_state_next.omega,
+            device_matProperties.mass, device_matProperties.moment,
+            time_step, Nmon
+        );
+
+        cudaDeviceSynchronize();
+        CUDA_LAST_ERROR_CHECK();
+
+#ifdef DEBUG
+        state_pullFromDevice(device_state_curr, curr, Nmon);
+        state_pullFromDevice(device_state_next, next, Nmon);
+        //printf("    Pointer Update:\n");
+#endif
+
+        updatePointers <<<nBlocks_pair, BLOCK_SIZE>>> (
+            device_state_next.position, device_state_curr.contact_pointer, device_state_curr.contact_rotation, device_state_curr.contact_compression,
+            device_state_next.contact_pointer, device_state_next.contact_rotation, device_state_next.contact_twist, device_state_next.contact_compression, device_inelastic_counter,
+            device_matProperties.radius, device_matProperties.youngs_modulus, device_matProperties.poisson_number, device_matProperties.surface_energy, device_matProperties.crit_rolling_disp,
+            Nmon
+        );
+
+        cudaDeviceSynchronize();
+        CUDA_LAST_ERROR_CHECK();
+
+#ifdef DEBUG
+        state_pullFromDevice(device_state_curr, curr, Nmon);
+        state_pullFromDevice(device_state_next, next, Nmon);
+        if (iter >= 0) {
+            printf("pos:\n");
+            print_double3(next.position, 0, min(Nmon, 5));
+            printf("F:\n");
+            print_double3(next.force, 0, min(Nmon, 5));
+            printf("vel:\n");
+            print_double3(next.velocity, 0, min(Nmon, 5));
+            printf("M:\n");
+            print_double3(next.torque, 0, min(Nmon, 5));
+            printf("omega:\n");
+            print_double3(next.omega, 0, min(Nmon, 5));
+            printf("rotation:\n");
+            print_double4(next.contact_rotation, 0, min(Nmon * Nmon, 5));
+            printf("pointer:\n");
+            print_double3(next.contact_pointer, 0, min(Nmon * Nmon, 5));
+        }
+        cout << endl;
+        //printf("    Switch:\n");
+#endif
+        
+        // Switch pointers
+        //PRINT_LOG("Pointer switch", 1);
+        deviceState tmp = device_state_curr;
+        device_state_curr = device_state_next;
+        device_state_next = tmp;
+
+        // TODO: Check if other fields need to be zeroed
+        cudaMemset(device_state_next.force, 0, Nmon * sizeof(double3));
+        cudaMemset(device_state_next.torque, 0, Nmon * sizeof(double3));
+
+        cudaDeviceSynchronize();
+        CUDA_LAST_ERROR_CHECK();
+
+#ifdef DEBUG
+        state_pullFromDevice(device_state_curr, curr, Nmon);
+        state_pullFromDevice(device_state_next, next, Nmon);
+#endif
+
+        // Store state snapshots.
         if (N_save > 0)
         {
             if (iter % N_save == 0)
             {
+                // Pull the current state information form the device.
+                state_pullFromDevice(device_state_curr, host_state_curr, Nmon);
+
                 ullong start_index = counter_save * Nmon;
 
-                if (long(N_store) - long(start_index) < Nmon)
+                if (long(N_store_mon) - long(start_index) < Nmon)
                 {
                     PRINT_ERROR("Storage overrun!")
                     return -1;
                 }
 
-                if (start_index < N_store) //just a failsave if there was a rounding error in N_store
+                if (start_index < N_store_mon) //just a failsave if there was a rounding error in N_store_mon
                 {
                     if (storage_pos != 0)
                     {
-                        #ifdef RUN_ON_GPU
-                        cudaMemcpy(pos_old, buff_pos_old, Nmon * sizeof(vec3D), cudaMemcpyDeviceToHost);
-                        #endif
-                        copy(pos_old, pos_old + Nmon, storage_pos + start_index);
+                        CHECK_CUDA(cudaMemcpy(storage_pos + start_index, host_state_curr.position, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost))
                     }
 
                     if (storage_vel != 0)
                     {
-                        #ifdef RUN_ON_GPU
-                        cudaMemcpy(vel, buff_vel, Nmon * sizeof(vec3D), cudaMemcpyDeviceToHost);
-                        #endif
-                        copy(vel, vel + Nmon, storage_vel + start_index);
+                        CHECK_CUDA(cudaMemcpy(storage_vel + start_index, host_state_curr.velocity, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost))
                     }
 
                     if (storage_force != 0)
                     {
-                        #ifdef RUN_ON_GPU
-                        cudaMemcpy(force_old, buff_force_old, Nmon * sizeof(vec3D), cudaMemcpyDeviceToHost);
-                        #endif
-                        copy(force_old, force_old + Nmon, storage_force + start_index);
+                        CHECK_CUDA(cudaMemcpy(storage_force + start_index, host_state_curr.force, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost))
                     }
 
                     if (storage_torque != 0)
                     {
-                        #ifdef RUN_ON_GPU
-                        cudaMemcpy(torque_old, buff_torque_old, Nmon * sizeof(vec3D), cudaMemcpyDeviceToHost);
-                        #endif
-                        copy(torque_old, torque_old + Nmon, storage_torque + start_index);
+                        CHECK_CUDA(cudaMemcpy(storage_torque + start_index, host_state_curr.torque, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost))
                     }
 
                     if (storage_omega != 0)
                     {
-                        #ifdef RUN_ON_GPU
-                        cudaMemcpy(omega_tot, buff_omega_tot, Nmon * sizeof(vec3D), cudaMemcpyDeviceToHost);
-                        #endif
-                        copy(omega_tot, omega_tot + Nmon, storage_omega + start_index);
+                        CHECK_CUDA(cudaMemcpy(storage_omega + start_index, host_state_curr.omega, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost))
                     }
 
-                    if (storage_mag != 0)
-                    {
-                        #ifdef RUN_ON_GPU
-                        cudaMemcpy(mag, buff_mag, Nmon * sizeof(vec3D), cudaMemcpyDeviceToHost);
-                        #endif
-                        copy(mag, mag + Nmon, storage_mag + start_index);
+                    if (device_inelastic_counter!= nullptr) {
+                        CHECK_CUDA(cudaMemcpy(storage_inelastic_N + counter_save, &device_inelastic_counter->w, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+                        CHECK_CUDA(cudaMemcpy(storage_inelastic_S + counter_save, &device_inelastic_counter->x, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+                        CHECK_CUDA(cudaMemcpy(storage_inelastic_R + counter_save, &device_inelastic_counter->y, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+                        CHECK_CUDA(cudaMemcpy(storage_inelastic_T + counter_save, &device_inelastic_counter->z, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+                        // Reset the inelastic motion counter.
+                        CHECK_CUDA(cudaMemset(device_inelastic_counter, 0, sizeof(double4)));
                     }
 
                     if (storage_cluster != 0)
                     {
                         fill(clusterIDs, clusterIDs + Nmon, -1);
-                        cpu_findConnectedComponents(Nmon, matrix_comp, clusterIDs);
+                        cpu_findConnectedComponents(Nmon, host_state_curr.contact_compression, clusterIDs);
                         copy(clusterIDs, clusterIDs + Nmon, storage_cluster + start_index);
                     }
                 }
-                counter_save++;
 
-                // Checks if there were CUDA errors while pulling the state from the device.
-                CUDA_LAST_ERROR_CHECK();
+                // Increment the number of states stored in the storage arrays.
+                counter_save++;
             }
         }
 
@@ -423,22 +629,24 @@ int main(const int argc, const char** argv)
         auto iteration_ellapsed = std::chrono::duration_cast <std::chrono::nanoseconds> (iteration_current - iteration_start);
 
         // Use rolling average to estimate the time per iteration.
-        if (ns_per_iteration == 0) {
-            ns_per_iteration = iteration_ellapsed.count();
-        } else {
-            ns_per_iteration = (ulong) ((1.0 - ROLLING_AVERAGE_WEIGHT) * ((double)ns_per_iteration) + ROLLING_AVERAGE_WEIGHT * ((double)iteration_ellapsed.count()));
+        float percentage = 100 * float(iter) / N_iter;
+        float weight = ROLLING_AVERAGE_WEIGHT;
+        
+        // The first iteration has volatile timing and should be skipped, this can be achieved with a rolling average weight of 1.0 for the next iteration.
+        if (iter < 2) {
+            weight = 1.;
         }
 
-        // Print the simulation progress to console.
-        if ((iter % (N_iter / PROGRESS_LOG_NUMBER)) == 0) {
-            float percentage = 100.0 * float(iter) / N_iter;
+        ns_per_iteration = (ulong) ((1.0 - weight) * ((double)ns_per_iteration) + weight * ((double)iteration_ellapsed.count()));
 
+        // Print the simulation progress to console.
+        if (((iter - PROGRESS_LOG_OFFSET) % (N_iter / PROGRESS_LOG_AMMOUNT)) == 0) {
             ullong remaining_ns = ns_per_iteration * (N_iter - iter);
 
             char buffer[14];
             ns_to_time_string(remaining_ns, buffer, 14);
 
-            printf("Simulation progress  : %.1f %%\n      Remaining time ~ %s\n", percentage, buffer);
+            printf("Simulation progress  :%5.1f %%\n      Remaining time ~ %s\n", percentage, buffer);
         }
     }
 
@@ -452,46 +660,75 @@ int main(const int argc, const char** argv)
         // Write ouput files
         if (save_ovito && storage_pos != 0)
         {
-            if (!pipeline.writeAllOVITO(storage_pos, storage_vel, storage_force, storage_torque, storage_omega, storage_mag, storage_cluster, amon, matIDs, Nmon, N_store))
+            if (!pipeline.writeAllOVITO(storage_pos, storage_vel, storage_force, storage_torque, storage_omega, storage_mag, storage_cluster, monomer_radius, monomer_matID, Nmon, N_store_mon))
                 return -1;
         }
 
         if (!pipeline.writeHeader())
             return -1;
 
-        if (!pipeline.writeBinaryDouble("agg_a_mon.bin", amon, Nmon))
+        if (!pipeline.writeBinaryDouble("agg_a_mon.bin", monomer_radius, Nmon))
             return -1;
 
-        if (!pipeline.writeBinaryDouble("agg_mass_mon.bin", mass, Nmon))
+        if (!pipeline.writeBinaryDouble("agg_mass_mon.bin", monomer_mass, Nmon))
             return -1;
 
         for (int i = 0; i < Nmon; i++)
-            matIDs[i] = matIDs[i] + 1;
+            monomer_matID[i] = monomer_matID[i] + 1;
 
-        if (!pipeline.writeBinaryInt("agg_matid_mon.bin", matIDs, Nmon))
+        if (!pipeline.writeBinaryInt("agg_matid_mon.bin", monomer_matID, Nmon))
             return -1;
 
         if (storage_pos != 0)
         {
-            if (!pipeline.writeBinaryVec("sim_pos.bin", storage_pos, N_store))
+            if (!pipeline.writeBinaryVec("sim_pos.bin", storage_pos, N_store_mon))
                 return -1;
         }
 
         if (storage_vel != 0)
-            if (!pipeline.writeBinaryVec("sim_vel.bin", storage_vel, N_store))
+            if (!pipeline.writeBinaryVec("sim_vel.bin", storage_vel, N_store_mon))
                 return -1;
 
+        if (storage_omega != 0)
+            if (!pipeline.writeBinaryVec("sim_omega.bin", storage_omega, N_store_mon))
+                return -1;
+                
         if (storage_force != 0)
-            if (!pipeline.writeBinaryVec("sim_force.bin", storage_force, N_store))
+            if (!pipeline.writeBinaryVec("sim_force.bin", storage_force, N_store_mon))
                 return -1;
 
         if (storage_torque != 0)
-            if (!pipeline.writeBinaryVec("sim_torque.bin", storage_torque, N_store))
+            if (!pipeline.writeBinaryVec("sim_torque.bin", storage_torque, N_store_mon))
                 return -1;
 
         if (storage_cluster != 0)
-            if (!pipeline.writeBinaryInt("sim_cluster.bin", storage_cluster, N_store))
+            if (!pipeline.writeBinaryInt("sim_cluster.bin", storage_cluster, N_store_mon))
                 return -1;
+
+        if (storage_inelastic_N != 0) {
+            if (!pipeline.writeBinaryDouble("sim_normal_diss.bin", storage_inelastic_N, N_store)) {
+                return -1;
+            }
+        }
+        
+        if (storage_inelastic_S != 0) {
+            if (!pipeline.writeBinaryDouble("sim_sliding_diss.bin", storage_inelastic_S, N_store)) {
+                return -1;
+            }
+        }
+        
+        if (storage_inelastic_R != 0) {
+            if (!pipeline.writeBinaryDouble("sim_rolling_diss.bin", storage_inelastic_R, N_store)) {
+                return -1;
+            }
+        }
+        
+        if (storage_inelastic_T != 0) {
+            if (!pipeline.writeBinaryDouble("sim_twisting_diss.bin", storage_inelastic_T, N_store)) {
+                return -1;
+            }
+        }
+        
 
         PRINT_CLR_LINE();
     }
@@ -499,6 +736,7 @@ int main(const int argc, const char** argv)
     PRINT_TITLE("FINAL CLEANUP");
     PRINT_CLR_LINE();
 
+    /*
     PRINT_LOG("Freeing host memory.", 3);
     // Free allocated memory
     if (omega != 0)
@@ -617,6 +855,19 @@ int main(const int argc, const char** argv)
     cudaFree(buff_amon);
     cudaFree(buff_moment);
     cudaFree(buff_mass);
+    */
+
+    state_freeHost(host_state_curr);
+    state_freeHost(host_state_next);
+    state_freeDevice(device_state_curr);
+    state_freeDevice(device_state_next);
+    matProperties_freeHostMemory(host_matProperties);
+    matProperties_freeDeviceMemory(device_matProperties);
+
+    free(monomer_radius);
+    free(monomer_mass);
+    free(monomer_moment);
+    free(monomer_matID); 
 
     // Check if there were CUDA errors during memory deallocation.
     CUDA_LAST_ERROR_CHECK();

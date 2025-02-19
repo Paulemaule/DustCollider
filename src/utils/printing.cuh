@@ -51,7 +51,7 @@
  * @brief Converts a duration in nanoseconds into a string of the form HHHH:MM:SS.mm.
  * 
  * @param duration: The duration that is to be converted into a string.
- * @param buffer: A buffer the resulting string is to be written into, needs to have lenght .
+ * @param buffer: A buffer the resulting string is to be written into, needs to have length .
  */
 void ns_to_time_string(const long duration, char* buffer, size_t buffer_size) {
     if (buffer_size < 14) {
@@ -69,4 +69,46 @@ void ns_to_time_string(const long duration, char* buffer, size_t buffer_size) {
     double seconds = static_cast<double>(remaining) / 1'000'000'000.0;
     
     std::snprintf(buffer, buffer_size, "%04ld:%02ld:%05.02f\n", hours, minutes, seconds);
+}
+
+///////////////////////// DEBUGGING /////////////////////////
+void print_double (double* array, int start, int stop) {
+    for (int i = start; i < stop; i++) {
+        printf("%4d: %12.3e | ", i, array[i]);
+    }
+    printf("\n");
+}
+
+void print_double3 (double3* array, int start, int stop) {
+    for (int i = start; i < stop; i++) {
+        printf("%4d: %12.3e | ", i, array[i].x);
+    }
+    printf("\n");
+    for (int i = start; i < stop; i++) {
+        printf("%4d: %12.3e | ", i, array[i].y);
+    }
+    printf("\n");
+    for (int i = start; i < stop; i++) {
+        printf("%4d: %12.3e | ", i, array[i].z);
+    }
+    printf("\n");
+}
+
+void print_double4 (double4* array, int start, int stop) {
+    for (int i = start; i < stop; i++) {
+        printf("%4d: %12.3e | ", i, array[i].w);
+    }
+    printf("\n");
+    for (int i = start; i < stop; i++) {
+        printf("%4d: %12.3e | ", i, array[i].x);
+    }
+    printf("\n");
+    for (int i = start; i < stop; i++) {
+        printf("%4d: %12.3e | ", i, array[i].y);
+    }
+    printf("\n");
+    for (int i = start; i < stop; i++) {
+        printf("%4d: %12.3e | ", i, array[i].z);
+    }
+    printf("\n");
 }

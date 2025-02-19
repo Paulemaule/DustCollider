@@ -1,8 +1,5 @@
 #pragma once
 
-#include <iostream>
-
-#include "../utils/printing.cuh"
 #include "../utils/errors.cuh"
 
 /**
@@ -92,17 +89,29 @@ void state_allocateDeviceMemory(deviceState& state, size_t Nmon) {
 void state_freeHost(hostState& state) {
     // Free all arrays pointed to by members of the state.
     CHECK_CUDA(cudaFreeHost(state.position));
+    state.position = nullptr;
     CHECK_CUDA(cudaFreeHost(state.magnetization));
+    state.magnetization = nullptr;
     CHECK_CUDA(cudaFreeHost(state.velocity));
+    state.velocity = nullptr;
     CHECK_CUDA(cudaFreeHost(state.omega));
+    state.omega = nullptr;
     CHECK_CUDA(cudaFreeHost(state.magnetization_change));
+    state.magnetization_change = nullptr;
     CHECK_CUDA(cudaFreeHost(state.force));
+    state.force = nullptr;
     CHECK_CUDA(cudaFreeHost(state.torque));
+    state.torque = nullptr;
     CHECK_CUDA(cudaFreeHost(state.contact_compression));
+    state.contact_compression = nullptr;
     CHECK_CUDA(cudaFreeHost(state.contact_twist));
+    state.contact_twist = nullptr;
     CHECK_CUDA(cudaFreeHost(state.contact_pointer));
+    state.contact_pointer = nullptr;
     CHECK_CUDA(cudaFreeHost(state.contact_normal));
+    state.contact_normal = nullptr;
     CHECK_CUDA(cudaFreeHost(state.contact_rotation));
+    state.contact_rotation = nullptr;
 }
 
 /**
@@ -113,17 +122,29 @@ void state_freeHost(hostState& state) {
 void state_freeDevice(deviceState& state) {
     // Free all arrays pointed to by members of the state.
     CHECK_CUDA(cudaFree(state.position));
+    state.position = nullptr;
     CHECK_CUDA(cudaFree(state.magnetization));
+    state.magnetization = nullptr;
     CHECK_CUDA(cudaFree(state.velocity));
+    state.velocity = nullptr;
     CHECK_CUDA(cudaFree(state.omega));
+    state.omega = nullptr;
     CHECK_CUDA(cudaFree(state.magnetization_change));
+    state.magnetization_change = nullptr;
     CHECK_CUDA(cudaFree(state.force));
+    state.force = nullptr;
     CHECK_CUDA(cudaFree(state.torque));
+    state.torque = nullptr;
     CHECK_CUDA(cudaFree(state.contact_compression));
+    state.contact_compression = nullptr;
     CHECK_CUDA(cudaFree(state.contact_twist));
+    state.contact_twist = nullptr;
     CHECK_CUDA(cudaFree(state.contact_pointer));
+    state.contact_pointer = nullptr;
     CHECK_CUDA(cudaFree(state.contact_normal));
+    state.contact_normal = nullptr;
     CHECK_CUDA(cudaFree(state.contact_rotation));
+    state.contact_rotation = nullptr;
 }
 
 /**
@@ -251,6 +272,7 @@ void state_pullFromDevice(deviceState& device_state, hostState& host_state, size
  * @param Nmon: The number of monomers.
  */
 void state_clearHost(hostState& state, size_t Nmon) {
+    // FIXME: memset is not good for complex types. I should use something else like std::fill.
     memset(state.position, 0, Nmon * sizeof(double3));
     memset(state.magnetization, 0, Nmon * sizeof(double3));
     memset(state.velocity, 0, Nmon * sizeof(double3));
@@ -262,5 +284,5 @@ void state_clearHost(hostState& state, size_t Nmon) {
     memset(state.contact_twist, 0, Nmon * Nmon * sizeof(double));
     memset(state.contact_pointer, 0, Nmon * Nmon * sizeof(double3));
     memset(state.contact_normal, 0, Nmon * Nmon * sizeof(double3));
-    memset(state.contact_twist, 0, Nmon * Nmon * sizeof(double4)); 
+    memset(state.contact_rotation, 0, Nmon * Nmon * sizeof(double4)); 
 }
