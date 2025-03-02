@@ -3,7 +3,7 @@
  * @brief Implements a synchronized leapfrog algorithm for time integration.
  * 
  * This file defines CUDA kernels for performing a synchronized leapfrog integration 
- * scheme, specifically using the Predictor-Evaluate-Corrector (PEC) method. 
+ * scheme, specifically using the synchronized Predictor-Evaluate-Corrector (PEC) method. 
  * 
  * The integration scheme updates the state according to this formula:
  * x(t+dt) : Predictor
@@ -27,10 +27,10 @@
 #include "physics/interaction.cuh"
 
 /**
- * @brief A makro that calculates the indices from the threadID.
+ * @brief A makro that calculates the monomer pair indices from the threadID.
  * 
  * This makro determines the layout of monomers pairs in the contact matrices!
- * The layout in the matrices is: M = [00, 10, ..., N0, 01, 11, ..., N1, ..., N-1N, NN]
+ * The layout in the matrices is: M = {ij} = {00, 10, ..., N0, 01, 11, ..., N1, ..., N-1N, NN}
  */
 #define CALC_MONOMER_INDICES(threadID, i, j, matrix_i, matrix_j, Nmon)  \
     i = threadID % Nmon;                                                \
@@ -453,7 +453,6 @@ __global__ void updatePointers(
     const double*               poisson_number,
     const double*               surface_energy,
     const double*               crit_rolling_displacement,
-
     const int                   Nmon
 ) {
     // Retrieve the ID of the current thread
@@ -469,7 +468,8 @@ __global__ void updatePointers(
     
     CALC_MONOMER_INDICES(threadID, i, j, matrix_i, matrix_j, Nmon);
 
-    if (i == j) return;
+    if (i == j) return;                             // There is no self interaction
+    //if (i > j) return;                              // The contact pointer updates need to be symmetrical
 
     // DETERMINE PAIR PROPERTIES
     double r_i = radius[i];                         // The radius of monomer i.
@@ -517,7 +517,7 @@ __global__ void updatePointers(
     // FIXME: In wada 2007 it is mentioned that this formula is not valid for materials with strong intermolecular forces.
     // FIXME: The use of nu_i feels incorrect and will lead to assymetries of the pointers. I should check how Wada derives the formula exactly.
     // Note: These issues should not be large since sliding is not very relevant in monomer restructuring...
-    double delta_S_crit = (2.0 - nu_i) * a_0 / (16.0 * PI);
+    double delta_S_crit = (2.0 - 0.5 * (nu_i + nu_j)) * a_0 / (16.0 * PI);
 
     // The critical rolling displacement of the monomer pair.
     double delta_R_crit = 0.5 * (crit_rolling_displacement[i] + crit_rolling_displacement[j]);
@@ -576,6 +576,7 @@ __global__ void updatePointers(
             // Track inelastic motion
             // TODO: Energy is also dissipated by the damping force, this seems difficult to track.
             atomicAdd(&inelastic_counter->w, -1.); // TODO: Properly implement dissipated energy, see Wada07
+            
             // TODO: The energy stored in the other dofs will also be lost, it can be calculated from the potential energy formulae in Wada07
             //atomicAdd(&inelastic_counter->x, -1.);
             //atomicAdd(&inelastic_counter->y, -1.);
@@ -614,7 +615,7 @@ __global__ void updatePointers(
             vec_normalize(pointer_i);
             
             // Track inelastic motion
-            atomicAdd(&inelastic_counter->x, 1.); // TODO: Properly implement dissipated energy, see Wada07
+            atomicAdd(&inelastic_counter->x, pow(10., double(i))); // TODO: Properly implement dissipated energy, see Wada07
         }
 
         if (rolling_displacement_abs > delta_R_crit) {
@@ -637,7 +638,7 @@ __global__ void updatePointers(
             vec_normalize(pointer_i);
 
             // Track inelastic motion
-            atomicAdd(&inelastic_counter->y, 1.); // TODO: Properly implement dissipated energy, see Wada07
+            atomicAdd(&inelastic_counter->y, pow(10., double(i))); // TODO: Properly implement dissipated energy, see Wada07
         }
 
         // If there were any corrections, apply them to the contact pointer.
@@ -653,7 +654,7 @@ __global__ void updatePointers(
             twisting_next[matrix_i] = sign * delta_T_crit;
             
             // Track inelastic motion
-            atomicAdd(&inelastic_counter->z, 1.); // TODO: Properly implement dissipated energy, see Wada07
+            atomicAdd(&inelastic_counter->z, pow(10., double(i))); // TODO: Properly implement dissipated energy, see Wada07
         }
     } else {
         double normal_displacement;             // The displacement in the normal-dof of the contact.

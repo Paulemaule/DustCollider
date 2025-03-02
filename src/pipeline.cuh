@@ -940,512 +940,9 @@ public:
     };
 
     /**
-     * @brief Reads the aggregates from files and calculates the initial state.
-     * 
-     * @param *&pos: An array of the momomer positions will get placed here.
-     * @param *&vel: An array of the monomer velocities will be placed here.
-     * @param *&omega_tot: An array of the monomer angular velocities will be placed here.
-     * @param *&mag: An array of the monomer magnetizations will be placed here.
-     * @param *&amon: An array of the monomer radii will be placed here.
-     * @param *&mass: An array of the monomer masses will be placed here.
-     * @param *&moment: An array of the monomer moment of inertias will be placed here.
-     * @param *&matIDs: An array of the momomer material IDs will be placed here.
-     * @param *&Nmon: The total number of monomers will be placed here.
-     * @returns True if successful, False if failure.
+     * @brief Reads the aggregate files and calculates the initial state as well as the timestep.
      */
     bool prepareData(
-            vec3D*& pos,
-            vec3D*& vel,
-            vec3D*& omega_tot,
-            vec3D*& mag,
-            double*& amon,
-            double*& mass,
-            double*& moment,
-            int*& matIDs,
-            int& Nmon
-        ) {
-        // Initialize readers for aggregate files.
-        ifstream reader_A, reader_B;
-
-        vlist lst_pos_A, lst_pos_B;
-        ilist lst_matID_A, lst_matID_B;
-        dlist lst_amon_A, lst_amon_B;
-
-        string line_A, line_B;
-        int line_counter_A = 0, line_counter_B = 0;
-
-        agg_filename_A = path_A;
-        agg_filename_B = path_B;
-
-        // Read the monomer data for aggregate A and aggregate B.
-        reader_A.open(agg_filename_A.c_str());
-
-        if (reader_A.fail())
-        {
-            PRINT_ERROR("Cannot read aggregate A from \n      " + agg_filename_A);
-            return false;
-        }
-
-        reader_B.open(agg_filename_B.c_str());
-
-        if (reader_B.fail())
-        {
-            PRINT_ERROR("Cannot read aggregate B from \n      " + agg_filename_B);
-            return false;
-        }
-
-        // Initialize values for min and max value determination.
-        a_mon_min = 1e200;
-        a_mon_max = 0;
-
-        // Read aggregate files.
-        PRINT_LOG("Reading aggregate A from file.", 2);
-        while (getline(reader_A, line_A))
-        {
-            line_counter_A++;
-
-            // Use the first line to determine the number of monomers.
-            if (line_counter_A == 1)
-            {
-                dlist values = parseValues(line_A);
-
-                Nmon_A = int(values[0]);
-                a_eff_A = 1e-9 * values[2];
-            }
-
-            // Read the monomer data from line 5 onward.
-            if (line_counter_A > 5)
-            {
-                dlist values = parseValues(line_A);
-
-                // Skip empty lines.
-                if (values.size() == 0)
-                    continue;
-                
-                if (line_counter_A % 50 == 0)
-                    cout << "Reading aggregate A: " << 100.0 * float(line_counter_A) / float(Nmon_A) << "                 \r" << flush;
-
-                // Read monomer positions from the first three numbers.
-                vec3D tmp_pos;
-                tmp_pos.x = 1e-9 * values[0];
-                tmp_pos.y = 1e-9 * values[1];
-                tmp_pos.z = 1e-9 * values[2];
-                
-                lst_pos_A.push_back(tmp_pos);
-
-                // Read monomer radius from 5th number
-                double a_mon = 1e-9 * values[4];
-                lst_amon_A.push_back(a_mon);
-
-                // Determine min and max monomer radii
-                if (a_mon_min > a_mon)
-                    a_mon_min = a_mon;
-
-                if (a_mon_max < a_mon)
-                    a_mon_max = a_mon;
-
-                // Determine the maximum for the outer most surface from the origin of aggregate A
-                double distance = sqrt(tmp_pos.x * tmp_pos.x + tmp_pos.y * tmp_pos.y + tmp_pos.z * tmp_pos.z) + a_mon;
-
-                if (a_out_A < distance)
-                    a_out_A = distance;
-
-                // Read the material ID from the 7th number
-                int mat_id = int(values[6] - 1);
-
-                if (!isMatID(mat_id))
-                {
-                    cout << "ERROR: Material id " << mat_id << " in aggregate A line " << line_counter_A << " does not match the IDs in the command file!   \n" << flush;
-                    return false;
-                }
-
-                lst_matID_A.push_back(mat_id);
-            }
-        }
-
-        PRINT_LOG("Reading aggregate B from file.", 2);
-        while (getline(reader_B, line_B))
-        {
-            line_counter_B++;
-
-            if (line_counter_B == 1)
-            {
-                dlist values = parseValues(line_B);
-
-                Nmon_B = int(values[0]);
-                a_eff_B = 1e-9 * values[2];
-            }
-
-            if (line_counter_B > 5)
-            {
-                dlist values = parseValues(line_B);
-
-                if (values.size() == 0)
-                    continue;
-
-                if (line_counter_B % 50 == 0)
-                    cout << "Reading aggregate B: " << 100.0 * float(line_counter_B) / float(Nmon_B) << "                 \r" << flush;
-
-                vec3D tmp_pos;
-
-                tmp_pos.x = 1e-9 * values[0];
-                tmp_pos.y = 1e-9 * values[1];
-                tmp_pos.z = 1e-9 * values[2];
-                lst_pos_B.push_back(tmp_pos);
-
-                double a_mon = 1e-9 * values[4];
-                lst_amon_B.push_back(a_mon);
-
-                if (a_mon_min > a_mon)
-                    a_mon_min = a_mon;
-
-                if (a_mon_max < a_mon)
-                    a_mon_max = a_mon;
-
-                double distance = sqrt(tmp_pos.x * tmp_pos.x + tmp_pos.y * tmp_pos.y + tmp_pos.z * tmp_pos.z) + a_mon;
-
-                if (a_out_B < distance)
-                    a_out_B = distance;
-
-                int mat_id = int(values[6] - 1);
-
-                if (!isMatID(mat_id))
-                {
-                    cout << "ERROR: Material id " << mat_id << " in aggregate B line " << line_counter_B << " does not match the IDs in the command file!   \n" << flush;
-                    return false;
-                }
-
-                lst_matID_B.push_back(mat_id);
-            }
-        }
-
-        Nmon = Nmon_A + Nmon_B;
-
-        // Create arrays to contain position, velocity, magnetization, angular velocities, material IDs, monomer radii
-        PRINT_LOG("Calculating initial state.", 2);
-        
-        pos = new vec3D[Nmon];
-        vel = new vec3D[Nmon];
-        mag = new vec3D[Nmon];
-        omega_tot = new vec3D[Nmon];
-        matIDs = new int[Nmon];
-        amon = new double[Nmon];
-
-        moment = new double[Nmon];
-        mass = new double[Nmon];
-
-        // Iterate over the 
-        for (int i = 0; i < Nmon_A; i++)
-        {
-            // Determine monomer position in experimental frame.
-            pos[i].x = lst_pos_A[i].x + pos_A.x;
-            pos[i].y = lst_pos_A[i].y + pos_A.y;
-            pos[i].z = lst_pos_A[i].z + pos_A.z;
-
-            amon[i] = lst_amon_A[i];
-
-            // Determine the velocity of the monomers due to aggregate rotation.
-            vec3D r;
-            r.x = 0; // FIXME: This should be a bug?
-            r.y = lst_pos_A[i].y;
-            r.z = lst_pos_A[i].z;
-
-            vec3D vel_tan = cpu_vec3D_cross(ang_A, r);
-
-            vel[i].x = vel_A.x + vel_tan.x;
-            vel[i].y = vel_A.y + vel_tan.y;
-            vel[i].z = vel_A.z + vel_tan.z;
-
-            // The angular momentum of the monomers is equal to the aggregates angular momentum.
-            omega_tot[i] = ang_A;
-
-            // FIXME: Is mat_id not redundant?
-            int mat_id = lst_matID_A[i];
-            matIDs[i] = mat_id;
-
-            double rho = lst_rho[mat_id];
-
-            // Calculate moment of inertia and mass of the monomer.
-            mass[i] = 4. / 3. * PI * rho * amon[i] * amon[i] * amon[i];
-            moment[i] = 2. / 5. * mass[i] * amon[i] * amon[i];
-
-            // TODO: Code from the physics engine should be used here...
-            // The magnetic susceptibility.
-            double chi = lst_chi[mat_id];
-
-            // Set initial magnetization depending on run setup
-            if (abs(chi) != 0)
-            {
-                if (abs(chi) > LIMIT_FER)
-                {
-                    // Ferromagnetic materials
-                    double len_Bext = vec_lenght(Bext);
-
-                    if (len_Bext > 0.)
-                    {
-                        // Saturation magnetization in direction of external field.
-                        // FIXME: Magnetization initialization
-                        //mag[i].x = lst_Msat[mat_id] * Bext.x / len_Bext;
-                        //mag[i].y = lst_Msat[mat_id] * Bext.y / len_Bext;
-                        //mag[i].z = lst_Msat[mat_id] * Bext.z / len_Bext;
-
-                        mag[i].x = 0.984807753 * lst_Msat[mat_id];
-                        mag[i].y = 0;
-                        mag[i].z = 0.173648178 * lst_Msat[mat_id];
-                    }
-                    else
-                    {   
-                        double len_omega = cpu_vec3D_length(omega_tot[i]);
-                        if (len_omega > 0.)
-                        {
-                            // Saturation magnetization in direction of angular momentum.
-                            mag[i].x = lst_Msat[mat_id] * omega_tot[i].x / len_omega;
-                            mag[i].y = lst_Msat[mat_id] * omega_tot[i].y / len_omega;
-                            mag[i].z = lst_Msat[mat_id] * omega_tot[i].z / len_omega;
-                        }
-                        else
-                        {
-                            // Saturation magnetization in direction of x axis.
-                            mag[i].x = lst_Msat[mat_id];
-                            mag[i].y = 0.;
-                            mag[i].z = 0.;
-                        }
-                    }
-                }
-                else
-                {
-                    // Para + Diamagnetic materials
-                    vec3D M_ind, M_Bar;
-                    double chi_fac = chi / (chi + 1.);
-
-                    M_ind.x = chi_fac * Bext.x / mu0;
-                    M_ind.y = chi_fac * Bext.y / mu0;
-                    M_ind.z = chi_fac * Bext.z / mu0;
-
-                    M_Bar.x = chi * omega_tot[i].x / PROD_BARR;
-                    M_Bar.y = chi * omega_tot[i].y / PROD_BARR;
-                    M_Bar.z = chi * omega_tot[i].z / PROD_BARR;
-
-                    // Set the magnetization of the monomer to the induced and Barnett moment.
-                    mag[i].x = M_ind.x + M_Bar.x;
-                    mag[i].y = M_ind.y + M_Bar.y;
-                    mag[i].z = M_ind.z + M_Bar.z;
-
-                    double len_mag = cpu_vec3D_length(mag[i]);
-
-                    // Clip the magnetization to saturation.
-                    if (len_mag > lst_Msat[mat_id])
-                    {
-                        mag[i].x = lst_Msat[mat_id] * mag[i].x / len_mag;
-                        mag[i].y = lst_Msat[mat_id] * mag[i].y / len_mag;
-                        mag[i].z = lst_Msat[mat_id] * mag[i].z / len_mag;
-                    }
-
-                    // FIXME: This needs to go.
-                    mag[i].x = 0.984807753 * lst_Msat[mat_id];
-                    mag[i].y = 0;
-                    mag[i].z = 0.173648178 * lst_Msat[mat_id];
-                }
-            }
-            else
-            {
-                // Nonmagnetic materials.
-                mag[i].x = 0;
-                mag[i].y = 0;
-                mag[i].z = 0;
-            }
-        }
-
-        // FIXME: This should just be a single loop, the logic should not be duplicated.
-        // Iterate over the monomers of aggregate B
-        for (int i = Nmon_A; i < Nmon; i++)
-        {
-            int index = i - Nmon_A;
-            pos[i].x = lst_pos_B[index].x + pos_B.x;
-            pos[i].y = lst_pos_B[index].y + pos_B.y;
-            pos[i].z = lst_pos_B[index].z + pos_B.z;
-
-            amon[i] = lst_amon_B[index];
-
-            vec3D r;
-
-            r.x = 0;
-            r.y = lst_pos_B[index].y;
-            r.z = lst_pos_B[index].z;
-
-            vec3D vel_tan = cpu_vec3D_cross(ang_B, r);
-
-            vel[i].x = vel_B.x + vel_tan.x;
-            vel[i].y = vel_B.y + vel_tan.y;
-            vel[i].z = vel_B.z + vel_tan.z;
-
-            omega_tot[i] = ang_B;
-
-            int mat_id = lst_matID_B[index];
-            matIDs[i] = mat_id;
-
-            double rho = lst_rho[mat_id];
-
-            mass[i] = 4. / 3. * PI * rho * amon[i] * amon[i] * amon[i];
-            moment[i] = 2. / 5. * mass[i] * amon[i] * amon[i];
-
-            double chi = lst_chi[mat_id];
-
-            if (abs(chi) != 0)
-            {
-                if (abs(chi) > LIMIT_FER) //ferromagnetic
-                {
-                    double len_Bext = vec_lenght(Bext);
-
-                    if (len_Bext > 0.) //set initial direction to Bext
-                    {
-                        //mag[i].x = lst_Msat[mat_id] * Bext.x / len_Bext;
-                        //mag[i].y = lst_Msat[mat_id] * Bext.y / len_Bext;
-                        //mag[i].z = lst_Msat[mat_id] * Bext.z / len_Bext;
-
-                        // FIXME: This needs to go
-                        mag[i].x = 0.984807753 * lst_Msat[mat_id];
-                        mag[i].y = 0;
-                        mag[i].z = 0.173648178 * lst_Msat[mat_id];
-                    }
-                    else
-                    {
-                        double len_omega = cpu_vec3D_length(omega_tot[i]);
-                        if (len_omega > 0.) //set initial direction to omega
-                        {
-                            mag[i].x = lst_Msat[mat_id] * omega_tot[i].x / len_omega;
-                            mag[i].y = lst_Msat[mat_id] * omega_tot[i].y / len_omega;
-                            mag[i].z = lst_Msat[mat_id] * omega_tot[i].z / len_omega;
-                        }
-                        else //set initial direction to x-direction
-                        {
-                            mag[i].x = lst_Msat[mat_id];
-                            mag[i].y = 0.;
-                            mag[i].z = 0.;
-                        }
-                    }
-                }
-                else
-                {
-                    vec3D M_ind, M_Bar;
-                    double chi_fac = chi / (chi + 1.);
-
-                    M_ind.x = chi_fac * Bext.x / mu0;
-                    M_ind.y = chi_fac * Bext.y / mu0;
-                    M_ind.z = chi_fac * Bext.z / mu0;
-
-                    M_Bar.x = chi * omega_tot[i].x / PROD_BARR;
-                    M_Bar.y = chi * omega_tot[i].y / PROD_BARR;
-                    M_Bar.z = chi * omega_tot[i].z / PROD_BARR;
-
-                    mag[i].x = M_ind.x + M_Bar.x;
-                    mag[i].y = M_ind.y + M_Bar.y;
-                    mag[i].z = M_ind.z + M_Bar.z;
-
-                    double len_mag = cpu_vec3D_length(mag[i]);
-
-                    if (len_mag > lst_Msat[mat_id])
-                    {
-                        mag[i].x = lst_Msat[mat_id] * mag[i].x / len_mag;
-                        mag[i].y = lst_Msat[mat_id] * mag[i].y / len_mag;
-                        mag[i].z = lst_Msat[mat_id] * mag[i].z / len_mag;
-                    }
-
-                    mag[i].x = 0.984807753 * lst_Msat[mat_id];
-                    mag[i].y = 0;
-                    mag[i].z = 0.173648178 * lst_Msat[mat_id];
-                }
-            }
-            else
-            {
-                mag[i].x = 0;
-                mag[i].y = 0;
-                mag[i].z = 0;
-            }
-        }
-
-        // Find the smallest timestep.
-        PRINT_LOG("Determining simulation timestep.", 2);
-        if (time_step == 0)
-        {
-            time_step = 1e200;
-
-            // Iterate over monomer pairs.
-            for (int i = 0; i < Nmon; i++)
-            {
-                for (int j = 0; j < Nmon; j++)
-                {
-                    if (i == j)
-                        continue;
-
-                    int mat_id_A = matIDs[i];
-                    int mat_id_B = matIDs[j];
-
-                    double mass_A = mass[i];
-                    double mass_B = mass[j];
-                    double mass = (mass_A * mass_B) / (mass_A + mass_B);
-
-                    double a_mon_A = amon[i];
-                    double a_mon_B = amon[j];
-                    double R = (a_mon_A * a_mon_B) / (a_mon_A + a_mon_B);
-
-                    double nu_A = lst_nu[mat_id_A];
-                    double nu_B = lst_nu[mat_id_B];
-
-                    double E_A = lst_E[mat_id_A];
-                    double E_B = lst_E[mat_id_B];
-
-                    double Es = (1 - nu_A * nu_A) / E_A + (1 - nu_B * nu_B) / E_B;
-                    Es = 1. / Es;
-
-                    double gamma_A = lst_gamma[mat_id_A];
-                    double gamma_B = lst_gamma[mat_id_B];
-                    double gamma = gamma_A + gamma_B - 2. / (1. / gamma_A + 1. / gamma_B);
-
-                    double r0 = pow(9 * PI * gamma * R * R / Es, 1. / 3.);
-                    double delta_c = 0.5 * r0 * r0 / (R * pow(6., 1. / 3.));
-                    double F_c = 3.0 * PI * gamma * R;
-
-                    double tc = sqrt(mass * delta_c / F_c);
-
-                    // TODO: Should this stay commented out?
-                    //double tc = 0.95 * (pow(R, 7. / 6.) * sqrt(lst_rho[mat_id_A])) / (pow(gamma, 1. / 6.) * pow(Es, 1. / 3.));
-
-                    if (time_step > tc)
-                        time_step = tc;
-                }
-            }
-
-            int Nmat = int(lst_matName.size());
-
-            for (int i = 0; i < Nmat; i++)
-            {
-                double tss = lst_tss[i];
-                double tsl = lst_tsl[i];
-
-                if (tss > 0)
-                {
-                    if (time_step > tss)
-                        time_step = tss;
-                }
-
-                if (tsl > 0)
-                {
-                    if (time_step > tsl)
-                        time_step = tsl;
-                }
-            }
-
-            // Set the timestep to 1/200 of the minimum physical timescale of the system.
-            time_step = 0.005 * time_step;
-        }
-
-        PRINT_CLR_LINE();
-
-        return true;
-    };
-
-    bool prepareData_(
             double3*& pos,
             double3*& vel,
             double3*& omega_tot,
@@ -1616,14 +1113,14 @@ public:
         // Create arrays to contain initial position, velocity, magnetization, angular velocities, material IDs, monomer radii
         PRINT_LOG("Calculating initial state.", 2);
         
-        pos = (double3*) malloc(Nmon * sizeof(double3));
-        vel = (double3*) malloc(Nmon * sizeof(double3));
-        mag = (double3*) malloc(Nmon * sizeof(double3));
+        pos =       (double3*) malloc(Nmon * sizeof(double3));
+        vel =       (double3*) malloc(Nmon * sizeof(double3));
+        mag =       (double3*) malloc(Nmon * sizeof(double3));
         omega_tot = (double3*) malloc(Nmon * sizeof(double3));
-        matIDs = (int*) malloc(Nmon * sizeof(int));
-        amon = (double*) malloc(Nmon * sizeof(double));
-        moment = (double*) malloc(Nmon * sizeof(double));
-        mass = (double*) malloc(Nmon * sizeof(double));
+        matIDs =    (int*)     malloc(Nmon * sizeof(int));
+        amon =      (double*)  malloc(Nmon * sizeof(double));
+        moment =    (double*)  malloc(Nmon * sizeof(double));
+        mass =      (double*)  malloc(Nmon * sizeof(double));
 
         // Iterate over the monomers in cluster A
         for (int i = 0; i < Nmon_A; i++)
@@ -1637,12 +1134,11 @@ public:
 
             // Determine the velocity of the monomers due to aggregate rotation.
             double3 r;
-            r.x = 0; // FIXME: This should be a bug?
+            r.x = lst_pos_A[i].x;
             r.y = lst_pos_A[i].y;
             r.z = lst_pos_A[i].z;
 
-            // TODO: Change CPipeline::ang_A to double3, or better: why ist ang_A even a class field?
-            double3 ang_A_ = make_double3(ang_A.x, ang_A.y, ang_B.z);
+            double3 ang_A_ = make_double3(ang_A.x, ang_A.y, ang_A.z);
 
             double3 vel_tan = vec_cross(ang_A_, r);
 
@@ -1763,7 +1259,7 @@ public:
 
             vec3D r;
 
-            r.x = 0;
+            r.x = lst_pos_B[index].x;
             r.y = lst_pos_B[index].y;
             r.z = lst_pos_B[index].z;
 
@@ -2098,7 +1594,6 @@ public:
         return false;
     };
 
-    // TODO: Make Nmon and Nsto consants.
     /**
      * @brief Writes the provided data into an ovito dump file.
      * 
@@ -2116,10 +1611,10 @@ public:
      */
     bool writeAllOVITO(const double3* pos, const double3* vel, const double3* force, const double3* torque, const double3* omega, const double3* mag, const int* cluserIDs, const double* amon, const int* matID, int Nmon, int Nsto)
     {
-        char str_tmp[1024];
-        char str_end[1024];
+        char str_tmp[2048]; // A helper in generating the file name.
+        char str_end[2048]; // A variable that will hold the name of the file.
 
-        double b_size = 0;
+        double b_size = 0; // The radius of the sphere enclousing all monomers at all times.
 
         for (int i = 0; i < Nsto; i++)
         {
@@ -2136,14 +1631,15 @@ public:
         if (b_size > 10000)
             b_size = 10000;
 
-        int steps = Nsto / Nmon;
+        int steps = Nsto / Nmon; // Number of stored timesteps.
+
+        // Determining maximum values for all properties.
 
         double max_vel = 0;
         double max_force = 0;
         double max_torque = 0;
         double max_omega = 0;
         double max_mag = 0;
-
         for (int i = 0; i < Nmon; i++)
         {
             if (vel != 0)
@@ -2182,6 +1678,7 @@ public:
             }
         }
 
+        // Creating the file form the data
         for (int i = 0; i < steps; i++)
         {
             #ifdef _WIN32
@@ -2192,7 +1689,7 @@ public:
             sprintf(str_end, str_tmp, i);
             #endif
 
-            string str_file = path_ovito + str_end;
+            string str_file = path_ovito + str_end; // 
 
             ofstream writer(str_file.c_str());
 

@@ -7,9 +7,9 @@ BUILD ?= Release
 
 # Determine additional compiler flags for different Builds
 ifeq ($(BUILD), Release)
-	BUILD_FLAGS = -DRELEASE -O3
+	BUILD_FLAGS = -DRELEASE
 else ifeq ($(BUILD), Debug)
-	BUILD_FLAGS = -DDEBUG -g -G
+	BUILD_FLAGS = -DDEBUG -g
 else
 	@echo This line is a hack and will cause make to crash. If this happens the BUILD version was unsupported.
 endif
@@ -75,4 +75,3 @@ $(BUILD_DIR)/%.cu.o: %.cu
 clean:
 	@echo "### REMOVING OBJECT DIRECTORY"
 	rm -rf $(BUILD_DIR)
-	@echo ""

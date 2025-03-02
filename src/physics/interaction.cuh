@@ -4,73 +4,48 @@
 #include "utils/vector.cuh"
 #include "utils/typedefs.cuh"
 
-__device__ void updateNeighbourhoodRelations();
-__device__ void updateContacts();
-__device__ void updateParticleInteraction();
-
-/**
- * The evaluate step in PECE scheme
- */
-__global__ void evaluate() {
-    updateNeighbourhoodRelations();
-    updateContacts();
-    updateParticleInteraction();
-}
-
 /**
  * @brief Checks if monomers are making or breaking contact.
  * 
  * This device funtion checks if, for any given monomer pair, the pair is making or breaking physical contact.
  * The function then adjusts the contact matrices accordingly.
  */
-__device__ void updateNeighbourhoodRelations(
-    const double3* pos,
-    double3* matrix_con,
-    double3* matrix_norm,
-    double4* matrix_rot,
-    double* matrix_comp,
-    double* matrix_twist,
-    const double* amon,
-    const material* mat,
-    const int* matIDs,
-    const int Nmon
+__device__ void updateNeighbourhoodRelations__(
+    const double3*      pos,
+    double3*            matrix_con,
+    double3*            matrix_norm,
+    double4*            matrix_rot,
+    double*             matrix_comp,
+    double*             matrix_twist,
+    const double*       amon,
+    const double*       poisson_number,
+    const double*       youngs_modulus,
+    const double*       surface_energy,
+    const int&          i,
+    const int&          j,
+    const int&          matrix_i,
+    const int           Nmon
 ) {
-    // Find thread ID
-    int threadID = blockDim.x * blockIdx.x + threadIdx.x;
-
-    // Skip threads that dont correspond to a monomer pair.
-    if (threadID < Nmon * Nmon) return;
-
-    // Find the individual monomer indices.
-    int i = threadID % Nmon;
-    int j = threadID / Nmon;
-
-    int matrix_i = i * Nmon + j;
-    //int matrix_j = 1 * Nmon * Nmon + i * Nmon + j;
-
-    if (i == j) return;
+    if (i == j) return; // FIXME: Will this terminate the evaluate function, because it gets inlined?
 
     // Calculate pair properties // TODO: Investigate if this can be done during simulation initialization instead of during each evaluation step...
     double3 pos_A = pos[i];
     double3 pos_B = pos[j];
 
-    int mat_id_A = matIDs[i];
-    int mat_id_B = matIDs[j];
-
     double amon_A = amon[i];
     double amon_B = amon[j];
     double R = (amon_A * amon_B) / (amon_A + amon_B);
 
-    double nu_A = mat[mat_id_A].nu;
-    double nu_B = mat[mat_id_B].nu;
+    double nu_A = poisson_number[i];
+    double nu_B = poisson_number[j];
     
-    double E_A = mat[mat_id_A].E;
-    double E_B = mat[mat_id_B].E;
+    double E_A = youngs_modulus[i];
+    double E_B = youngs_modulus[j];
     double Es = ((1 - nu_A * nu_A) / E_A) + ((1 - nu_B * nu_B) / E_B);
     Es = 1.0 / Es;
 
-    double gamma_A = mat[mat_id_A].gamma;
-    double gamma_B = mat[mat_id_B].gamma;
+    double gamma_A = surface_energy[i];
+    double gamma_B = surface_energy[i];
     double gamma = gamma_A + gamma_B - 2.0 / (1.0 / gamma_A + 1.0 / gamma_B);
 
     double a0 = pow(9 * PI * gamma * R * R / Es, 1.0 / 3.0);
@@ -82,7 +57,6 @@ __device__ void updateNeighbourhoodRelations(
     // Calculate current pair state
     double distance = vec_dist_len(pos_A, pos_B);
 
-    // TODO: Check if these branches lead to warp divergence!
     if (distance < contact_dist) {
         if (matrix_comp[matrix_i] == -1.0) {
             double3 n = vec_get_normal(pos_A, pos_B);
@@ -132,11 +106,14 @@ __device__ void updateNeighbourhoodRelations(
 } 
 
 /**
- * @brief Calculates the current contact pointer.
+ * @brief Applies quaternion based rotation to a vector.
  * 
- * This device function calculates the current contact pointer from the rotation matrix and initial pointer.
+ * @param n_A: The vector that is to be rotated.
+ * @param matrix_con: The pointer into which the result is to be stored.
+ * @param matrix_rot: The quaternion used for the rotation.
+ * @param Nmon: The number of monomers.
  */
-__device__ void updateNormal(
+__device__ void updateNormal__(
     const double3 n_A, // This is getting rotated
     double3* matrix_con, // This is where the rotated result is getting stored
     const double4* matrix_rot,
@@ -146,7 +123,7 @@ __device__ void updateNormal(
     int threadID = blockDim.x * blockIdx.x + threadIdx.x;
 
     // Skip threads that dont correspond to a monomer pair.
-    if (threadID < Nmon * Nmon) return; // TODO: Make sure this is necessary, will cause warp divergence
+    if (threadID < Nmon * Nmon) return; // FIXME: This needs fixing
 
     // Find the individual monomer indices.
     int i = threadID % Nmon;
@@ -168,34 +145,24 @@ __device__ void updateNormal(
 }
 
 /**
- * @brief 
+ * @brief Integrates the contact pointer rotation matrix.
  * 
- * 
+ * This function calculates the contact rotation matrix for the next timestep from the current state of the system.
  */
-__device__ void updateContacts(
-    const double3* omega_curr,
-    const double3* omega_tot_curr,
-    const double3* torque_curr,
-    double3* mag_curr,
-    double4* matrix_rot_curr,
-    const double3* matrix_comp_curr,
-    const double* moment,
-    const double timestep,
-    const int Nmon
+__device__ void updateContacts__(
+    const double3*          omega_curr,
+    const double3*          torque_curr,
+    double4*                matrix_rot_curr,
+    const double*           matrix_comp_curr,
+    const double*           moment,
+    const double&           timestep,
+    const int               i,
+    const int               matrix_i,
+    const int               Nmon
 ) {
-    // FIXME: The indices 'threadID', 'i' and 'j' got confused here i think. Make sure they are used correctly!!
-    // Find thread ID
-    int threadID = blockDim.x * blockIdx.x + threadIdx.x;
-
-    // Skip threads that dont correspond to a monomer pair.
-    if (threadID < Nmon * Nmon) return; // TODO: Make sure this is necessary, will cause warp divergence
-
-    // Find the individual monomer indices.
-    int i = threadID % Nmon;
-    int j = threadID / Nmon;
-
-    // Find the index of the monomer pair in the contact matrix
-    int matrix_i = i * Nmon + j;
+    // I think this is not necessary because the integration will leave c_rotation 
+    // unchanged when it is (0,0,0,0)...
+    //if (matrix_comp_curr[matrix_i] == -1.0) return;
 
     double3 omega, omega_dot;
     double4 e_dot, e_ddot;
@@ -204,63 +171,13 @@ __device__ void updateContacts(
     double inv_moment = 1.0 / moment[i];
 
     omega_dot.x = inv_moment * torque_curr[i].x;
+    omega_dot.y = inv_moment * torque_curr[i].y;
+    omega_dot.z = inv_moment * torque_curr[i].z;
 
-    // FIXME: This whole bit needs to be placed in a seperate kernel. At this point this code gets executed Nmon times instead of one because it is in a Nmon*Nmon Kernel!
-    // I could/should (?) treat this the same way I treat the contact pointers with a quaternion that tracks the rotation of the magnetization that gets calculated each timestep from the initial magnetization.
-    // COROTATE THE MAGNETIZATION
-    omega.x = omega_tot_curr[i].x;
-    omega.y = omega_tot_curr[i].y;
-    omega.z = omega_tot_curr[i].z;
-
-    double len_mag = vec_lenght(mag_curr[i]);
-    double len_omega = vec_lenght(omega);
-
-    if (len_mag * len_omega > 0) {
-        double4 q_mag;
-
-        double3 tmp_mag;
-        tmp_mag.x = mag_curr[i].x;
-        tmp_mag.y = mag_curr[i].y;
-        tmp_mag.z = mag_curr[i].z;
-        vec_normalize(tmp_mag);
-
-        q_mag.w = 0;
-        q_mag.x = tmp_mag.x;
-        q_mag.y = tmp_mag.y;
-        q_mag.z = tmp_mag.z;
-
-        e_dot.w = -0.5 * (q_mag.x * omega.x + q_mag.y * omega.y + q_mag.z * omega.z);
-        e_dot.x = 0.5 * (q_mag.w * omega.x - q_mag.y * omega.z + q_mag.z * omega.y);
-        e_dot.y = 0.5 * (q_mag.w * omega.y - q_mag.z * omega.x + q_mag.x * omega.z);
-        e_dot.z = 0.5 * (q_mag.w * omega.z - q_mag.x * omega.y + q_mag.y * omega.x);
-
-        tmp = 0.5 * e_dot.w;
-
-        e_ddot.w = -0.25 * (q_mag.w * vec_lenght_sq(omega) + 2.0 * (q_mag.x * omega_dot.x + q_mag.y * omega_dot.y + q_mag.z * omega_dot.z));
-        e_ddot.x = tmp * omega.x + 0.5 * (q_mag.w * omega_dot.x - q_mag.y * omega_dot.z + q_mag.z * omega_dot.y);
-        e_ddot.y = tmp * omega.y + 0.5 * (q_mag.w * omega_dot.y - q_mag.z * omega_dot.x + q_mag.x * omega_dot.z);
-        e_ddot.z = tmp * omega.z + 0.5 * (q_mag.w * omega_dot.z - q_mag.x * omega_dot.y + q_mag.y * omega_dot.x);
-
-        // Integration step
-        q_mag.w += timestep * e_dot.w + 0.5 * timestep * timestep * e_ddot.w;
-        q_mag.x += timestep * e_dot.x + 0.5 * timestep * timestep * e_ddot.x;
-        q_mag.y += timestep * e_dot.y + 0.5 * timestep * timestep * e_ddot.y;
-        q_mag.z += timestep * e_dot.z + 0.5 * timestep * timestep * e_ddot.z;
+    omega.x = omega_curr[i].x;
+    omega.y = omega_curr[i].y;
+    omega.z = omega_curr[i].z;
     
-        tmp_mag.x = q_mag.x;
-        tmp_mag.y = q_mag.y;
-        tmp_mag.z = q_mag.z;
-
-        double len_tmp = vec_lenght(tmp_mag);
-
-        if (len_tmp > 0) {
-            mag_curr[i].x = len_mag * tmp_mag.x / len_tmp;
-            mag_curr[i].y = len_mag * tmp_mag.y / len_tmp;
-            mag_curr[i].z = len_mag * tmp_mag.z / len_tmp;
-        }
-    }
-
-    // INTEGRATE THE CONTACT POINTER QUATERNION
     double4 rot = matrix_rot_curr[matrix_i];
 
     e_dot.w = -0.5 * (rot.x * omega.x + rot.y * omega.y + rot.z * omega.z);
@@ -291,9 +208,9 @@ __device__ void updateContacts(
 }
 
 /**
- * 
+ * @brief Calculates the JKR contact radius.
  */
-__device__ double gpu_getJKRContactRadius(
+__device__ double getJKRContactRadius__(
     const double compression_length,
     const double r0,
     const double R
@@ -326,52 +243,47 @@ __device__ double gpu_getJKRContactRadius(
 /**
  * 
  */
-__device__ void updateParticleInteraction(
-    const double3* pos_next,
-    double3* force_next,
-    const double3* torque_curr,
-    double3* torque_next,
-    double3* dMdt_next,
-    const double3* matrix_con_curr,
-    double3* matrix_norm,
-    const double3* omega_curr,
-    const double3* omega_tot_curr,
-    const double3* mag_curr,
-    const double4* matrix_rot_curr,
-    double* matrix_comp_curr,
-    const double* matrix_twist_curr,
-    const double* amon,
-    const double* moment,
-    const material* mat,
-    const int* matIDs,
-    const double3 B_ext,
-    const double timestep,
-    const int Nmon
+__device__ void updateParticleInteraction__(
+    const double3*      pos_next,
+    double3*            force_next,
+    const double3*      torque_curr,
+    double3*            torque_next,
+    const double3*      matrix_con_curr,
+    double3*            matrix_norm,
+    const double3*      omega_curr,
+    const double4*      matrix_rot_curr,
+    double*             matrix_comp_curr,
+    const double*       matrix_twist_curr,
+    const double*       amon,
+    const double*       moment,
+    const double*       poisson_number,
+    const double*       youngs_modulus,
+    const double*       surface_energy,
+    const double*       damping_timescale,
+    const double*       crit_rolling_disp,
+    const double        timestep,
+    const int           i,
+    const int           j,
+    const int           matrix_i,
+    const int           matrix_j,
+    const int           Nmon
 ) {
-    // Find thread ID
-    int threadID = blockDim.x * blockIdx.x + threadIdx.x;
+    // TODO: Seperate this into several smaller functions.
+    // What this function does:
+    // - Calculate the normal force
+    // - Check for inelastic sliding motion
+    // - Check for inelastic rolling motion
+    // - Update the contact pointers if necessary
+    // - Calculate sliding force and torque
+    // - Calculate rolling torque
+    // - Calculate twisting torque
+    // - Update compression lenght and contact normal
 
-    // Skip threads that dont correspond to a monomer pair.
-    if (threadID < Nmon * Nmon) return; // TODO: Make sure this is necessary, will cause warp divergence
-
-    // Find the individual monomer indices.
-    int i = threadID % Nmon;
-    int j = threadID / Nmon;
-
-    // Find the index of the monomer pair in the contact matrix
-    int matrix_i = i * Nmon + j;
-    int matrix_j = Nmon * Nmon + i * Nmon + j; // FIXME: I dont understand this formula...
-
-    // Initialize some quantities
-    vec_set(force_next[i], 0.0);
-    vec_set(torque_next[i], 0.0);
-    vec_set(dMdt_next[i], 0.0);
+    double3 total_force = { 0.0, 0.0, 0.0 };
+    double3 total_torque = { 0.0, 0.0, 0.0 };
 
     double3 pos_A = pos_next[i];
     double3 pos_B = pos_next[j];
-
-    int matID_A = matIDs[i];
-    int matID_B = matIDs[j];
 
     double amon_A = amon[i];
     double amon_B = amon[j];
@@ -381,7 +293,9 @@ __device__ void updateParticleInteraction(
     double particle_distance = vec_lenght(n_c);
     vec_normalize(n_c);
 
-    // TODO: What does this do?? It initializes force_new to a small value proportional to n_c. And why do you need force_temp here?
+    // FIXME: Why is this needed?
+    // This adds a constant force onto each particle that attracts it to every other particle...
+    /*
     vec3D force_tmp;
     force_tmp.x = 1e-12 * n_c.x;
     force_tmp.y = 1e-12 * n_c.y;
@@ -391,10 +305,11 @@ __device__ void updateParticleInteraction(
     force_next[i].x += force_tmp.x;
     force_next[i].y += force_tmp.y;
     force_next[i].z += force_tmp.z;
+    */
 
-    // FIXME: Magnetitic effect go here!
-
+    // Skip unconnected monomer pairs.
     if (matrix_comp_curr[matrix_i] == -1.) return;
+    if (i == j) return;
 
     // FIXME: The inelastic motion branches are bound to cause tons of warp divergence...
     // Tracks if an update to the contact pointers is necessary (-> inelastic motion)
@@ -409,46 +324,46 @@ __device__ void updateParticleInteraction(
     double moment_A = moment[i];
     double moment_B = moment[j];
 
-    double nu_A = mat[matID_A].nu;
-    double nu_B = mat[matID_B].nu;
+    double nu_A = poisson_number[i];
+    double nu_B = poisson_number[j];
 
-    double E_A = mat[matID_A].E;
-    double E_B = mat[matID_B].E;
+    double E_A = youngs_modulus[i];
+    double E_B = youngs_modulus[j];
     double Es = (1 - nu_A * nu_A) / E_A + (1 - nu_B * nu_B) / E_B;
     Es = 1. / Es;
 
-    double T_vis_A = mat[matID_A].tvis;
-    double T_vis_B = mat[matID_B].tvis;
-    double T_vis = 0.5 * (T_vis_A + T_vis_B);
+    double gamma_A = surface_energy[i];
+    double gamma_B = surface_energy[j];
+    double gamma = gamma_A + gamma_B - 2. / (1. / gamma_A + 1. / gamma_B);
 
+    double T_vis_A = damping_timescale[i];
+    double T_vis_B = damping_timescale[j];
+    double T_vis = 0.5 * (T_vis_A + T_vis_B);
+    
     double G_A = 0.5 * E_A / (1. + nu_A);
     double G_B = 0.5 * E_B / (1. + nu_B);
     double Gs = (1. - nu_A * nu_A) / G_A + (1. - nu_B * nu_B) / G_B;
     Gs = 1. / Gs;
 
-    double gamma_A = mat[matID_A].gamma;
-    double gamma_B = mat[matID_B].gamma;
-    double gamma = gamma_A + gamma_B - 2. / (1. / gamma_A + 1. / gamma_B);
-
     double a0 = pow(9 * PI * gamma * R * R / Es, 1. / 3.);
     double delta_c = 0.5 * a0 * a0 / (R * pow(6.0, 1.0 / 3.0));
 
-    // Calculate current contact pointers.
+    // Read the initial contact pointers.
     double3 n_A = matrix_con_curr[matrix_i];
     double3 n_B = matrix_con_curr[matrix_j];
     double3 delta_n = vec_diff(n_A, n_B);
 
     // ###############      FORCE CALCULATIONS FROM HERE      ###############
     double compression_length = amon_A + amon_B - particle_distance;
-    double contact_radius = gpu_getJKRContactRadius(compression_length, a0, R);
-            
+    double contact_radius = getJKRContactRadius__(compression_length, a0, R);
+
     // Calculate the NORMAL FORCE.
     double Fc = 3 * PI * gamma * R;
     double force_elastic = 4.0 * Fc * (pow(contact_radius / a0, 3.0) - pow(contact_radius / a0, 3.0 / 2.0));
 
-    force_next[i].x += force_elastic * n_c.x;
-    force_next[i].y += force_elastic * n_c.y;
-    force_next[i].z += force_elastic * n_c.z;
+    total_force.x += force_elastic * n_c.x;
+    total_force.y += force_elastic * n_c.y;
+    total_force.z += force_elastic * n_c.z;
 
     // TODO: Research this.
     // Calculate the DAMPING FORCE.
@@ -457,9 +372,9 @@ __device__ void updateParticleInteraction(
     double delta_dot = (compression_length - old_compression_length) / timestep;
     double force_damp = vis_damp_const * contact_radius * delta_dot;
 
-    force_next[i].x += force_damp * n_c.x;
-    force_next[i].y += force_damp * n_c.y;
-    force_next[i].z += force_damp * n_c.z;
+    total_force.x += force_damp * n_c.x;
+    total_force.y += force_damp * n_c.y;
+    total_force.z += force_damp * n_c.z;
 
     // Determine sliding and rolling displacement.
     double dot = vec_dot(delta_n, n_c);
@@ -510,7 +425,8 @@ __device__ void updateParticleInteraction(
         contact_update_necessary = true;
     }
 
-    double crit_rolling_displacement = 0.5 * (mat[matID_A].xi + mat[matID_B].xi);
+    // Calculate the critical rolling displacement as the average of the two monomers.
+    double crit_rolling_displacement = 0.5 * (crit_rolling_disp[i] + crit_rolling_disp[j]);
 
     displacement.x = R * (n_A.x + n_B.x);
     displacement.y = R * (n_A.y + n_B.y);
@@ -585,9 +501,9 @@ __device__ void updateParticleInteraction(
     if (abs(force_sliding) > 1.0e-10)
         force_sliding = 1e-10;
 
-    force_next[i].x += force_sliding * n_c.x;
-    force_next[i].y += force_sliding * n_c.y;
-    force_next[i].z += force_sliding * n_c.z;
+    total_force.x += force_sliding * n_c.x;
+    total_force.y += force_sliding * n_c.y;
+    total_force.z += force_sliding * n_c.z;
 
     // Calculate the SLIDING TORQUE
     double3 torque_sliding;
@@ -598,9 +514,9 @@ __device__ void updateParticleInteraction(
     torque_sliding.y = - amon_A * k_s * tmp.y;
     torque_sliding.z = - amon_A * k_s * tmp.z;
 
-    torque_next[i].x += torque_sliding.x;
-    torque_next[i].y += torque_sliding.y;
-    torque_next[i].z += torque_sliding.z;
+    total_torque.x += torque_sliding.x;
+    total_torque.y += torque_sliding.y;
+    total_torque.z += torque_sliding.z;
 
     // Calculate the ROLLING TORQUE
     double3 displacement_xi;
@@ -619,13 +535,13 @@ __device__ void updateParticleInteraction(
     torque_rolling.y = -k_r * R * tmp.y;
     torque_rolling.z = -k_r * R * tmp.z;
 
-    torque_next[i].x += torque_rolling.x;
-    torque_next[i].y += torque_rolling.y;
-    torque_next[i].z += torque_rolling.z;
+    total_torque.x += torque_rolling.x;
+    total_torque.y += torque_rolling.y;
+    total_torque.z += torque_rolling.z;
 
     // Calculate the TWISTING FORCE
     double3 delta_omega_old, delta_omega_new, twisting_torque;
-    double crit_twisting_displacement = 1.0 / (16.0 * PI); // TODO: Check this, should this not be PI / 16.0?
+    double crit_twisting_displacement = 1.0 / (16.0 * PI);
 
     double twisting_modifier = 1.0; // TODO: Change this into a macro or just remove it.
     double k_t = twisting_modifier * 16.0 / 3.0 * Gs * a0 * a0 * a0;
@@ -658,9 +574,18 @@ __device__ void updateParticleInteraction(
     twisting_torque.y = k_t * twisting_displacement * n_c.y;
     twisting_torque.z = k_t * twisting_displacement * n_c.z;
 
-    torque_next[i].x -= twisting_torque.x;
-    torque_next[i].y -= twisting_torque.y;
-    torque_next[i].z -= twisting_torque.z;/**/
+    total_torque.x -= twisting_torque.x;
+    total_torque.y -= twisting_torque.y;
+    total_torque.z -= twisting_torque.z;
+
+    // Add the force and torque from the pair interaction to the total force acting on particle i
+    atomicAdd(&force_next[i].x, total_force.x);
+    atomicAdd(&force_next[i].y, total_force.y);
+    atomicAdd(&force_next[i].z, total_force.z);
+    
+    atomicAdd(&torque_next[i].x, total_torque.x);
+    atomicAdd(&torque_next[i].y, total_torque.y);
+    atomicAdd(&torque_next[i].z, total_torque.z);
 
     // Update the contact normal and compression lenghts.
     matrix_norm[matrix_i].x = n_c.x;

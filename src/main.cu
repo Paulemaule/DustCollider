@@ -221,7 +221,7 @@ int main(const int argc, const char** argv)
     int* monomer_matID = nullptr;
     int Nmon = 0;                   // Number of monomers
 
-    pipeline.prepareData_(initial_position, initial_velocity, initial_omega_tot, initial_magnetization, 
+    pipeline.prepareData(initial_position, initial_velocity, initial_omega_tot, initial_magnetization, 
                             monomer_radius, monomer_mass, monomer_moment, monomer_matID, Nmon);
 
     // Initialize the pointer containers
@@ -301,6 +301,11 @@ int main(const int argc, const char** argv)
     double4* device_inelastic_counter = nullptr;
     CHECK_CUDA(cudaMalloc(& device_inelastic_counter, sizeof(double4)));
     CHECK_CUDA(cudaMemset(device_inelastic_counter, 0, sizeof(double4)));
+
+    // Initialize the energy counter
+    double* device_total_energy = nullptr;
+    CHECK_CUDA(cudaMalloc(& device_total_energy, sizeof(double)));
+    CHECK_CUDA(cudaMemset(device_total_energy, 0, sizeof(double)));
 
     // Print run summary.
     pipeline.printParameters();
@@ -444,6 +449,10 @@ int main(const int argc, const char** argv)
         auto iteration_start = std::chrono::high_resolution_clock::now();
 
 #ifdef DEBUG
+        #define DEBUG_PULL_STATES
+#endif
+
+#ifdef DEBUG_PULL_STATES
         printf("Starting iteration %llu \n", iter);
         hostState curr, next;
         state_allocateHostMemory(curr, Nmon);
@@ -468,7 +477,7 @@ int main(const int argc, const char** argv)
         cudaDeviceSynchronize();
         CUDA_LAST_ERROR_CHECK();
 
-#ifdef DEBUG
+#ifdef DEBUG_PULL_STATES
         state_pullFromDevice(device_state_curr, curr, Nmon);
         state_pullFromDevice(device_state_next, next, Nmon);
         //printf("    Evaluator:\n");
@@ -484,7 +493,7 @@ int main(const int argc, const char** argv)
         cudaDeviceSynchronize();
         CUDA_LAST_ERROR_CHECK();
 
-#ifdef DEBUG
+#ifdef DEBUG_PULL_STATES
         state_pullFromDevice(device_state_curr, curr, Nmon);
         state_pullFromDevice(device_state_next, next, Nmon);
         //printf("    Corrector:\n");
@@ -502,7 +511,7 @@ int main(const int argc, const char** argv)
         cudaDeviceSynchronize();
         CUDA_LAST_ERROR_CHECK();
 
-#ifdef DEBUG
+#ifdef DEBUG_PULL_STATES
         state_pullFromDevice(device_state_curr, curr, Nmon);
         state_pullFromDevice(device_state_next, next, Nmon);
         //printf("    Pointer Update:\n");
@@ -518,7 +527,7 @@ int main(const int argc, const char** argv)
         cudaDeviceSynchronize();
         CUDA_LAST_ERROR_CHECK();
 
-#ifdef DEBUG
+#ifdef DEBUG_PULL_STATES
         state_pullFromDevice(device_state_curr, curr, Nmon);
         state_pullFromDevice(device_state_next, next, Nmon);
         if (iter >= 0) {
@@ -554,7 +563,7 @@ int main(const int argc, const char** argv)
         cudaDeviceSynchronize();
         CUDA_LAST_ERROR_CHECK();
 
-#ifdef DEBUG
+#ifdef DEBUG_PULL_STATES
         state_pullFromDevice(device_state_curr, curr, Nmon);
         state_pullFromDevice(device_state_next, next, Nmon);
 #endif
