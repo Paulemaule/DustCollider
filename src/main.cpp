@@ -3,10 +3,11 @@
 #include <stdlib.h>
 #include <chrono>
 #include <string>
-//#include <studio.h>
 #include <iostream>
-#include<fstream>
+#include <fstream>
 #include <algorithm>
+#include <omp.h>
+#include <cstring>
 
 using namespace std;
 using namespace std::chrono;
@@ -50,7 +51,6 @@ int main(const int argc, const char** argv)
     vec3D* dMdt_old = 0;
     vec3D* dMdt_new = 0;
 
-
     vec3D* storage_pos = 0;
     vec3D* storage_vel = 0;
     vec3D* storage_force = 0;
@@ -71,6 +71,8 @@ int main(const int argc, const char** argv)
     double* mass = 0;
     int Nmon = 0;
     int* clusterIDs = 0;
+
+    omp_set_num_threads(8);
 
     pipeline.prepareData(pos_old, vel, omega_tot, mag, amon, mass, moment, matIDs, Nmon);
     pipeline.printParameters();
@@ -188,11 +190,10 @@ int main(const int argc, const char** argv)
 
         updateNeighbourhoodRelations(pos_new, matrix_con, matrix_norm, matrix_rot, matrix_comp, matrix_twist, amon, mat, matIDs, Nmon);
         
-        // todo: rotate magnetization here
         updateContacts(omega, omega_tot, torque_old, mag, matrix_rot, matrix_comp, moment, Nmon, time_step);
 
         updateParticleInteraction(pos_new, force_new, torque_old, torque_new, dMdt_new, matrix_con, matrix_norm, omega, omega_tot,mag, matrix_rot, matrix_comp, matrix_twist, amon, moment, mat, matIDs, B_ext, Nmon, time_step);
-        corrector(force_old, force_new, torque_old, torque_new, dMdt_old, dMdt_new, vel, omega, omega_tot, mag, mass, moment, mat, matIDs, time_step, Nmon);
+        corrector(force_old, force_new, torque_old, torque_new, dMdt_old, dMdt_new, vel, omega, omega_tot, mag, mass, moment, mat, matIDs, B_ext, time_step, Nmon);
 
         switch_pointer(pos_old, pos_new, force_old, force_new, torque_old, torque_new, dMdt_old, dMdt_new);
 
@@ -310,6 +311,10 @@ int main(const int argc, const char** argv)
 
         if (storage_force != 0)
             if (!pipeline.writeBinaryVec("sim_force.bin", storage_force, N_store))
+                return -1;
+
+        if (storage_omega != 0)
+            if (!pipeline.writeBinaryVec("sim_omega.bin", storage_vel, N_store))
                 return -1;
 
         if (storage_torque != 0)

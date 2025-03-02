@@ -1,13 +1,12 @@
-#include "CPipeline.h"
 #include <sys/stat.h>
-#include "vector.h"
 #include <sstream>
-#ifdef _WIN32
-    #include <direct.h>
-#elif __linux__
-    #include <cstring>
-    #include <algorithm>
-#endif
+#include <math.h>
+#include <cstdio>
+#include <cstring>
+#include <algorithm>
+
+#include "CPipeline.h"
+#include "vector.h"
 
 CPipeline::CPipeline()
 {
@@ -235,17 +234,12 @@ void CPipeline::formatLine(string& line)
 
 bool CPipeline::writeOVITO(ullong time_id, double b_size, const vec3D* pos, const double* amon, const int* matID, int Nmon) 
 {
-    char str_tmp[1024];
-    char str_end[1024];
+    char str_tmp[2048];
+    char str_end[2048];
 
-    #ifdef _WIN32
-    strcpy_s(str_tmp, "t_%05lu.dump");
-    sprintf_s(str_end, str_tmp, time_id);
-    #elif __linux__
     strcpy(str_tmp, "t_%05lu.dump");
     sprintf(str_end, str_tmp, time_id);
-    #endif
-    
+
     string str_file = path_ovito + str_end;
 
     ofstream writer(str_file.c_str());
@@ -265,13 +259,8 @@ bool CPipeline::writeOVITO(ullong time_id, double b_size, const vec3D* pos, cons
 
     writer << "ITEM: BOX BOUNDS pp pp pp\n";
 
-    #ifdef _WIN32
-    strcpy_s(str_tmp, "%.4f %.4f\n");
-    sprintf_s(str_end, str_tmp, -1.0e9 * b_size, 1.0e9 * b_size);
-    #elif __linux__
     strcpy(str_tmp, "%.4f %.4f\n");
     sprintf(str_end, str_tmp, -1.0e9 * b_size, 1.0e9 * b_size);
-    #endif
 
     writer << str_end;
     writer << str_end;
@@ -289,14 +278,8 @@ bool CPipeline::writeOVITO(ullong time_id, double b_size, const vec3D* pos, cons
 
         double r = 1.0e9 * amon[i];
 
-        #ifdef _WIN32
-        strcpy_s(str_tmp, "%d %d %d %.5f %.5f %.5f %.5f\n");
-        sprintf_s(str_end, str_tmp, i, 0, id, x, y, z, r);
-        #elif __linux__
         strcpy(str_tmp, "%d %d %d %.5f %.5f %.5f %.5f\n");
         sprintf(str_end, str_tmp, i, 0, id, x, y, z, r);
-        #endif
-
         writer << str_end;
     }
 
@@ -376,13 +359,8 @@ bool CPipeline::writeAllOVITO(const vec3D* pos, const vec3D* vel, const vec3D* f
 
     for (int i = 0; i < steps; i++)
     {
-        #ifdef _WIN32
-        strcpy_s(str_tmp, "t_%05lu.dump");
-        sprintf_s(str_end, str_tmp, i);
-        #elif __linux__
         strcpy(str_tmp, "t_%05lu.dump");
         sprintf(str_end, str_tmp, i);
-        #endif
 
         string str_file = path_ovito + str_end;
 
@@ -403,13 +381,8 @@ bool CPipeline::writeAllOVITO(const vec3D* pos, const vec3D* vel, const vec3D* f
 
         writer << "ITEM: BOX BOUNDS pp pp pp\n";
 
-        #ifdef _WIN32
-        strcpy_s(str_tmp, "%.4f %.4f\n");
-        sprintf_s(str_end, str_tmp, -b_size, b_size);
-        #elif __linux__
         strcpy(str_tmp, "%.4f %.4f\n");
         sprintf(str_end, str_tmp, -b_size, b_size);
-        #endif
 
         writer << str_end;
         writer << str_end;
@@ -497,14 +470,8 @@ bool CPipeline::writeAllOVITO(const vec3D* pos, const vec3D* vel, const vec3D* f
 
             double r = 1.0e9 * amon[j];
 
-            #ifdef _WIN32
-            strcpy_s(str_tmp, "%d %d %d %.5f %.5f %.5f %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5f\n");
-            sprintf_s(str_end, str_tmp, j, cl_id, mat_id, x, y, z, vx, vy, vz, fx, fy, fz, tx, ty, tz, ox, oy, oz, mx, my, mz, r);
-            #elif __linux__
             strcpy(str_tmp, "%d %d %d %.5f %.5f %.5f %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5e %.5f\n");
             sprintf(str_end, str_tmp, j, cl_id, mat_id, x, y, z, vx, vy, vz, fx, fy, fz, tx, ty, tz, ox, oy, oz, mx, my, mz, r);
-            #endif
-
             writer << str_end;
         }
 
@@ -768,22 +735,21 @@ bool CPipeline::prepareData(vec3D*& pos, vec3D*& vel, vec3D*& omega_tot, vec3D*&
         moment[i] = 2. / 5. * mass[i] * amon[i] * amon[i];
 
         double chi = lst_chi[mat_id];
+        double len_Bext = vec3D_length(Bext);
 
         if (abs(chi) != 0)
         {
             if (abs(chi) > LIMIT_FER) //ferromagnetic
             {
-                double len_Bext = vec3D_length(Bext);
-
                 if (len_Bext > 0.) //set initial direction to Bext
                 {
-                    //mag[i].x = lst_Msat[mat_id] * Bext.x / len_Bext;
-                    //mag[i].y = lst_Msat[mat_id] * Bext.y / len_Bext;
-                    //mag[i].z = lst_Msat[mat_id] * Bext.z / len_Bext;
+                    mag[i].x = lst_Msat[mat_id] * Bext.x / len_Bext;
+                    mag[i].y = lst_Msat[mat_id] * Bext.y / len_Bext;
+                    mag[i].z = lst_Msat[mat_id] * Bext.z / len_Bext;
 
-                    mag[i].x = 0.984807753 * lst_Msat[mat_id];
-                    mag[i].y = 0;
-                    mag[i].z = 0.173648178 * lst_Msat[mat_id];
+                    //mag[i].x = 0.984807753 * lst_Msat[mat_id];
+                    //mag[i].y = 0;
+                    //mag[i].z = 0.173648178 * lst_Msat[mat_id];
                 }
                 else
                 {
@@ -828,9 +794,9 @@ bool CPipeline::prepareData(vec3D*& pos, vec3D*& vel, vec3D*& omega_tot, vec3D*&
                     mag[i].z = lst_Msat[mat_id] * mag[i].z / len_mag;
                 }
 
-                mag[i].x = 0.984807753 * lst_Msat[mat_id];
-                mag[i].y = 0;
-                mag[i].z = 0.173648178 * lst_Msat[mat_id];
+                //mag[i].x = 0.984807753 * lst_Msat[mat_id];
+                //mag[i].y = 0;
+                //mag[i].z = 0.173648178 * lst_Msat[mat_id];
             }
         }
         else
@@ -873,22 +839,21 @@ bool CPipeline::prepareData(vec3D*& pos, vec3D*& vel, vec3D*& omega_tot, vec3D*&
         moment[i] = 2. / 5. * mass[i] * amon[i] * amon[i];
 
         double chi = lst_chi[mat_id];
+        double len_Bext = vec3D_length(Bext);
 
         if (abs(chi) != 0)
         {
             if (abs(chi) > LIMIT_FER) //ferromagnetic
             {
-                double len_Bext = vec3D_length(Bext);
-
                 if (len_Bext > 0.) //set initial direction to Bext
                 {
-                    //mag[i].x = lst_Msat[mat_id] * Bext.x / len_Bext;
-                    //mag[i].y = lst_Msat[mat_id] * Bext.y / len_Bext;
-                    //mag[i].z = lst_Msat[mat_id] * Bext.z / len_Bext;
+                    mag[i].x = lst_Msat[mat_id] * Bext.x / len_Bext;
+                    mag[i].y = lst_Msat[mat_id] * Bext.y / len_Bext;
+                    mag[i].z = lst_Msat[mat_id] * Bext.z / len_Bext;
 
-                    mag[i].x = 0.984807753*lst_Msat[mat_id];
-                    mag[i].y = 0;
-                    mag[i].z = 0.173648178*lst_Msat[mat_id];
+                    //mag[i].x = 0.984807753 * lst_Msat[mat_id];
+                    //mag[i].y = 0;
+                    //mag[i].z = 0.173648178 * lst_Msat[mat_id];
                 }
                 else
                 {
@@ -933,9 +898,9 @@ bool CPipeline::prepareData(vec3D*& pos, vec3D*& vel, vec3D*& omega_tot, vec3D*&
                     mag[i].z = lst_Msat[mat_id] * mag[i].z / len_mag;
                 }
 
-                mag[i].x = 0.984807753 * lst_Msat[mat_id];
-                mag[i].y = 0;
-                mag[i].z = 0.173648178 * lst_Msat[mat_id];
+                //mag[i].x = 0.984807753 * lst_Msat[mat_id];
+                //mag[i].y = 0;
+                //mag[i].z = 0.173648178 * lst_Msat[mat_id];
             }
         }
         else
@@ -1134,9 +1099,9 @@ bool CPipeline::init(int argc, const char** argv)
     cout << PROG_ID;
     cout << SEP_LINE << flush;
 
-    #ifdef _DEBUG
-    cmd_filename = "/home/ilion/0/pzuern/development/TestFiles/basic_setup1/cmd_file";
-    #else
+#ifdef DEBUG
+    cmd_filename = "/home/ilion/0/pzuern/development/TestFiles/squeeze/cmd_file";
+#elif RELEASE
     if (argc != 2)
     {
         cout << "\nERROR: Wrong number of arguments!                     \n";
@@ -1145,7 +1110,7 @@ bool CPipeline::init(int argc, const char** argv)
         return false;
     }
     cmd_filename = argv[1];
-    #endif
+#endif
 
     return true;
 }
@@ -1153,7 +1118,12 @@ bool CPipeline::init(int argc, const char** argv)
 
 bool CPipeline::createPath(string path)
 {
-    #ifdef _WIN32
+    /*cout << path << endl;
+
+    path = "F:\\test\\";
+    cout << path << endl;*/
+
+#ifdef _WIN32
     // Windows-specific 
     if (_mkdir(path.c_str()) == 0) 
     {
@@ -1198,7 +1168,7 @@ bool CPipeline::createPath(string path)
             }
         }
     }
-    #elif __linux__
+#elif __linux__
     // Linux-specific 
     if (mkdir(path.c_str(), S_IRWXU | S_IRWXG | S_IRWXO) == 0) 
     {
@@ -1215,9 +1185,9 @@ bool CPipeline::createPath(string path)
         else
             cout << "Failed to create directory on Linux: " << strerror(errno) << std::endl;
     }
-    #else
+#else
     cout << "Unsupported OS" << std::endl;
-    #endif
+#endif
     return false;
 }
 
@@ -1553,6 +1523,7 @@ bool CPipeline::parseLine(string cmd, string data)
 
         return true;
     }
+
 
 
     if (cmd.compare("<N_save>") == 0)

@@ -2,9 +2,6 @@
 #include "typedefs.h"
 #include <cmath>
 
-#ifdef __linux__
-#include <cstring>
-#endif
 
 #ifndef CPHYSICS
 #define CPHYSICS
@@ -42,11 +39,10 @@ inline void findConnectedComponents(int Nmon, const double* matrix, int* cluster
 //update sticking
 inline void updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3D* matrix_norm, quat* matrix_rot, double* matrix_comp, double* matrix_twist, double* amon, material* mat, int* matIDs, int Nmon)
 {
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < Nmon; i++)
     {
-#pragma omp parallel for
-        for (int j = 1; j < Nmon; j++)
+        for (int j = 0; j < i; j++)
         {
             if (i == j)
                 continue;
@@ -81,19 +77,13 @@ inline void updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3D* m
             double contact_distance = (a_mon_A + a_mon_B);
             double distance = vec3D_distance(pos_A, pos_B);
 
-            int index_A = 0 * Nmon * Nmon + i * Nmon + j;
-            int index_B = 1 * Nmon * Nmon + i * Nmon + j;
-
-            /*if (index_A > 2 * Nmon * Nmon)
-                int tt = 0;
-
-            if (index_B > 2 * Nmon * Nmon)
-                int tt = 0;*/
+            int index_A = i * Nmon + j;
+            int index_B = j * Nmon + i;
 
             if (distance < contact_distance)
             {
                 //new connection is established
-                if (matrix_comp[i * Nmon + j] == -1.)
+                if (matrix_comp[index_A] == -1.)
                 {
                     vec3D n = vec3D_get_normal(pos_A, pos_B);
 
@@ -116,14 +106,21 @@ inline void updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3D* m
                     matrix_rot[index_B].e2 = 0;
                     matrix_rot[index_B].e3 = 0;
 
-                    matrix_norm[i * Nmon + j].x = n.x;
-                    matrix_norm[i * Nmon + j].x = n.y;
-                    matrix_norm[i * Nmon + j].x = n.x;
+                    matrix_norm[index_A].x = n.x;
+                    matrix_norm[index_A].x = n.y;
+                    matrix_norm[index_A].x = n.x;
+
+                    matrix_norm[index_B].x = -n.x;
+                    matrix_norm[index_B].x = -n.y;
+                    matrix_norm[index_B].x = -n.x;
 
                     double compression_length = a_mon_A + a_mon_B - distance;
 
-                    matrix_comp[i * Nmon + j] = compression_length;
-                    matrix_twist[i * Nmon + j] = 0;
+                    matrix_comp[index_A] = compression_length;
+                    matrix_comp[index_B] = compression_length;
+
+                    matrix_twist[index_A] = 0;
+                    matrix_twist[index_B] = 0;
                 }
             }
 
@@ -137,8 +134,11 @@ inline void updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3D* m
                 matrix_con[index_B].y = 0;
                 matrix_con[index_B].z = 0;
 
-                matrix_comp[i * Nmon + j] = -1.; //mark as disconnected
-                matrix_twist[i * Nmon + j] = 0;
+                matrix_comp[index_A] = -1.;
+                matrix_comp[index_B] = -1.;
+
+                matrix_twist[index_A] = 0;
+                matrix_twist[index_B] = 0;
             }
         }
     }
@@ -146,8 +146,8 @@ inline void updateNeighbourhoodRelations(vec3D* pos, vec3D* matrix_con, vec3D* m
 
 inline void updateNormal(vec3D& n_A, vec3D& n_B, vec3D* matrix_con, quat* matrix_rot, int i, int j, int Nmon)
 {
-    int index_A = 0 * Nmon * Nmon + i * Nmon + j;
-    int index_B = 1 * Nmon * Nmon + i * Nmon + j;
+    int index_A = i * Nmon + j;
+    int index_B = j * Nmon + i;
 
     quat rot_A = matrix_rot[index_A];
     quat rot_B = matrix_rot[index_B];
@@ -173,7 +173,7 @@ inline void updateNormal(vec3D& n_A, vec3D& n_B, vec3D* matrix_con, quat* matrix
 
 inline void predictor(vec3D* pos_old, vec3D* pos_new, vec3D* force_old, vec3D* vel, double* mass, double time_step, int Nmon)
 {
-#pragma omp parallel for
+    #pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < Nmon; i++)
     {
         double mass_inv = 1. / mass[i];
@@ -184,11 +184,9 @@ inline void predictor(vec3D* pos_old, vec3D* pos_new, vec3D* force_old, vec3D* v
     }
 }
 
-
-
-inline void corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_old, vec3D* torque_new, vec3D* dMdt_old, vec3D* dMdt_new, vec3D* vel, vec3D* omega, vec3D* omega_tot, vec3D* mag, double* mass, double* moment, material* mat, int* matIDs, double time_step, int Nmon)
+inline void corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_old, vec3D* torque_new, vec3D* dMdt_old, vec3D* dMdt_new, vec3D* vel, vec3D* omega, vec3D* omega_tot, vec3D* mag, double* mass, double* moment, material* mat, int* matIDs, vec3D B_ext, double time_step, int Nmon)
 {
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < Nmon; i++)
     {
         double mass_inv = 1. / mass[i];
@@ -231,8 +229,74 @@ inline void corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_old, vec
         int mat_id = matIDs[i];
         double chi = mat[mat_id].chi;
         double Msat = mat[mat_id].Msat;
+        double len_B = vec3D_length(B_ext);
+        double len_omega = vec3D_length(omega_tot[i]);
 
-        if (abs(chi) > 0) //magnetic material
+        if (abs(chi) > LIMIT_FER) //ferromagnetic material
+        {
+            if (len_B > 0) //future magnetization
+            {
+                mag[i].x = Msat * B_ext.x / len_B;
+                mag[i].y = Msat * B_ext.y / len_B;
+                mag[i].z = Msat * B_ext.z / len_B;
+            }
+            else
+            {
+                if (len_omega > 0)
+                {
+                    mag[i].x = Msat * omega_tot[i].x / len_omega;
+                    mag[i].y = Msat * omega_tot[i].y / len_omega;
+                    mag[i].z = Msat * omega_tot[i].z / len_omega;
+                }
+                else //just put Mfin in x-direction for now if B_ext == 0 and omega_tot == 0 
+                {
+                    mag[i].x = Msat;
+                    mag[i].y = 0;
+                    mag[i].z = 0;
+                }
+            }
+
+            double len_mag = vec3D_length(mag[i]);
+
+            if (len_mag > 0) //rescale current magnetization
+            {
+                mag[i].x = Msat * mag[i].x / len_mag;
+                mag[i].y = Msat * mag[i].y / len_mag;
+                mag[i].z = Msat * mag[i].z / len_mag;
+            }
+        }
+        else //paramegnetic material
+        {
+            double chi_factor_A = chi / (chi + 1.);
+
+            //induced moment
+            mag[i].x = chi_factor_A * B_ext.x / mu0;
+            mag[i].y = chi_factor_A * B_ext.y / mu0;
+            mag[i].z = chi_factor_A * B_ext.z / mu0;
+
+            //Barnett moment
+            mag[i].x += chi * omega_tot[i].x / PROD_BARR;
+            mag[i].y += chi * omega_tot[i].y / PROD_BARR;
+            mag[i].z += chi * omega_tot[i].z / PROD_BARR;
+
+            double len_mag = vec3D_length(mag[i]);
+
+            /*if (len_B > 0) //future magnetization
+            {
+                mag[i].x = Msat * B_ext.x / len_B;
+                mag[i].y = Msat * B_ext.y / len_B;
+                mag[i].z = Msat * B_ext.z / len_B;
+            }*/
+
+            if (len_mag > Msat) //rescale current mag. if saturation is reached
+            {
+                mag[i].x = Msat * mag[i].x / len_mag;
+                mag[i].y = Msat * mag[i].y / len_mag;
+                mag[i].z = Msat * mag[i].z / len_mag;
+            }
+        }
+
+        /*if (abs(chi) > 0) //magnetic material
         {
             mag[i].x += 0.5 * time_step * (dMdt_new[i].x + dMdt_old[i].x);
             mag[i].y += 0.5 * time_step * (dMdt_new[i].y + dMdt_old[i].y);
@@ -258,7 +322,7 @@ inline void corrector(vec3D* force_old, vec3D* force_new, vec3D* torque_old, vec
                     }
                 }
             }
-        }
+        }*/
     }
 }
 
@@ -285,7 +349,7 @@ inline void switch_pointer(vec3D*& pos_old, vec3D*& pos_new, vec3D*& force_old, 
 
 inline void updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque, vec3D* mag, quat* matrix_rot, double* matrix_comp, double* moment, int Nmon, double time_step)
 {
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < Nmon; i++)
     {
         vec3D omega_A;
@@ -355,7 +419,6 @@ inline void updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque, vec3D*
             }*/
         }
 
-#pragma omp parallel for
         for (int j = 1; j < Nmon; j++)
         {
             if (i == j)
@@ -389,8 +452,8 @@ inline void updateContacts(vec3D* omega, vec3D* omega_tot, vec3D* torque, vec3D*
             omega_B.y = omega[j].y;
             omega_B.z = omega[j].z;
 
-            int index_A = 0 * Nmon * Nmon + i * Nmon + j;
-            int index_B = 1 * Nmon * Nmon + i * Nmon + j;
+            int index_A = i * Nmon + j;
+            int index_B = j * Nmon + i;
 
             quat rot_A = matrix_rot[index_A];
             quat rot_B = matrix_rot[index_B];
@@ -463,7 +526,6 @@ inline double getJKRContactRadius(double compression_length, double r0, double R
     double x_old = c1_contact_radius;
 
     // use Newton-Raphson method to find root
-#pragma omp parallel for
     for (int i = 0; i < 20; ++i)
     {
         x_pow3 = x_old * x_old * x_old;
@@ -502,10 +564,9 @@ inline void updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3D* t
     memset(torque_new, 0, Nmon * sizeof(vec3D));
     memset(dMdt_new, 0, Nmon * sizeof(vec3D));
 
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic)
     for (int i = 0; i < Nmon; i++)
     {
-#pragma omp parallel for
         for (int j = 0; j < Nmon; j++)
         {
             if (i == j)
@@ -527,179 +588,19 @@ inline void updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3D* t
             double particle_distance = vec3D_length(n_c);
             vec3D_normalize(n_c);
 
-            vec3D force_tmp;
+            vec3D mag_A = mag[i];
+            vec3D mag_B = mag[j];
 
-            force_tmp.x = 1e-12 * n_c.x;
-            force_tmp.y = 1e-12 * n_c.y;
-            force_tmp.z = 1e-12 * n_c.z;
-
-            force_new[i].x += force_tmp.x;
-            force_new[i].y += force_tmp.y;
-            force_new[i].z += force_tmp.z;
+            double len_mag_A = vec3D_length(mag_A);
+            double len_mag_B = vec3D_length(mag_B);
 
             //calculate magnetization
-            /*double chi_A = mat[mat_id_A].chi;
-
-            if (abs(chi_A) > 0)
-            {
-                double len_B = vec3D_length(B_ext);
-                double Vmon_A = 4. / 3. * PI * a_mon_A * a_mon_A * a_mon_A;
-                double Vmon_B = 4. / 3. * PI * a_mon_B * a_mon_B * a_mon_B;
-
-                double Msat_A = mat[mat_id_A].Msat;
-
-                double tau_ss_A = mat[mat_id_A].tss;
-                double tau_sl_A = mat[mat_id_A].tsl;
-
-                vec3D mag_A = mag[i];
-                vec3D mag_B = mag[j];
-
-                vec3D omega_tot_A = omega_tot[i];
-
-                vec3D Mfin, Mpara, Mperp;
-
-                vec3D_set(Mfin, 0);
-                vec3D_set(Mpara, 0);
-                vec3D_set(Mperp, 0);
-
-                double len_mag_A = vec3D_length(mag_A);
-                double len_mag_B = vec3D_length(mag_B);
-
-                if (abs(chi_A) > LIMIT_FER) //ferromagnetic material
-                {
-                    double len_omega = vec3D_length(omega_tot_A);
-
-                    if (len_mag_A > 0) //rescale current magnetization
-                    {
-                        mag_A.x = Msat_A * mag_A.x / len_mag_A;
-                        mag_A.y = Msat_A * mag_A.y / len_mag_A;
-                        mag_A.z = Msat_A * mag_A.z / len_mag_A;
-                    }
-
-                    if (len_B > 0) //future magnetization
-                    {
-                        Mfin.x = Msat_A * B_ext.x / len_B;
-                        Mfin.y = Msat_A * B_ext.y / len_B;
-                        Mfin.z = Msat_A * B_ext.z / len_B;
-                    }
-                    else
-                    {
-                        if (len_omega > 0)
-                        {
-                            Mfin.x = Msat_A * omega_tot_A.x / len_omega;
-                            Mfin.y = Msat_A * omega_tot_A.y / len_omega;
-                            Mfin.z = Msat_A * omega_tot_A.z / len_omega;
-                        }
-                        else //just put Mfin in x-direction for now if B_ext == 0 and omega_tot == 0 
-                        {
-                            Mfin.x = Msat_A;
-                            Mfin.y = 0;
-                            Mfin.z = 0;
-                        }
-                    }
-
-                    double len_Mfin = vec3D_length(Mfin);
-                    double dot_magA_Mfin = vec3D_dot(mag_A, Mfin);
-
-                    Mpara.x = dot_magA_Mfin * Mfin.x / (len_Mfin * len_Mfin);
-                    Mpara.y = dot_magA_Mfin * Mfin.y / (len_Mfin * len_Mfin);
-                    Mpara.z = dot_magA_Mfin * Mfin.z / (len_Mfin * len_Mfin);
-
-                    Mperp.x = mag_A.x - Mpara.x;
-                    Mperp.y = mag_A.y - Mpara.y;
-                    Mperp.z = mag_A.z - Mpara.z;
-                }
-                else //paramegnetic material
-                {
-                    double chi_factor_A = chi_A / (chi_A + 1.);
-
-                    //induced moment
-                    Mfin.x = chi_factor_A * B_ext.x / mu0;
-                    Mfin.y = chi_factor_A * B_ext.y / mu0;
-                    Mfin.z = chi_factor_A * B_ext.z / mu0;
-
-                    //Barnett moment
-                    Mfin.x += chi_A * omega_tot_A.x / PROD_BARR;
-                    Mfin.y += chi_A * omega_tot_A.y / PROD_BARR;
-                    Mfin.z += chi_A * omega_tot_A.z / PROD_BARR;
-
-                    double len_Mfin = vec3D_length(Mfin);
-
-                    if (len_mag_A > Msat_A) //rescale current mag. if saturation is reached
-                    {
-                        if (len_mag_A > 0)
-                        {
-                            mag_A.x = Msat_A * mag_A.x / len_mag_A;
-                            mag_A.y = Msat_A * mag_A.y / len_mag_A;
-                            mag_A.z = Msat_A * mag_A.z / len_mag_A;
-                        }
-                    }
-
-                    /*if (len_Mfin > Msat_A) //rescale future  mag. if saturation is reached
-                    {
-                        if (len_Mfin > 0)
-                        {
-                            Mfin.x = Msat_A * Mfin.x / len_Mfin;
-                            Mfin.y = Msat_A * Mfin.y / len_Mfin;
-                            Mfin.z = Msat_A * Mfin.z / len_Mfin;
-                        }
-                    }*/
-
-                    /*double dot_magA_Mfin = vec3D_dot(mag_A, Mfin);
-
-                    if (len_Mfin > 0)
-                    {
-                        Mpara.x = dot_magA_Mfin * Mfin.x / (len_Mfin * len_Mfin);
-                        Mpara.y = dot_magA_Mfin * Mfin.y / (len_Mfin * len_Mfin);
-                        Mpara.z = dot_magA_Mfin * Mfin.z / (len_Mfin * len_Mfin);
-
-                        Mperp.x = mag_A.x - Mpara.x;
-                        Mperp.y = mag_A.y - Mpara.y;
-                        Mperp.z = mag_A.z - Mpara.z;
-                    }
-                    else
-                    {
-                        Mpara.x = 0;
-                        Mpara.y = 0;
-                        Mpara.z = 0;
-
-                        Mperp.x = 0;
-                        Mperp.y = 0;
-                        Mperp.z = 0;
-                    }
-                }
-
-                //solve Bloch equation
-                dMdt_new[i].x = 0;
-                dMdt_new[i].y = 0;
-                dMdt_new[i].z = 0;
-
-                if (len_B > 0)
-                {
-                    vec3D cross = vec3D_cross(mag_A, B_ext);
-
-                    dMdt_new[i].x += GAMMA_E * cross.x;
-                    dMdt_new[i].y += GAMMA_E * cross.y;
-                    dMdt_new[i].z += GAMMA_E * cross.z;
-                }
-
-                if (tau_sl_A > 0)
-                {
-                    dMdt_new[i].x -= (mag_A.x - Mpara.x) / tau_sl_A;
-                    dMdt_new[i].y -= (mag_A.y - Mpara.y) / tau_sl_A;
-                    dMdt_new[i].z -= (mag_A.z - Mpara.z) / tau_sl_A;
-                }
-
-                if (tau_ss_A > 0)
-                {
-                    dMdt_new[i].x -= Mperp.x / tau_ss_A;
-                    dMdt_new[i].y -= Mperp.y / tau_ss_A;
-                    dMdt_new[i].z -= Mperp.z / tau_ss_A;
-                }
-
                 if (len_mag_A * len_mag_B > 0)
                 {
                     vec3D mu_A, mu_B;
+
+                    double Vmon_A = 4. / 3. * PI * a_mon_A * a_mon_A * a_mon_A;
+                    double Vmon_B = 4. / 3. * PI * a_mon_B * a_mon_B * a_mon_B;
 
                     mu_A.x = mag_A.x * Vmon_A;
                     mu_A.y = mag_A.y * Vmon_A;
@@ -713,6 +614,7 @@ inline void updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3D* t
                     vec3D torque_B = vec3D_cross(mu_A, B_ext);
 
                     vec3D vec_d = vec3D_diff(pos_B, pos_A); //todo: check for correct direction
+                    vec3D vec_n = vec3D_get_normal(vec_d);
                     double d = vec3D_length(vec_d);
                     double d2 = d * d;
                     double d3 = d2 * d;
@@ -724,24 +626,24 @@ inline void updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3D* t
                     double tD = (mu0 / PIx4);
                     double tEdH = (Vmon_A / GAMMA_E);
 
-                    double dot_muA_d = vec3D_dot(mu_A, vec_d);
-                    double dot_muB_d = vec3D_dot(mu_B, vec_d);
+                    double dot_muA_d = vec3D_dot(mu_A, vec_n);
+                    double dot_muB_d = vec3D_dot(mu_B, vec_n);
                     double dot_muA_muB = vec3D_dot(mu_A, mu_B);
 
-                    vec3D cross_d_muB = vec3D_cross(vec_d, mu_B);
+                    vec3D cross_d_muB = vec3D_cross(vec_n, mu_B);
                     vec3D cross_muA_muB = vec3D_cross(mu_A, mu_B);
 
-                    //force_D.x = fD * (5. * vec_d.x * dot_muA_d * dot_muB_d / d2 - vec_d.x * dot_muA_muB - mu_A.x * dot_muB_d - mu_B.x * dot_muA_d);
-                    //force_D.y = fD * (5. * vec_d.y * dot_muA_d * dot_muB_d / d2 - vec_d.y * dot_muA_muB - mu_A.y * dot_muB_d - mu_B.y * dot_muA_d);
-                    //force_D.z = fD * (5. * vec_d.z * dot_muA_d * dot_muB_d / d2 - vec_d.z * dot_muA_muB - mu_A.z * dot_muB_d - mu_B.z * dot_muA_d);
+                    //force_D.x = fD * (-5. * vec_d.x * dot_muA_d * dot_muB_d / d2 + vec_d.x * dot_muA_muB + mu_A.x * dot_muB_d + mu_B.x * dot_muA_d);
+                    //force_D.y = fD * (-5. * vec_d.y * dot_muA_d * dot_muB_d / d2 + vec_d.y * dot_muA_muB + mu_A.y * dot_muB_d + mu_B.y * dot_muA_d);
+                    //force_D.z = fD * (-5. * vec_d.z * dot_muA_d * dot_muB_d / d2 + vec_d.z * dot_muA_muB + mu_A.z * dot_muB_d + mu_B.z * dot_muA_d);
 
-                    force_D.x = fD * (-5. * vec_d.x * dot_muA_d * dot_muB_d + vec_d.x * dot_muA_muB + mu_A.x * dot_muB_d + mu_B.x * dot_muA_d);
-                    force_D.y = fD * (-5. * vec_d.y * dot_muA_d * dot_muB_d + vec_d.y * dot_muA_muB + mu_A.y * dot_muB_d + mu_B.y * dot_muA_d);
-                    force_D.z = fD * (-5. * vec_d.z * dot_muA_d * dot_muB_d + vec_d.z * dot_muA_muB + mu_A.z * dot_muB_d + mu_B.z * dot_muA_d);
+                    force_D.x = -fD * (-5. * vec_n.x * dot_muA_d * dot_muB_d + vec_n.x * dot_muA_muB + mu_A.x * dot_muB_d + mu_B.x * dot_muA_d);
+                    force_D.y = -fD * (-5. * vec_n.y * dot_muA_d * dot_muB_d + vec_n.y * dot_muA_muB + mu_A.y * dot_muB_d + mu_B.y * dot_muA_d);
+                    force_D.z = -fD * (-5. * vec_n.z * dot_muA_d * dot_muB_d + vec_n.z * dot_muA_muB + mu_A.z * dot_muB_d + mu_B.z * dot_muA_d);
 
-                    torque_D.x = tD * 3. * dot_muB_d * cross_d_muB.x / d5 - cross_muA_muB.x / d3;
-                    torque_D.y = tD * 3. * dot_muB_d * cross_d_muB.y / d5 - cross_muA_muB.y / d3;
-                    torque_D.z = tD * 3. * dot_muB_d * cross_d_muB.z / d5 - cross_muA_muB.z / d3;
+                    torque_D.x = tD * 3. * dot_muB_d * cross_d_muB.x / d3 - cross_muA_muB.x / d3;
+                    torque_D.y = tD * 3. * dot_muB_d * cross_d_muB.y / d3 - cross_muA_muB.y / d3;
+                    torque_D.z = tD * 3. * dot_muB_d * cross_d_muB.z / d3 - cross_muA_muB.z / d3;
 
                     torque_EdH.x = -tEdH * dMdt_new[i].x;
                     torque_EdH.y = -tEdH * dMdt_new[i].y;
@@ -761,20 +663,19 @@ inline void updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3D* t
 
                     torque_new[i].x += torque_B.x;
                     torque_new[i].y += torque_B.y;
-                    torque_new[i].z += torque_B.z;
+                    torque_new[i].z += torque_B.z;/**/
                 }
-            }*/
+
             // end of magnetization
             
+            int index_A = i * Nmon + j;
+            int index_B = j * Nmon + i;
 
             //calc. surface forces only for con. monomers
-            if (matrix_comp[i * Nmon + j] == -1.)
+            if (matrix_comp[index_A] == -1. | matrix_comp[index_B] == -1.)
                 continue;
 
             bool update_contact_pointers = false;
-
-            int index_A = 0 * Nmon * Nmon + i * Nmon + j;
-            int index_B = 1 * Nmon * Nmon + i * Nmon + j;
 
             vec3D omega_A = omega[i];
             vec3D omega_B = omega[j];
@@ -1026,11 +927,12 @@ inline void updateParticleInteraction(vec3D* pos_new, vec3D* force_new, vec3D* t
             torque_new[i].y -= twisting_torque.y;
             torque_new[i].z -= twisting_torque.z;/**/
 
+            // FIXME: Memory race!
             // store current state for next update step
-            matrix_norm[i * Nmon + j].x = n_c.x;
-            matrix_norm[i * Nmon + j].y = n_c.y;
-            matrix_norm[i * Nmon + j].z = n_c.z;
-            matrix_comp[i * Nmon + j] = compression_length;
+            matrix_norm[index_A].x = n_c.x;
+            matrix_norm[index_A].y = n_c.y;
+            matrix_norm[index_A].z = n_c.z;
+            matrix_comp[index_A] = compression_length;
         }
     }
 }

@@ -1,7 +1,5 @@
 #include <iostream>
-#ifdef __linux__
 #include <cstring>
-#endif
 
 // Function to perform Depth-First Search (DFS) using recursion
 void dfs(int node, int n, const int* matrix, int* cluster, int currentCluster) {
@@ -30,8 +28,7 @@ void findConnectedComponents(int Nmon, const int* matrix, int* cluster) {
     }
 }
 
-/*
-int main() {
+int main_() {
     const int Nmon = 6;  // Number of nodes in the graph
 
     // Connectivity matrix (1D array, flattened version of a 2D matrix)
@@ -62,4 +59,3 @@ int main() {
 
     return 0;
 }
-*/
