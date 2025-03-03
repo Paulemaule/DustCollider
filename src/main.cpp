@@ -72,7 +72,16 @@ int main(const int argc, const char** argv)
     int Nmon = 0;
     int* clusterIDs = 0;
 
-    omp_set_num_threads(8);
+    // Set the number of threads OMP is to use.
+    int omp_max_threads = omp_get_max_threads();
+    omp_set_num_threads(16);
+
+    // Check how many threads are actually available in the parallel region.
+    #pragma omp parallel
+    {
+        #pragma omp single
+        std::cout << "\nCurrent number of threads: " << omp_get_num_threads() << " / " << omp_max_threads << "\n" << std::endl;
+    }
 
     pipeline.prepareData(pos_old, vel, omega_tot, mag, amon, mass, moment, matIDs, Nmon);
     pipeline.printParameters();
