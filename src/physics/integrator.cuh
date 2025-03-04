@@ -585,7 +585,7 @@ __global__ void updatePointers(
             return; 
         } else {
             // The monomers stay in contact
-            pointer_next[matrix_i] = pointer_i;
+            pointer_next[matrix_i] = pointer_curr[matrix_i];
             compression_next[matrix_i] = normal_displacement;
             // rotation_next, twisting_next do not need to be updated here, as they are allready being updated in the pointer_corrector
         }
