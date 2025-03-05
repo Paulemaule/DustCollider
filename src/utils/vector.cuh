@@ -33,11 +33,14 @@ __host__ __device__ void quat_normalize(double4& q)
  * @brief Applies a quaternion rotation to a vector.
  * 
  * Applies the rotation of angle phi around the axis Psi to the vector v.
+ * The quaternion translates into phi and Psi like so:
  *      q.w := cos ( phi / 2 )
  * and
  *      q.x := Psi.x * sin ( phi / 2 )
  *      q.y := Psi.y * sin ( phi / 2 )
  *      q.z := Psi.z * sin ( phi / 2 )
+ * 
+ * The homogeneous form of the rotation matrix is used.
  * 
  * @param q: The quaternion used for rotation.
  * @param v: The vector that is to be rotated.
@@ -47,10 +50,22 @@ __host__ __device__ void quat_normalize(double4& q)
 __host__ __device__ double3 quat_apply(const double4 q, const double3 v) 
 {
     double3 u;
-    u.x = 2. * ((0.5 - q.y * q.y - q.z * q.z) * v.x + (q.x * q.y + q.w * q.z)       * v.y + (q.x * q.z - q.w * q.y)       * v.z);
-    u.y = 2. * ((q.y * q.x - q.w * q.z)       * v.x + (0.5 - q.x * q.x - q.z * q.z) * v.y + (q.y * q.z + q.w * q.x)       * v.z);
-    u.z = 2. * ((q.z * q.x + q.w * q.y)       * v.x + (q.z * q.y - q.w * q.x)       * v.y + (0.5 - q.x * q.x - q.y * q.y) * v.z);
+    // Implementation according to Wada07 (inhomogeneous)
+    //u.x = 2. * ((0.5 - q.y * q.y - q.z * q.z) * v.x + (q.x * q.y + q.w * q.z)       * v.y + (q.x * q.z - q.w * q.y)       * v.z);
+    //u.y = 2. * ((q.y * q.x - q.w * q.z)       * v.x + (0.5 - q.x * q.x - q.z * q.z) * v.y + (q.y * q.z + q.w * q.x)       * v.z);
+    //u.z = 2. * ((q.z * q.x + q.w * q.y)       * v.x + (q.z * q.y - q.w * q.x)       * v.y + (0.5 - q.x * q.x - q.y * q.y) * v.z);
 
+    // Homogeneous implementation. Works better for non-unit quaternions.
+    // This implementation also results in the inverse transformation to the Wada07 implementation...
+    u.x = v.x *      (q.w * q.w + q.x * q.x - q.y * q.y - q.z * q.z) 
+        + v.y * 2. * (q.x * q.y - q.w * q.z) 
+        + v.z * 2. * (q.w * q.y + q.x * q.z);
+    u.y = v.x * 2. * (q.x * q.y + q.w * q.z) 
+        + v.y *      (q.w * q.w - q.x * q.x + q.y * q.y - q.z * q.z) 
+        + v.z * 2. * (q.y * q.z - q.w * q.x);
+    u.z = v.x * 2. * (q.x * q.z - q.w * q.y) 
+        + v.y * 2. * (q.w * q.x + q.y * q.z) 
+        + v.z *      (q.w * q.w - q.x * q.x - q.y * q.y + q.z * q.z);
     return u;
 }
 
@@ -73,13 +88,7 @@ __host__ __device__ double3 quat_apply_inverse(const double4 q, const double3 v)
 {
     // The inverse operation can be done using a regular rotation using the quaterion q' = (q.w, -q.x, -q.y, -q.z)
     double4 q_ = { -q.x, -q.y, -q.z, q.w };
-
-    double3 u;
-    u.x = 2. * ((0.5 - q_.y * q_.y - q_.z * q_.z) * v.x + (q_.x * q_.y + q_.w * q_.z)       * v.y + (q_.x * q_.z - q_.w * q_.y)       * v.z);
-    u.y = 2. * ((q_.y * q_.x - q_.w * q_.z)       * v.x + (0.5 - q_.x * q_.x - q_.z * q_.z) * v.y + (q_.y * q_.z + q_.w * q_.x)       * v.z);
-    u.z = 2. * ((q_.z * q_.x + q_.w * q_.y)       * v.x + (q_.z * q_.y - q_.w * q_.x)       * v.y + (0.5 - q_.x * q_.x - q_.y * q_.y) * v.z);
-
-    return u;
+    return quat_apply(q_, v);
 }
 
 /**
