@@ -648,8 +648,13 @@ __global__ void updatePointers(
             // Re-normalize the pointer.
             vec_normalize(pointer_i);
 
-            // Track inelastic motion
-            atomicAdd(&inelastic_counter->y, pow(10., double(i))); // TODO: Properly implement dissipated energy, see Wada07
+            // Track inelastic motion 
+            // TODO: Check the time penalty for tracking dissipated energy!
+            double F_c = 3 * PI * gamma * R;
+            double k_r = 4. * F_c / R;
+            double dissipated_energy = k_r * delta_R_crit * (rolling_displacement_abs - delta_R_crit);
+
+            atomicAdd(&inelastic_counter->y, dissipated_energy);
         }
 
         // If there were any corrections, apply them to the contact pointer.
