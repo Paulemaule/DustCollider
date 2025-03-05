@@ -9,7 +9,7 @@ BUILD ?= Release
 ifeq ($(BUILD), Release)
 	BUILD_FLAGS = -DRELEASE
 else ifeq ($(BUILD), Debug)
-	BUILD_FLAGS = -DDEBUG -g
+	BUILD_FLAGS = -DDEBUG -g -G
 else
 	@echo This line is a hack and will cause make to crash. If this happens the BUILD version was unsupported.
 endif
