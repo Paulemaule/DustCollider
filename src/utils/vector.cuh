@@ -56,15 +56,14 @@ __host__ __device__ double3 quat_apply(const double4 q, const double3 v)
     //u.z = 2. * ((q.z * q.x + q.w * q.y)       * v.x + (q.z * q.y - q.w * q.x)       * v.y + (0.5 - q.x * q.x - q.y * q.y) * v.z);
 
     // Homogeneous implementation. Works better for non-unit quaternions.
-    // This implementation also results in the inverse transformation to the Wada07 implementation...
-    u.x = v.x *      (q.w * q.w + q.x * q.x - q.y * q.y - q.z * q.z) 
-        + v.y * 2. * (q.x * q.y - q.w * q.z) 
-        + v.z * 2. * (q.w * q.y + q.x * q.z);
-    u.y = v.x * 2. * (q.x * q.y + q.w * q.z) 
-        + v.y *      (q.w * q.w - q.x * q.x + q.y * q.y - q.z * q.z) 
-        + v.z * 2. * (q.y * q.z - q.w * q.x);
-    u.z = v.x * 2. * (q.x * q.z - q.w * q.y) 
-        + v.y * 2. * (q.w * q.x + q.y * q.z) 
+    u.x = v.x *      (q.w * q.w + q.x * q.x - q.y * q.y - q.z * q.z)
+        + v.y * 2. * (q.x * q.y + q.w * q.z)
+        + v.z * 2. * (q.x * q.z - q.w * q.y);
+    u.y = v.x * 2. * (q.x * q.y - q.w * q.z)
+        + v.y *      (q.w * q.w - q.x * q.x + q.y * q.y - q.z * q.z)
+        + v.z * 2. * (q.y * q.z + q.w * q.x);
+    u.z = v.x * 2. * (q.x * q.z + q.w * q.y)
+        + v.y * 2. * (q.y * q.z - q.w * q.z)
         + v.z *      (q.w * q.w - q.x * q.x - q.y * q.y + q.z * q.z);
     return u;
 }
