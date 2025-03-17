@@ -246,6 +246,55 @@ __device__ double getJKRContactRadius(
     return x_new * x_new;
 }
 
+/**
+ * @brief Calculates the contact surface radius between two monomers.
+ * 
+ * This function uses Newtons method to calculate the contact radius a
+ * by solving the equation (see Wada et al. - 2007; eq (4))
+ * normal_displacement / equilibrium_displacement = 3 * (a / a_0)^2 - 2 * sqrt(a / a_0)
+ * 
+ * This equation does not have a solution when normal_displacement < -critical_displacement.
+ * This case is handled by returning a fixed value (the value of a at the critical diplacement) instead.
+ * 
+ * @param normal_displacement: The current normal displacement.
+ * @param a_0: The equilibrium contact surface radius.
+ * @param reduced_radius: The reduced radius of the two monomers.
+ * 
+ * @returns a: The contact surface radius.
+ */
+__device__ double get_contact_radius(
+    const double delta_N,
+    const double a_0,
+    const double R
+) {
+    double delta_N_0 = a_0 * a_0 / (3. * R);
+
+    // Substitute the values in the iteration process (a / a_0) =: x, (delta_N / delta_N_0) =: y.
+    // The equation that is to be solved becomes: 0 = 3 * x^2 - 2 * sqrt(x) - y.
+    double y = delta_N / delta_N_0;
+    
+    // There is no solution to the equation when the critical displacement is exeeded.
+    // Instead the value at the critical displacement is returned.
+    double critical_displacement = - pow(9. / 16., 2. / 3.) * delta_N_0;
+    if (delta_N <= critical_displacement) {
+        return pow(1. / 6., 2. / 3.) * a_0;
+    }
+
+    // An initial guess of a = a_0 is used. 
+    // This value also ensures that the algorithm converges to the correct solution of the equation.
+    double x_n = 1.; 
+
+    // Use Newtons method to determine the solution.
+    for (int n = 0; n < 20; n++) {
+        // Recursiveley adjust the guess using the update rule x_n+1 = x_n - f(x_n) / f'(x_n).
+        // TODO: Check for optimization opportunities. This piece of code is executed very often.
+        x_n = x_n - (3. * x_n * x_n - 2. * sqrt(x_n) - y) / (6. * x_n - 1. / sqrt(x_n));
+    }
+
+    // Return the resubstituted root of the equation.
+    return x_n * a_0;
+}
+
 // TODO: The collaborator list is incomplete.
 /**
  * @brief Implements the evaluation step of the synchronized leapfrog algorithm.
@@ -382,8 +431,8 @@ __global__ void evaluate(
         // FORCE AND TORQUE CALCULATIONS
         // Normal direction
         // Normal force
-        double a = getJKRContactRadius(normal_displacement, a_0, R); // The radius of the contact surface between the monomers.
-        double F_c = 3 * PI * gamma * R;
+        double a = get_contact_radius(normal_displacement, a_0, R);
+        double F_c = 3. * PI * gamma * R;
         double normal_force = 4 * F_c * (pow((a / a_0), 3.) - pow((a / a_0), 1.5));
 
         force.x += normal_force * pointer_pos.x;
