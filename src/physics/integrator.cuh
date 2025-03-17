@@ -379,7 +379,7 @@ __global__ void evaluate(
     double G = G_i * G_j / (G_i + G_j);
 
     // The surface energy of the monomer pair.
-    double gamma =  gamma_i + gamma_j - 2.0 / (1.0 / gamma_j + 1.0 / gamma_j);
+    double gamma =  gamma_i + gamma_j - 2.0 / (1.0 / gamma_i + 1.0 / gamma_j);
 
     // The viscous damping timescale of the pair.
     double t_vis = 0.5 * (viscous_damping_timescale[i] + viscous_damping_timescale[j]);
@@ -562,7 +562,7 @@ __global__ void updatePointers(
     double G = G_i * G_j / (G_i + G_j);
 
     // The surface energy of the monomer pair.
-    double gamma =  gamma_i + gamma_j - 2.0 / (1.0 / gamma_j + 1.0 / gamma_j);
+    double gamma =  gamma_i + gamma_j - 2.0 / (1.0 / gamma_i + 1.0 / gamma_j);
 
     // The equilibrium contact radius of the monomer pair.
     double a_0 = pow(9 * PI * gamma * R * R / E_s, 1.0 / 3.0);
