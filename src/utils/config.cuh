@@ -1,7 +1,6 @@
 #pragma once
 
 ///////////////////////// BUILD CONFIG /////////////////////////
-#define DEBUG_CMD_FILE "/home/ilion/0/pzuern/development/TestFiles/setup1/cmd_file"
 
 ///////////////////////// LOGGING CONFIG /////////////////////////
 

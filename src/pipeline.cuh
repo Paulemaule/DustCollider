@@ -125,6 +125,10 @@ public:
 
         #ifdef RELEASE
         std::cout << "Compiled in Release build." << std::endl;
+        #else
+        std::cout << "Compiled in Debug build." << std::endl;
+        #endif
+
         PRINT_LOG("Parsing command line input", 2);
         if (argc != 2)
         {
@@ -132,11 +136,6 @@ public:
             return false;
         }
         cmd_filename = argv[1];
-        #else
-        std::cout << "Compiled in Debug build." << std::endl;
-        cmd_filename = DEBUG_CMD_FILE;
-        PRINT_LOG("Assuming cmd file location is:\n      " + cmd_filename, 2)
-        #endif
 
         return true;
     }
