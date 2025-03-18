@@ -63,7 +63,7 @@ __host__ __device__ double3 quat_apply(const double4 q, const double3 v)
         + v.y *      (q.w * q.w - q.x * q.x + q.y * q.y - q.z * q.z)
         + v.z * 2. * (q.y * q.z + q.w * q.x);
     u.z = v.x * 2. * (q.x * q.z + q.w * q.y)
-        + v.y * 2. * (q.y * q.z - q.w * q.z)
+        + v.y * 2. * (q.w * q.x - q.y * q.z)
         + v.z *      (q.w * q.w - q.x * q.x - q.y * q.y + q.z * q.z);
     return u;
 }
