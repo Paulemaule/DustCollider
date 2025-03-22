@@ -34,6 +34,11 @@ using namespace std::chrono;
 
 int main(const int argc, const char** argv)
 {
+    /* ############################################################
+            INITIALIZATION
+       ############################################################ */
+
+
     CPipeline pipeline;
 
     auto start = high_resolution_clock::now();
@@ -54,160 +59,29 @@ int main(const int argc, const char** argv)
     if (!pipeline.checkParameters())
         return -1;
 
-    // FIXME: Change nullpointers to 'nullptr' and check for dangling pointers.
-    material* mat = 0;          // An array containing the material parameters.
-    material* buff_mat = 0;     // An array containing the material parameters in GPU memory.
+    // Reading material properties from the command file.
+    material* mat = nullptr;          // An array containing the material parameters.
+    int Nmat = 0;                     // The number of different materials.
 
-    int Nmat = 0;               // The number of materials.
-
-    // Reading and preparing the material parameters.
     pipeline.prepareMaterial(mat, Nmat);
 
-    cudaMalloc(&buff_mat, Nmat * sizeof(material));
-
-    /*
-    // Definition of variables.
-    // The old variables:
-    vec3D* vel = nullptr;                 // An array of the monomer velocities.
-    vec3D* omega = nullptr;               // An array of the monomer angular velocities due to self rotation.
-    vec3D* omega_tot = nullptr;           // An array of the monomer angular velocities due to self rotation and curved trajectories.
-    vec3D* mag = nullptr;                 // An array of the monomer magnetizations.
-
-    vec3D* pos_old = nullptr;
-    vec3D* pos_new = nullptr;
-    vec3D* force_old = nullptr;
-    vec3D* force_new = nullptr;
-    vec3D* torque_old = nullptr;
-    vec3D* torque_new = nullptr;
-
-    vec3D* dMdt_old = nullptr;
-    vec3D* dMdt_new = nullptr;
-
-    vec3D* buff_vel = nullptr;
-    vec3D* buff_omega = nullptr;
-    vec3D* buff_omega_tot = nullptr;
-    vec3D* buff_mag = nullptr;
-
-    vec3D* buff_pos_old = nullptr;
-    vec3D* buff_pos_new = nullptr;
-    vec3D* buff_force_old = nullptr;
-    vec3D* buff_force_new = nullptr;
-    vec3D* buff_torque_old = nullptr;
-    vec3D* buff_torque_new = nullptr;
-
-    vec3D* buff_dMdt_old = nullptr;
-    vec3D* buff_dMdt_new = nullptr;
-    */
-
+    // Declaring variables for the snapshots.
     double3* storage_pos = nullptr;         // Array of monomer position that are to be stored after simulation.
     double3* storage_vel = nullptr;         // Array of monomer velocities that are to be stored after simulation.
     double3* storage_force = nullptr;       // Array of monomer forces that are to be stored after simulation.
     double3* storage_torque = nullptr;      // Array of monomer torques that are to be stored after simulation.
     double3* storage_omega = nullptr;       // Array of monomer angular velocities that are to be stored after simulation.
     double3* storage_mag = nullptr;         // Array of monomer magnetizations that are to be stored after simulation.
-    double* storage_inelastic_N = nullptr;
-    double* storage_inelastic_S = nullptr;
-    double* storage_inelastic_R = nullptr;
-    double* storage_inelastic_T = nullptr;
-    int* storage_cluster = nullptr;         // Array of monomer cluster membership that are to be stored after simulation.
-    int* clusterIDs = nullptr;
-
-    /*
-    vec3D* matrix_con = nullptr;          // contact pointer between monomers
-    vec3D* matrix_norm = nullptr;         // normal vectors between monomers
-    quat* matrix_rot = nullptr;           // contact pointer rotation direction
-    double* matrix_comp = nullptr;        // old compression lengths, also used to track connection
-    double* matrix_twist = nullptr;       // old twisting displacement
-
-    vec3D* buff_matrix_con = nullptr;     // GPU contact pointer
-    vec3D* buff_matrix_norm = nullptr;    // GPU normal vectors
-    quat* buff_matrix_rot = nullptr;      // GPU contact pointer rotation
-    double* buff_matrix_comp = nullptr;   // GPU old compression lenghts
-    double* buff_matrix_twist = nullptr;  // GPU old twisting displacement
-
-    int* matIDs = nullptr;                // material IDs
-    double* amon = nullptr;               // Monomer radii
-    double* moment = nullptr;             // Monomer moments of inertia
-    double* mass = nullptr;               // Monomer masses
-    int* clusterIDs = nullptr;            // Monomer cluster membership
-
-    int* buff_matIDs = nullptr;           // GPU material IDs
-    double* buff_amon = nullptr;          // GPU monomer radii
-    double* buff_moment = nullptr;        // GPU monomer moments of inertia
-    double* buff_mass = nullptr;          // GPU monomer masses
-    */
-
-    // Read the aggregate files and initialize the state.
-    //pipeline.prepareData(pos_old, vel, omega_tot, mag, amon, mass, moment, matIDs, Nmon);
-
-    /*
-    PRINT_LOG("Allocating memory on host.", 2);
-    // Initialize the vectors.
-    omega = new vec3D[Nmon];
-    pos_new = new vec3D[Nmon];
-    force_old = new vec3D[Nmon];
-    force_new = new vec3D[Nmon];
-    torque_old = new vec3D[Nmon];
-    torque_new = new vec3D[Nmon];
-    dMdt_old = new vec3D[Nmon];
-    dMdt_new = new vec3D[Nmon];
-
-    // Sets the values of the vectors in CPU memory to 0
-    memset(omega, 0, Nmon * sizeof(vec3D));
-    memset(pos_new, 0, Nmon * sizeof(vec3D));
-    memset(force_old, 0, Nmon * sizeof(vec3D));
-    memset(force_new, 0, Nmon * sizeof(vec3D));
-    memset(torque_old, 0, Nmon * sizeof(vec3D));
-    memset(torque_new, 0, Nmon * sizeof(vec3D));
-    memset(dMdt_old, 0, Nmon * sizeof(vec3D));
-    memset(dMdt_new, 0, Nmon * sizeof(vec3D));
-
-    PRINT_LOG("Allocating memory on device.", 2)
-    // Allocate memory in the GPU
-    cudaMalloc(&buff_vel, Nmon*sizeof(vec3D));
-    cudaMalloc(&buff_omega, Nmon*sizeof(vec3D));
-    cudaMalloc(&buff_omega_tot, Nmon*sizeof(vec3D));
-    cudaMalloc(&buff_mag, Nmon*sizeof(vec3D));
-    cudaMalloc(&buff_pos_old, Nmon*sizeof(vec3D));
-    cudaMalloc(&buff_pos_new, Nmon*sizeof(vec3D));
-    cudaMalloc(&buff_force_old, Nmon*sizeof(vec3D));
-    cudaMalloc(&buff_force_new, Nmon*sizeof(vec3D));
-    cudaMalloc(&buff_torque_old, Nmon*sizeof(vec3D));
-    cudaMalloc(&buff_torque_new, Nmon*sizeof(vec3D));
-    cudaMalloc(&buff_dMdt_old, Nmon*sizeof(vec3D));
-    cudaMalloc(&buff_dMdt_new, Nmon*sizeof(vec3D));
-
-    // Check for CUDA errors during memory allocation.
-    CUDA_LAST_ERROR_CHECK();
-
-    int Ncon = Nmon * Nmon; // Square of the number of monomers Nmon^2.
-
-    // Initialize the matrices.
-    matrix_con = new vec3D[2 * Ncon];
-    matrix_rot = new quat[2 * Ncon];
-    matrix_norm = new vec3D[Ncon];
-    matrix_comp = new double[Ncon];
-    matrix_twist = new double[Ncon];
-
-    memset(matrix_con, 0, 2 * Ncon * sizeof(vec3D));
-    memset(matrix_rot, 0, 2 * Ncon * sizeof(quat));
-    memset(matrix_norm, 0, Ncon * sizeof(vec3D));
-    fill(matrix_comp, matrix_comp + Ncon, -1.0);
-    memset(matrix_twist, 0, Ncon * sizeof(double));
-
-    cudaMalloc(&buff_matrix_con, Ncon * sizeof(vec3D));
-    cudaMalloc(&buff_matrix_rot, Ncon * sizeof(quat));
-    cudaMalloc(&buff_matrix_norm, Ncon * sizeof(vec3D));
-    cudaMalloc(&buff_matrix_comp, Ncon * sizeof(double));
-    cudaMalloc(&buff_matrix_twist, Ncon * sizeof(double));
-    cudaMalloc(&buff_matIDs, Nmon * sizeof(int));
-    cudaMalloc(&buff_amon, Nmon * sizeof(double));
-    cudaMalloc(&buff_moment, Nmon * sizeof(double));
-    cudaMalloc(&buff_mass, Nmon * sizeof(double));
-    */
-
-    // Check for CUDA errors during memory allocation
-    CUDA_LAST_ERROR_CHECK();
+    double* storage_potential_N = nullptr;  // Array of potential energies in normal direction.
+    double* storage_potential_S = nullptr;  // Array of potential energies in sliding direction.
+    double* storage_potential_R = nullptr;  // Array of potential energies in rolling direction.
+    double* storage_potential_T = nullptr;  // Array of potential energies in twisting direction.
+    double* storage_inelastic_N = nullptr;  // Array of dissipated energies in normal direction.
+    double* storage_inelastic_S = nullptr;  // Array of dissipated energies in sliding direction.
+    double* storage_inelastic_R = nullptr;  // Array of dissipated energies in rolling direction.
+    double* storage_inelastic_T = nullptr;  // Array of dissipated energies in twisting direction.
+    int* storage_cluster = nullptr;         // TODO
+    int* clusterIDs = nullptr;              // TODO
 
     // Read the initial state of the system from the monomer files
     // Prepare arrays for the monomer data
@@ -219,8 +93,10 @@ int main(const int argc, const char** argv)
     double* monomer_mass = nullptr;
     double* monomer_moment = nullptr;
     int* monomer_matID = nullptr;
-    int Nmon = 0;                   // Number of monomers
 
+    int Nmon = 0; // The number of monomers.
+
+    // Read aggregate files and prepare initial state.
     pipeline.prepareData(initial_position, initial_velocity, initial_omega_tot, initial_magnetization, 
                             monomer_radius, monomer_mass, monomer_moment, monomer_matID, Nmon);
 
@@ -311,14 +187,14 @@ int main(const int argc, const char** argv)
     pipeline.printParameters();
     
     // Get some run parameters.
-    ullong N_iter = pipeline.getNIter();
-    ullong N_save = pipeline.getNSave();
-    double time_step = pipeline.getTimeStep();
+    ullong N_iter = pipeline.getNIter(); // Number of total simulation steps.
+    ullong N_save = pipeline.getNSave(); // Frequency of snapshots.
+    double time_step = pipeline.getTimeStep(); // Timestep of the simulation in [s].
     bool save_ovito = pipeline.saveOvito();
     double3 B_ext = pipeline.getBext();
 
-    int N_store = 0; // The number of simulation steps where the state is stored.
-    int N_store_mon = 0; // The number of individual monomer states that need to be stored.
+    int N_store = 0; // The total number of simulation steps where the state is stored.
+    int N_store_mon = 0; // The total number of individual monomer states that need to be stored.
 
     if (N_save > 0)
     {
@@ -382,7 +258,7 @@ int main(const int argc, const char** argv)
         }
     }
 
-    // Calculate the number of blocks
+    // Print an overview of the current compute device.
     PRINT_TITLE("OVERVIEW OF COMPUTE DEVICE")
     PRINT_CLR_LINE();
 
@@ -402,64 +278,45 @@ int main(const int argc, const char** argv)
     printf("   - Warp size:             %d threads\n", prop.warpSize);
     printf("   - Max threads / block:   %d threads\n", prop.maxThreadsPerBlock);
     
+    // Calculate the number of blocks the kernels need.
     int nBlocks_single = (Nmon + BLOCK_SIZE - 1) / BLOCK_SIZE; // The number of blocks needed to process all monomers.
     int nBlocks_pair = (Nmon * Nmon + BLOCK_SIZE - 1) / BLOCK_SIZE; // The number of blocks needed to process all monomer pairs.
 
-    /*
-    PRINT_LOG("Push initial state to device.", 2);
-    // Copy memory into GPU
-    cudaMemcpy(buff_mat, mat, Nmat * sizeof(material), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_pos_old, pos_old, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_pos_new, pos_new, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_force_old, force_old, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_force_new, force_new, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_torque_old, torque_old, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_torque_new, torque_new, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_dMdt_old, dMdt_old, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_dMdt_new, dMdt_new, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_vel, vel, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_omega, omega, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_omega_tot, omega_tot, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_mag, mag, Nmon * sizeof(vec3D), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_matIDs, matIDs, Nmon * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_amon, amon, Nmon * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_moment, moment, Nmon * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_mass, mass, Nmon * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_matrix_con, matrix_con, Ncon * sizeof(vec3D), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_matrix_rot, matrix_rot, Ncon * sizeof(quat), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_matrix_norm, matrix_norm, Ncon * sizeof(vec3D), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_matrix_comp, matrix_comp, Ncon * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(buff_matrix_twist, matrix_twist, Ncon * sizeof(double), cudaMemcpyHostToDevice);
-
-    // Check for CUDA errors during the push of initial state to device.
-    CUDA_LAST_ERROR_CHECK();
-    */
-
-    ullong counter_save = 0;
+    // Some helper variables needed during simulation.
+    ullong counter_save = 0;        // The number of snapshots that have been saved.
+    ullong ns_per_iteration = 0;    // The estimated time each simulation step takes in [ns].
 
     PRINT_CLR_LINE();
     PRINT_TITLE("SIMULATING");
     PRINT_CLR_LINE();
 
-    ullong ns_per_iteration = 0;
+#ifdef DEBUG
+    // This change the following line to enable/disable code that pulls the current and next state during the simulation. This has a significant resource drain and should only be used for debugging.
+    #define DEBUG_PULL_STATES
+#endif
 
-    // THE MAIN SIMULATION LOOP
-    for (ullong iter = 0; iter < N_iter; iter++) // The simulation iteration count.
+#ifdef DEBUG_PULL_STATES
+    hostState curr, next;
+    state_allocateHostMemory(curr, Nmon);
+    state_allocateHostMemory(next, Nmon);
+#endif
+
+    /* ############################################################
+            SIMULATING
+       ############################################################ */
+
+    for (ullong iter = 0; iter < N_iter; iter++) // The simulations iteration count.
     {
         auto iteration_start = std::chrono::high_resolution_clock::now();
 
 #ifdef DEBUG
-        #define DEBUG_PULL_STATES
+        printf("Starting iteration %llu \n", iter);
+        std::cout << std::flush;
 #endif
 
 #ifdef DEBUG_PULL_STATES
-        printf("Starting iteration %llu \n", iter);
-        hostState curr, next;
-        state_allocateHostMemory(curr, Nmon);
-        state_allocateHostMemory(next, Nmon);
         state_pullFromDevice(device_state_curr, curr, Nmon);
         state_pullFromDevice(device_state_next, next, Nmon);
-        //printf("    Predictor:\n");
 #endif
 
         predictor <<<nBlocks_single, BLOCK_SIZE>>> (
@@ -480,7 +337,6 @@ int main(const int argc, const char** argv)
 #ifdef DEBUG_PULL_STATES
         state_pullFromDevice(device_state_curr, curr, Nmon);
         state_pullFromDevice(device_state_next, next, Nmon);
-        //printf("    Evaluator:\n");
 #endif
 
         evaluate <<<nBlocks_pair, BLOCK_SIZE>>> (
@@ -496,7 +352,6 @@ int main(const int argc, const char** argv)
 #ifdef DEBUG_PULL_STATES
         state_pullFromDevice(device_state_curr, curr, Nmon);
         state_pullFromDevice(device_state_next, next, Nmon);
-        //printf("    Corrector:\n");
 #endif
 
         corrector <<<nBlocks_single, BLOCK_SIZE>>> (
@@ -514,7 +369,6 @@ int main(const int argc, const char** argv)
 #ifdef DEBUG_PULL_STATES
         state_pullFromDevice(device_state_curr, curr, Nmon);
         state_pullFromDevice(device_state_next, next, Nmon);
-        //printf("    Pointer Update:\n");
 #endif
 
         updatePointers <<<nBlocks_pair, BLOCK_SIZE>>> (
@@ -547,16 +401,13 @@ int main(const int argc, const char** argv)
             print_double3(next.contact_pointer, 0, min(Nmon * Nmon, 5));
         }
         cout << endl;
-        //printf("    Switch:\n");
 #endif
         
-        // Switch pointers
-        //PRINT_LOG("Pointer switch", 1);
+        // Switch the current and next state.
         deviceState tmp = device_state_curr;
         device_state_curr = device_state_next;
         device_state_next = tmp;
 
-        // TODO: Check if other fields need to be zeroed
         cudaMemset(device_state_next.force, 0, Nmon * sizeof(double3));
         cudaMemset(device_state_next.torque, 0, Nmon * sizeof(double3));
 
@@ -661,6 +512,10 @@ int main(const int argc, const char** argv)
 
     PRINT_CLR_LINE();
 
+    /* ############################################################
+            STORING THE RESULTS
+       ############################################################ */
+
     if (N_save > 0)
     {
         PRINT_TITLE("WRITING SIMULATION DATA");
@@ -742,130 +597,14 @@ int main(const int argc, const char** argv)
         PRINT_CLR_LINE();
     }
 
+    /* ############################################################
+            FINAL CLEANUP
+       ############################################################ */
+
     PRINT_TITLE("FINAL CLEANUP");
     PRINT_CLR_LINE();
 
-    /*
-    PRINT_LOG("Freeing host memory.", 3);
-    // Free allocated memory
-    if (omega != 0)
-        delete[] omega;
-
-    if (omega_tot != 0)
-        delete[] omega_tot;
-
-    if (vel != 0)
-        delete[] vel;
-
-    if (mag != 0)
-        delete[] mag;
-
-    if (pos_old != 0)
-        delete[] pos_old;
-
-    if (pos_new != 0)
-        delete[] pos_new;
-
-    if (matIDs != 0)
-        delete[] matIDs;
-
-    if (amon != 0)
-        delete[] amon;
-
-    if (moment != 0)
-        delete[] moment;
-
-    if (matrix_con != 0)
-        delete[] matrix_con;
-
-    if (matrix_norm != 0)
-        delete[] matrix_norm;
-
-    if (matrix_rot != 0)
-        delete[] matrix_rot;
-
-    if (matrix_comp != 0)
-        delete[] matrix_comp;
-
-    if (matrix_twist != 0)
-        delete[] matrix_twist;
-
-    if (mass != 0)
-        delete[] mass;
-
-    if (force_old != 0)
-        delete[] force_old;
-
-    if (force_new != 0)
-        delete[] force_new;
-
-    if (torque_old != 0)
-        delete[] torque_old;
-
-    if (torque_new != 0)
-        delete[] torque_new;
-
-    if (dMdt_old != 0)
-        delete[] dMdt_old;
-
-    if (dMdt_new != 0)
-        delete[] dMdt_new;
-
-    if (mat != 0)
-        delete[] mat;
-
-    if (storage_pos != 0)
-        delete[] storage_pos;
-
-    if (storage_vel != 0)
-        delete[] storage_vel;
-
-    if (storage_force != 0)
-        delete[] storage_force;
-
-    if (storage_torque != 0)
-        delete[] storage_torque;
-
-    if (storage_omega != 0)
-        delete[] storage_omega;
-
-    if (storage_mag != 0)
-        delete[] storage_mag;
-
-    if (storage_cluster != 0)
-        delete[] storage_cluster;
-
-    PRINT_LOG("Freeing device memory.\n", 3);
-
-    cudaFree(buff_mat);
-
-    cudaFree(buff_vel);
-    cudaFree(buff_omega);
-    cudaFree(buff_omega_tot);
-    cudaFree(buff_mag);
-
-    cudaFree(buff_pos_old);
-    cudaFree(buff_pos_new);
-    cudaFree(buff_force_old);
-    cudaFree(buff_force_new);
-    cudaFree(buff_torque_old);
-    cudaFree(buff_torque_new);
-
-    cudaFree(buff_dMdt_old);
-    cudaFree(buff_dMdt_new);
-
-    cudaFree(buff_matrix_con);
-    cudaFree(buff_matrix_rot);
-    cudaFree(buff_matrix_norm);
-    cudaFree(buff_matrix_comp);
-    cudaFree(buff_matrix_twist);
-
-    cudaFree(buff_matIDs);
-    cudaFree(buff_amon);
-    cudaFree(buff_moment);
-    cudaFree(buff_mass);
-    */
-
+    // Freeing host and device memory.
     state_freeHost(host_state_curr);
     state_freeHost(host_state_next);
     state_freeDevice(device_state_curr);
