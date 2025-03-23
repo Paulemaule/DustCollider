@@ -319,6 +319,7 @@ __global__ void evaluate(
 
     double3*                    force_next,
     double3*                    torque_next,
+    double4*                    potential_energy,
 
     const double*               mass,
     const double*               radius,
@@ -442,6 +443,9 @@ __global__ void evaluate(
         force.y += normal_force * pointer_pos.y;
         force.z += normal_force * pointer_pos.z;
 
+        double delta_c = 0.5 * a_0 * a_0 / (R * pow(6.0, 1.0 / 3.0));
+        double U_N = F_c * delta_c * pow(6., (1. / 3.)) * ((4. / 5.) * pow(a / a_0, 5.) - (4. / 3.) * pow(a / a_0, (7. / 2.)) + (1. / 3.) * pow(a / a_0, 2.));
+
         // Damping force
         // ASK: Where does the damping force come from?
         double vis_damping_strenght = 2.0 * t_vis / (nu_i * nu_j) * E_s;
@@ -467,6 +471,9 @@ __global__ void evaluate(
         torque.y += - r_i * k_s * tmp_s.y;
         torque.z += - r_i * k_s * tmp_s.z;
 
+        // TODO: Should the additional 0.5 be included?
+        double U_S = 0.5 * 0.5 * k_s * vec_lenght_sq(sliding_displacement);
+
         // Rolling rolling
         double k_r = 4. * F_c / R;
         double3 tmp_r = vec_cross(pointer_i, rolling_displacement);
@@ -474,6 +481,9 @@ __global__ void evaluate(
         torque.x += - R * k_r * tmp_r.x;
         torque.y += - R * k_r * tmp_r.y;
         torque.z += - R * k_r * tmp_r.z;
+
+        // TODO: Should the additional 0.5 be included?
+        double U_R = 0.5 * 0.5 * k_r * vec_lenght_sq(rolling_displacement);
 
         // Twisting twisting
         double k_t = 16. * G * a_0 * a_0 * a_0 / 3.;
@@ -490,6 +500,12 @@ __global__ void evaluate(
         atomicAdd(&torque_next[i].x, torque.x);
         atomicAdd(&torque_next[i].y, torque.y);
         atomicAdd(&torque_next[i].z, torque.z);
+
+        // Add the potential energies.
+        atomicAdd(& potential_energy->w, U_N);
+        atomicAdd(& potential_energy->x, U_S);
+        atomicAdd(& potential_energy->y, U_R);
+        atomicAdd(& potential_energy->z, 0.);
     }
 }
 

@@ -173,15 +173,15 @@ int main(const int argc, const char** argv)
     free(initial_omega_tot);
     free(initial_magnetization);
 
+    // Initialize potential energy tracker
+    double4* device_potential_energy = nullptr;
+    CHECK_CUDA(cudaMalloc(& device_potential_energy, sizeof(double4)));
+    CHECK_CUDA(cudaMemset(device_potential_energy, 0, sizeof(double4)));
+
     // Initialize inelastic motion counters
     double4* device_inelastic_counter = nullptr;
     CHECK_CUDA(cudaMalloc(& device_inelastic_counter, sizeof(double4)));
     CHECK_CUDA(cudaMemset(device_inelastic_counter, 0, sizeof(double4)));
-
-    // Initialize the energy counter
-    double* device_total_energy = nullptr;
-    CHECK_CUDA(cudaMalloc(& device_total_energy, sizeof(double)));
-    CHECK_CUDA(cudaMemset(device_total_energy, 0, sizeof(double)));
 
     // Print run summary.
     pipeline.printParameters();
@@ -238,6 +238,17 @@ int main(const int argc, const char** argv)
         {
             storage_mag = new double3[N_store_mon];
             memset(storage_mag, 0, N_store_mon * sizeof(double3));
+        }
+
+        if (true) {
+            storage_potential_N = new double[N_store];
+            memset(storage_potential_N, 0, N_store * sizeof(double));
+            storage_potential_S = new double[N_store];
+            memset(storage_potential_S, 0, N_store * sizeof(double));
+            storage_potential_R = new double[N_store];
+            memset(storage_potential_R, 0, N_store * sizeof(double));
+            storage_potential_T = new double[N_store];
+            memset(storage_potential_T, 0, N_store * sizeof(double));
         }
 
         if (true) {
@@ -341,7 +352,7 @@ int main(const int argc, const char** argv)
 
         evaluate <<<nBlocks_pair, BLOCK_SIZE>>> (
             device_state_next.position, device_state_curr.contact_pointer, device_state_next.contact_rotation, device_state_next.contact_twist, device_state_curr.contact_compression,
-            device_state_next.force, device_state_next.torque,
+            device_state_next.force, device_state_next.torque, device_potential_energy,
             device_matProperties.mass, device_matProperties.radius, device_matProperties.youngs_modulus, device_matProperties.poisson_number, device_matProperties.surface_energy, device_matProperties.crit_rolling_disp, device_matProperties.damping_timescale,
             time_step, Nmon
         );
@@ -462,7 +473,16 @@ int main(const int argc, const char** argv)
                         CHECK_CUDA(cudaMemcpy(storage_omega + start_index, host_state_curr.omega, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost))
                     }
 
-                    if (device_inelastic_counter!= nullptr) {
+                    if (device_potential_energy != nullptr) {
+                        CHECK_CUDA(cudaMemcpy(storage_potential_N + counter_save, &device_potential_energy->w, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+                        CHECK_CUDA(cudaMemcpy(storage_potential_S + counter_save, &device_potential_energy->x, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+                        CHECK_CUDA(cudaMemcpy(storage_potential_R + counter_save, &device_potential_energy->y, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+                        CHECK_CUDA(cudaMemcpy(storage_potential_T + counter_save, &device_potential_energy->z, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+                        // Reset the potential energy counter.
+                        CHECK_CUDA(cudaMemset(device_potential_energy, 0, sizeof(double4)));
+                    }
+
+                    if (device_inelastic_counter != nullptr) {
                         CHECK_CUDA(cudaMemcpy(storage_inelastic_N + counter_save, &device_inelastic_counter->w, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
                         CHECK_CUDA(cudaMemcpy(storage_inelastic_S + counter_save, &device_inelastic_counter->x, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
                         CHECK_CUDA(cudaMemcpy(storage_inelastic_R + counter_save, &device_inelastic_counter->y, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
@@ -568,6 +588,37 @@ int main(const int argc, const char** argv)
         if (storage_cluster != 0)
             if (!pipeline.writeBinaryInt("sim_cluster.bin", storage_cluster, N_store_mon))
                 return -1;
+
+        if (storage_potential_N != 0) {
+            for (int i = 0; i < N_store; i++) {
+                storage_potential_N[i] /= N_save;
+                storage_potential_R[i] /= N_save;
+                storage_potential_S[i] /= N_save;
+                storage_potential_T[i] /= N_save;
+            }
+
+            if (!pipeline.writeBinaryDouble("sim_normal_pot.bin", storage_potential_N, N_store)) {
+                return -1;
+            }
+        }
+
+        if (storage_potential_S != 0) {
+            if (!pipeline.writeBinaryDouble("sim_sliding_pot.bin", storage_potential_S, N_store)) {
+                return -1;
+            }
+        }
+
+        if (storage_potential_R != 0) {
+            if (!pipeline.writeBinaryDouble("sim_rolling_pot.bin", storage_potential_R, N_store)) {
+                return -1;
+            }
+        }
+
+        if (storage_potential_T != 0) {
+            if (!pipeline.writeBinaryDouble("sim_twisting_pot.bin", storage_potential_T, N_store)) {
+                return -1;
+            }
+        }
 
         if (storage_inelastic_N != 0) {
             if (!pipeline.writeBinaryDouble("sim_normal_diss.bin", storage_inelastic_N, N_store)) {
