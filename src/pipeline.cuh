@@ -1256,13 +1256,13 @@ public:
 
             amon[i] = lst_amon_B[index];
 
-            vec3D r;
+            double3 r;
 
             r.x = lst_pos_B[index].x;
             r.y = lst_pos_B[index].y;
             r.z = lst_pos_B[index].z;
 
-            vec3D vel_tan = cpu_vec3D_cross(ang_B, r);
+            double3 vel_tan = vec_cross(ang_B, r);
 
             vel[i].x = vel_B.x + vel_tan.x;
             vel[i].y = vel_B.y + vel_tan.y;
@@ -2151,14 +2151,14 @@ private:
     string agg_filename_A; // Path to aggregate A.
     string agg_filename_B; // Path to aggregate B.
 
-    vec3D pos_A; // The position of aggregate A.
-    vec3D pos_B; // The position of aggregate B.
+    double3 pos_A; // The position of aggregate A.
+    double3 pos_B; // The position of aggregate B.
 
-    vec3D vel_A; // The initial velocity of aggregate A.
-    vec3D vel_B; // The initial velocity of aggregate B.
+    double3 vel_A; // The initial velocity of aggregate A.
+    double3 vel_B; // The initial velocity of aggregate B.
 
-    vec3D ang_A; // The initial angular velocity of aggregate A.
-    vec3D ang_B; // The initial angular velocity of aggregate B.
+    double3 ang_A; // The initial angular velocity of aggregate A.
+    double3 ang_B; // The initial angular velocity of aggregate B.
 
     ullong N_iter; // The number of total iterations.
     ullong N_save; // The save interval.
