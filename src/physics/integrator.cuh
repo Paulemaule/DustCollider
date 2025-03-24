@@ -537,14 +537,11 @@ __global__ void updatePointers(
             twisting_next[matrix_i]     = 0.;
             compression_next[matrix_i]  = 0.;
 
-            // Track inelastic motion
-            // TODO: Energy is also dissipated by the damping force, this seems difficult to track.
-            atomicAdd(&inelastic_counter->w, -1.); // TODO: Properly implement dissipated energy, see Wada07
-            
-            // TODO: The energy stored in the other dofs will also be lost, it can be calculated from the potential energy formulae in Wada07
-            //atomicAdd(&inelastic_counter->x, -1.);
-            //atomicAdd(&inelastic_counter->y, -1.);
-            //atomicAdd(&inelastic_counter->z, -1.);
+            // All potential energy stored in the connection is lost.
+            atomicAdd(&inelastic_counter->w, 0.5 * get_U_N(F_c, delta_N_crit, get_contact_radius(normal_displacement, a_0, R), a_0));
+            atomicAdd(&inelastic_counter->x, 0.5 * get_U_S(k_s, sliding_displacement));
+            atomicAdd(&inelastic_counter->y, 0.5 * get_U_R(k_r, rolling_displacement));
+            atomicAdd(&inelastic_counter->z, 0.5 * get_U_T(k_t, { 0., 0., 0. }));
 
             return; 
         } else {
