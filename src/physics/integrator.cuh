@@ -129,7 +129,6 @@ __global__ void predictor_pointer(
     rot.z = rot.z + timestep * e_dot.z + 0.5 * timestep * timestep * e_ddot.z;
 
     // Renormalize the rotation quaternion.
-    // CHECK: Is renormalization correct?
     quat_normalize(rot);
 
     // Apply the changes.
@@ -327,7 +326,6 @@ __global__ void evaluate(
         contact_displacement.y = r_i * pointer_i.y - r_j * pointer_j.y + (r_i + r_j) * pointer_pos.y;
         contact_displacement.z = r_i * pointer_i.z - r_j * pointer_j.z + (r_i + r_j) * pointer_pos.z;
 
-        // ASK: This differs significantly from Stefans implementation, why?
         sliding_displacement.x = contact_displacement.x - vec_dot(contact_displacement, pointer_pos) * pointer_pos.x;
         sliding_displacement.y = contact_displacement.y - vec_dot(contact_displacement, pointer_pos) * pointer_pos.y;
         sliding_displacement.z = contact_displacement.z - vec_dot(contact_displacement, pointer_pos) * pointer_pos.z;
@@ -605,7 +603,6 @@ __global__ void updatePointers(
         // If there were any corrections, apply them to the contact pointer.
         if (sliding_displacement_abs > delta_S_crit || rolling_displacement_abs > delta_R_crit) {
             // Corotate the corrected pointer to calculate the pointer in the monomer fixed system.
-            // ASK: Why is this rotated with rotation_i again and not its inverse?
             pointer_next[matrix_i] = quat_apply(rotation_i, pointer_i);
         }
 
