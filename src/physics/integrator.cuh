@@ -24,19 +24,7 @@
 #include "utils/typedefs.cuh"
 #include "utils/constant.cuh"
 
-#include "physics/interaction.cuh"
-
-/**
- * @brief A makro that calculates the monomer pair indices from the threadID.
- * 
- * This makro determines the layout of monomers pairs in the contact matrices!
- * The layout in the matrices is: M = {ij} = {00, 10, ..., N0, 01, 11, ..., N1, ..., N-1N, NN}
- */
-#define CALC_MONOMER_INDICES(threadID, i, j, matrix_i, matrix_j, Nmon)  \
-    i = threadID % Nmon;                                                \
-    j = threadID / Nmon;                                                \
-    matrix_i = i + j * Nmon;                                            \
-    matrix_j = j + i * Nmon;
+#include "physics/integrator_utils.cuh"
 
 /**
  * @brief Implements the predictor of the synchronized leapfrog algorithm for the positions of the monomers.
@@ -210,94 +198,6 @@ __global__ void corrector(
     omega_next[threadID].z = omega_curr[threadID].z + 0.5 * inv_moment * timestep * (torque_curr[threadID].z + torque_next[threadID].z);
 }
 
-/**
- * @brief Calculates the JKR contact radius.
- * 
- * @param compression_length: The current compression lenght of a monomer pair.
- * @param r0: The equilibrium compression length.
- * @param R: The reduced radius.
- * 
- * @returns: The current contact radius a of a monomer pair.
- */
-__device__ double getJKRContactRadius(
-    const double& compression_length,
-    const double& r0,
-    const double& R
-) {
-    double c1_contact_radius = sqrt(r0);
-    double c2_contact_radius = 0.25 * 2.0 / 3.0 * pow(r0, 1.5);
-
-    // contact radius can be obtained by finding the root of a fourth order polynomial where x^2 = contact_radius
-    // use equilibrium contact radius as starting value
-    double k = compression_length * R / 3.0;
-    double x_pow3;
-    double x_new;
-    double x_old = c1_contact_radius;
-
-    // use Newton-Raphson method to find root
-    for (int i = 0; i < 20; ++i)
-    {
-        x_pow3 = x_old * x_old * x_old;
-        x_new = 0.75 * (x_pow3 * x_old + k) / (x_pow3 - c2_contact_radius);
-
-        if (std::abs(x_new - x_old) / x_new < 1.e-14)
-            break;
-
-        x_old = x_new;
-    }
-
-    return x_new * x_new;
-}
-
-/**
- * @brief Calculates the contact surface radius between two monomers.
- * 
- * This function uses Newtons method to calculate the contact radius a
- * by solving the equation (see Wada et al. - 2007; eq (4))
- * normal_displacement / equilibrium_displacement = 3 * (a / a_0)^2 - 2 * sqrt(a / a_0)
- * 
- * This equation does not have a solution when normal_displacement < -critical_displacement.
- * This case is handled by returning a fixed value (the value of a at the critical diplacement) instead.
- * 
- * @param normal_displacement: The current normal displacement.
- * @param a_0: The equilibrium contact surface radius.
- * @param reduced_radius: The reduced radius of the two monomers.
- * 
- * @returns a: The contact surface radius.
- */
-__device__ double get_contact_radius(
-    const double delta_N,
-    const double a_0,
-    const double R
-) {
-    double delta_N_0 = a_0 * a_0 / (3. * R);
-
-    // Substitute the values in the iteration process (a / a_0) =: x, (delta_N / delta_N_0) =: y.
-    // The equation that is to be solved becomes: 0 = 3 * x^2 - 2 * sqrt(x) - y.
-    double y = delta_N / delta_N_0;
-    
-    // There is no solution to the equation when the critical displacement is exeeded.
-    // Instead the value at the critical displacement is returned.
-    double critical_displacement = - pow(9. / 16., 2. / 3.) * delta_N_0;
-    if (delta_N <= critical_displacement) {
-        return pow(1. / 6., 2. / 3.) * a_0;
-    }
-
-    // An initial guess of a = a_0 is used. 
-    // This value also ensures that the algorithm converges to the correct solution of the equation.
-    double x_n = 1.; 
-
-    // Use Newtons method to determine the solution.
-    for (int n = 0; n < 20; n++) {
-        // Recursiveley adjust the guess using the update rule x_n+1 = x_n - f(x_n) / f'(x_n).
-        // TODO: Check for optimization opportunities. This piece of code is executed very often.
-        x_n = x_n - (3. * x_n * x_n - 2. * sqrt(x_n) - y) / (6. * x_n - 1. / sqrt(x_n));
-    }
-
-    // Return the resubstituted root of the equation.
-    return x_n * a_0;
-}
-
 // TODO: The collaborator list is incomplete.
 /**
  * @brief Implements the evaluation step of the synchronized leapfrog algorithm.
@@ -366,48 +266,53 @@ __global__ void evaluate(
     double gamma_i = surface_energy[i];             // The surface energy of monomer i.
     double gamma_j = surface_energy[j];             // The surface energy of monomer j.
 
-    double G_i = E_i / (2. * (1. + nu_i));          // The shear modulus of monomer i.
-    double G_j = E_j / (2. * (1. + nu_j));          // The shear modulus of monomer j.
+    double3 pointer_i = pointer_curr[matrix_i];     // The contact pointer, pointing from the center of monomer i to the contact location with monomer j.
+    double3 pointer_j = pointer_curr[matrix_j];     // The contact pointer, pointing from the center of monomer j to the contact location with monomer i.
+
+    double3 position_i = position_next[i];          // The position of monomer i.
+    double3 position_j = position_next[j];          // The position of monomer j.
+
+    double G_i = get_G_i(E_i, nu_i);          // The shear modulus of monomer i.
+    double G_j = get_G_i(E_j, nu_j);          // The shear modulus of monomer j.
 
     // The reduced radius of the monomer pair.
-    double R = (r_i * r_j) / (r_i + r_j);
+    double R = get_R(r_i, r_j);
 
     // The combined Youngs modulus of the monomer pair.
-    double E_s = ((1 - nu_i * nu_i) / E_i) + ((1 - nu_j * nu_j) / E_j);
-    E_s = 1. / E_s;
+    double E_s = get_E_s(E_i, E_j, nu_i, nu_j);
 
     // The combined shear modulus of the monomer pair.
-    double G_s = (1. - nu_i * nu_i) / G_i + (1. - nu_j * nu_j) / G_j;
-    G_s = 1. / G_s;
+    double G_s = get_G_s(G_i, G_j, nu_i, nu_j);
 
     // The reduced shear modulus of the monomer pair.
     double G = G_i * G_j / (G_i + G_j);
 
     // The surface energy of the monomer pair.
-    double gamma =  gamma_i + gamma_j - 2.0 / (1.0 / gamma_i + 1.0 / gamma_j);
+    double gamma = get_gamma(gamma_i, gamma_j);
+
+    // The equilibrium contact radius of the monomer pair.
+    double a_0 = get_a_0(gamma, R, E_s);
+
+    // The force and torque strenghts.
+    double F_c = 3. * PI * gamma * R;                   // The critical force at monomer separation.
+    double k_s = 8. * G_s * a_0;                        // The strenght of the sliding force and torque.
+    double k_r = 4. * F_c / R;                          // The strenght of the rolling torque.
+    double k_t = 16. * G * a_0 * a_0 * a_0 / 3.;        // The strenght of the twisting torque.
+
+    // The critical displacements.
+    double delta_N_crit = get_delta_N_crit(a_0, R);
 
     // The viscous damping timescale of the pair.
     double t_vis = 0.5 * (viscous_damping_timescale[i] + viscous_damping_timescale[j]);
-
-    // The equilibrium contact radius of the monomer pair.
-    double a_0 = pow(9 * PI * gamma * R * R / E_s, 1.0 / 3.0);
-
-    double3 position_i = position_next[i];
-    double3 position_j = position_next[j];
-
-    // The pointer from the current position of monomer i to the current position of monomer j.
-    double3 pointer_pos = vec_get_normal(position_i, position_j);
-
-    // The contact pointer, pointing from the center of monomer i to the contact location with monomer j.
-    double3 pointer_i = pointer_curr[matrix_i];
-    // The contact pointer, pointing from the center of monomer j to the contact location with monomer i.
-    double3 pointer_j = pointer_curr[matrix_j];
 
     // Calculate contact effects only if the monomers are in contact.
     if (vec_lenght(pointer_i) != 0. & vec_lenght(pointer_j) != 0.) {
         // Corotate the contact pointers
         pointer_i = quat_apply_inverse(rotation_next[matrix_i], pointer_i);
         pointer_j = quat_apply_inverse(rotation_next[matrix_j], pointer_j);
+
+        // The pointer from the current position of monomer i to the current position of monomer j.
+        double3 pointer_pos = vec_get_normal(position_i, position_j);
 
         // Caculate the displacements
         double normal_displacement;             // The displacement in the normal-dof of the contact.
@@ -434,21 +339,15 @@ __global__ void evaluate(
         twisting_displacement = twisting_next[matrix_i];
 
         // FORCE AND TORQUE CALCULATIONS
-        // Normal direction
-        // Normal force
+        // Normal
         double a = get_contact_radius(normal_displacement, a_0, R);
-        double F_c = 3. * PI * gamma * R;
         double normal_force = 4 * F_c * (pow((a / a_0), 3.) - pow((a / a_0), 1.5));
 
         force.x += normal_force * pointer_pos.x;
         force.y += normal_force * pointer_pos.y;
         force.z += normal_force * pointer_pos.z;
 
-        double delta_c = 0.5 * a_0 * a_0 / (R * pow(6.0, 1.0 / 3.0));
-        double U_N = F_c * delta_c * pow(6., (1. / 3.)) * ((4. / 5.) * pow(a / a_0, 5.) - (4. / 3.) * pow(a / a_0, (7. / 2.)) + (1. / 3.) * pow(a / a_0, 2.));
-
-        // Damping force
-        // ASK: Where does the damping force come from?
+        // Damping
         double vis_damping_strenght = 2.0 * t_vis / (nu_i * nu_j) * E_s;
         double delta_N_dot = (normal_displacement - compression_old[matrix_i]) / timestep;
         double damping_force = vis_damping_strenght * a * delta_N_dot;
@@ -457,8 +356,7 @@ __global__ void evaluate(
         force.y += damping_force * pointer_pos.y;
         force.z += damping_force * pointer_pos.z;
 
-        // Sliding direction
-        double k_s = 8. * G_s * a_0;
+        // Sliding
         double particle_distance = vec_dist_len(position_i, position_j);
         double sliding_force = - k_s * (r_i + r_j - vec_dot(contact_displacement, pointer_pos)) / particle_distance;
 
@@ -472,23 +370,14 @@ __global__ void evaluate(
         torque.y += - r_i * k_s * tmp_s.y;
         torque.z += - r_i * k_s * tmp_s.z;
 
-        // TODO: Should the additional 0.5 be included?
-        double U_S = 0.5 * 0.5 * k_s * vec_lenght_sq(sliding_displacement);
-
-        // Rolling rolling
-        double k_r = 4. * F_c / R;
+        // Rolling
         double3 tmp_r = vec_cross(pointer_i, rolling_displacement);
 
         torque.x += - R * k_r * tmp_r.x;
         torque.y += - R * k_r * tmp_r.y;
         torque.z += - R * k_r * tmp_r.z;
 
-        // TODO: Should the additional 0.5 be included?
-        double U_R = 0.5 * 0.5 * k_r * vec_lenght_sq(rolling_displacement);
-
-        // Twisting twisting
-        double k_t = 16. * G * a_0 * a_0 * a_0 / 3.;
-
+        // Twisting
         //torque.x += - k_t * twisting_displacement.x;
         //torque.y += - k_t * twisting_displacement.y;
         //torque.z += - k_t * twisting_displacement.z;
@@ -506,10 +395,10 @@ __global__ void evaluate(
         atomicAdd(&inelastic_counter->w, 0.5 * damping_force * (normal_displacement - compression_old[matrix_i]));
 
         // Add the potential energies.
-        atomicAdd(& potential_energy->w, U_N);
-        atomicAdd(& potential_energy->x, U_S);
-        atomicAdd(& potential_energy->y, U_R);
-        atomicAdd(& potential_energy->z, 0.);
+        atomicAdd(&potential_energy->w, 0.5 * get_U_N(F_c, delta_N_crit, a, a_0));
+        atomicAdd(&potential_energy->x, 0.5 * get_U_S(k_s, sliding_displacement));
+        atomicAdd(&potential_energy->y, 0.5 * get_U_R(k_r, rolling_displacement));
+        atomicAdd(&potential_energy->z, 0.5 * get_U_T(k_t, { 0., 0., 0. }));
     }
 }
 
@@ -567,52 +456,45 @@ __global__ void updatePointers(
     double gamma_i = surface_energy[i];             // The surface energy of monomer i.
     double gamma_j = surface_energy[j];             // The surface energy of monomer j.
 
-    double G_i = E_i / (2. * (1. + nu_i));          // The shear modulus of monomer i.
-    double G_j = E_j / (2. * (1. + nu_j));          // The shear modulus of monomer j.
+    double3 pointer_i = pointer_curr[matrix_i];     // The contact pointer, pointing from the center of monomer i to the contact location with monomer j.
+    double3 pointer_j = pointer_curr[matrix_j];     // The contact pointer, pointing from the center of monomer j to the contact location with monomer i.
+
+    double3 position_i = position_next[i];          // The position of monomer i.
+    double3 position_j = position_next[j];          // The position of monomer j.
+
+    double G_i = get_G_i(E_i, nu_i);                // The shear modulus of monomer i.
+    double G_j = get_G_i(E_j, nu_j);                // The shear modulus of monomer j.
 
     // The reduced radius of the monomer pair.
-    double R = (r_i * r_j) / (r_i + r_j);
+    double R = get_R(r_i, r_j);
 
     // The combined Youngs modulus of the monomer pair.
-    double E_s = ((1 - nu_i * nu_i) / E_i) + ((1 - nu_j * nu_j) / E_j);
-    E_s = 1. / E_s;
+    double E_s = get_E_s(E_i, E_j, nu_i, nu_j);
 
     // The combined shear modulus of the monomer pair.
-    double G_s = (1. - nu_i * nu_i) / G_i + (1. - nu_j * nu_j) / G_j;
-    G_s = 1. / G_s;
+    double G_s = get_G_s(G_i, G_j, nu_i, nu_j);
 
     // The reduced shear modulus of the monomer pair.
     double G = G_i * G_j / (G_i + G_j);
 
     // The surface energy of the monomer pair.
-    double gamma =  gamma_i + gamma_j - 2.0 / (1.0 / gamma_i + 1.0 / gamma_j);
+    double gamma = get_gamma(gamma_i, gamma_j);
 
     // The equilibrium contact radius of the monomer pair.
-    double a_0 = pow(9 * PI * gamma * R * R / E_s, 1.0 / 3.0);
+    double a_0 = get_a_0(gamma, R, E_s);
 
-    double3 position_i = position_next[i];
-    double3 position_j = position_next[j];
+    // The force and torque strenghts.
+    double F_c = 3. * PI * gamma * R;                           // The critical force at monomer separation.
+    double k_s = 8. * G_s * a_0;                                // The strenght of the sliding force and torque.
+    double k_r = 4. * F_c / R;                                  // The strenght of the rolling torque.
+    double k_t = 16. * G * a_0 * a_0 * a_0 / 3.;                // The strenght of the twisting torque.
 
-    // The critical normal displacement of the monomer pair.
-    double delta_N_crit = 0.5 * a_0 * a_0 / (R * pow(6.0, 1.0 / 3.0));
-
-    // The critical sliding displacement of the monomer pair.
+    // The critical displacements.
+    double delta_N_crit = get_delta_N_crit(a_0, R);             // The critical normal displacement of the monomer pair.
     // FIXME: In wada 2007 it is mentioned that this formula is not valid for materials with strong intermolecular forces.
-    double delta_S_crit = (2.0 - 0.5 * (nu_i + nu_j)) * a_0 / (16.0 * PI);
-
-    // The critical rolling displacement of the monomer pair.
-    double delta_R_crit = 0.5 * (crit_rolling_displacement[i] + crit_rolling_displacement[j]);
-
-    // The critical twisting displacement of the monomer pair.
-    double delta_T_crit = 1. / (16. * PI);
-
-    // The contact pointer, pointing from the center of monomer i to the contact location with monomer j.
-    double3 pointer_i = pointer_curr[matrix_i];
-    // The contact pointer, pointing from the center of monomer j to the contact location with monomer i.
-    double3 pointer_j = pointer_curr[matrix_j];
-
-    if (vec_lenght_sq(pointer_i) != 0. & vec_lenght_sq(pointer_j) != 0.) {
-        // The monomer pair is allready in contact.
+    double delta_S_crit = get_delta_S_crit(nu_i, nu_j, a_0);    // The critical sliding displacement of the monomer pair.
+    double delta_R_crit = 0.5 * (crit_rolling_displacement[i] + crit_rolling_displacement[j]);  // The critical rolling displacement of the monomer pair.
+    double delta_T_crit = 1. / (16. * PI);                      // The critical twisting displacement of the monomer pair.
 
         // Corotate the contact pointers.
         double4 rotation_i = rotation_curr[matrix_i];
@@ -649,10 +531,10 @@ __global__ void updatePointers(
         // Check for critical displacements
         if (- normal_displacement > delta_N_crit) {
             // The monomers loose contact
-            pointer_next[matrix_i] = { 0., 0., 0. };
-            rotation_next[matrix_i] = { 0., 0., 0., 0. };
-            twisting_next[matrix_i] = 0.;
-            compression_next[matrix_i] = 0.;
+            pointer_next[matrix_i]      = { 0., 0., 0. };
+            rotation_next[matrix_i]     = { 0., 0., 0., 0. };
+            twisting_next[matrix_i]     = 0.;
+            compression_next[matrix_i]  = 0.;
 
             // Track inelastic motion
             // TODO: Energy is also dissipated by the damping force, this seems difficult to track.
@@ -695,12 +577,8 @@ __global__ void updatePointers(
             // Re-normalize the pointer.
             vec_normalize(pointer_i);
             
-            // Track inelastic motion
-            double k_s = 8. * a_0 * G_s;
-            double dissipated_energy = k_s * delta_S_crit * (sliding_displacement_abs - delta_S_crit);
-
-            // TODO: Where does the 1/4 come from?
-            atomicAdd(&inelastic_counter->x, 0.25 * dissipated_energy);
+            // Track dissipated energy.
+            atomicAdd(&inelastic_counter->x, 0.5 * k_s * delta_S_crit * (sliding_displacement_abs - delta_S_crit));
         }
 
         if (rolling_displacement_abs > delta_R_crit) {
@@ -722,12 +600,8 @@ __global__ void updatePointers(
             // Re-normalize the pointer.
             vec_normalize(pointer_i);
 
-            // Track inelastic motion 
-            double k_r = 12. * PI * gamma;
-            double dissipated_energy = k_r * delta_R_crit * (rolling_displacement_abs - delta_R_crit);
-
-            // TODO: Where does the 1/4 come from?
-            atomicAdd(&inelastic_counter->y, 0.25 * dissipated_energy);
+            // Track dissipated energy.
+            atomicAdd(&inelastic_counter->y, 0.5 * k_r * delta_R_crit * (rolling_displacement_abs - delta_R_crit));
         }
 
         // If there were any corrections, apply them to the contact pointer.
@@ -742,11 +616,8 @@ __global__ void updatePointers(
             int sign = 1 - (2. * signbit(twisting_displacement)); // Extract the sign of the twisting displacement
             twisting_next[matrix_i] = sign * delta_T_crit;
             
-            // Track inelastic motion
-            double k_t = (16. / 3.) * G * a_0 * a_0 * a_0;
-            double dissipated_energy = k_t * delta_T_crit * (twisting_displacement - delta_T_crit);
-
-            atomicAdd(&inelastic_counter->z, 0.25 * dissipated_energy); // TODO: Properly implement dissipated energy, see Wada07
+            // Track dissipated energy.
+            atomicAdd(&inelastic_counter->z, 0.5 * k_t * delta_T_crit * (twisting_displacement - delta_T_crit));
         }
     } else {
         double normal_displacement;             // The displacement in the normal-dof of the contact.
@@ -758,9 +629,8 @@ __global__ void updatePointers(
             pointer_next[matrix_i] = vec_get_normal(position_j, position_i);
             rotation_next[matrix_i] = { 0., 0., 0., 1. };
             compression_next[matrix_i] = normal_displacement;
-            
-            // Track inelastic motion
-            atomicAdd(&inelastic_counter->w, 1.); // TODO: Properly implement dissipated energy, see Wada07
+
+            atomicAdd(&inelastic_counter->w, - 0.5 * get_U_N(F_c, delta_N_crit, get_contact_radius(normal_displacement, a_0, R), a_0));
         } else {
             pointer_next[matrix_i] = { 0., 0., 0. };
             rotation_next[matrix_i] = { 0., 0., 0., 0. };
