@@ -151,7 +151,7 @@ __global__ void predictor_pointer(
     rotation_next[matrix_i].z = rot.z;
 
     // Integrate contact twisting matrix
-    // FIXME: Finish this implementation.
+    // FIXME: Finish this implementation.    
     twisting_next[matrix_i] = twisting_curr[matrix_i];
 };
 
@@ -594,8 +594,6 @@ __global__ void updatePointers(
 
     // The critical sliding displacement of the monomer pair.
     // FIXME: In wada 2007 it is mentioned that this formula is not valid for materials with strong intermolecular forces.
-    // FIXME: The use of nu_i feels incorrect and will lead to assymetries of the pointers. I should check how Wada derives the formula exactly.
-    // Note: These issues should not be large since sliding is not very relevant in monomer restructuring...
     double delta_S_crit = (2.0 - 0.5 * (nu_i + nu_j)) * a_0 / (16.0 * PI);
 
     // The critical rolling displacement of the monomer pair.
