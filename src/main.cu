@@ -489,7 +489,8 @@ int main(const int argc, const char** argv)
                     if (storage_cluster != 0)
                     {
                         fill(clusterIDs, clusterIDs + Nmon, -1);
-                        cpu_findConnectedComponents(Nmon, host_state_curr.contact_compression, clusterIDs);
+                        // FIXME: (Re-)implement clustering algorithm
+                        //cpu_findConnectedComponents(Nmon, host_state_curr.contact_compression, clusterIDs);
                         copy(clusterIDs, clusterIDs + Nmon, storage_cluster + start_index);
                     }
                 }
