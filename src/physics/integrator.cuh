@@ -320,6 +320,7 @@ __global__ void evaluate(
     double3*                    force_next,
     double3*                    torque_next,
     double4*                    potential_energy,
+    double4*                    inelastic_counter,
 
     const double*               mass,
     const double*               radius,
@@ -449,8 +450,8 @@ __global__ void evaluate(
         // Damping force
         // ASK: Where does the damping force come from?
         double vis_damping_strenght = 2.0 * t_vis / (nu_i * nu_j) * E_s;
-        double delta_dot = (normal_displacement - compression_old[matrix_i]) / timestep;
-        double damping_force = vis_damping_strenght * a * delta_dot;
+        double delta_N_dot = (normal_displacement - compression_old[matrix_i]) / timestep;
+        double damping_force = vis_damping_strenght * a * delta_N_dot;
 
         force.x += damping_force * pointer_pos.x;
         force.y += damping_force * pointer_pos.y;
@@ -500,6 +501,9 @@ __global__ void evaluate(
         atomicAdd(&torque_next[i].x, torque.x);
         atomicAdd(&torque_next[i].y, torque.y);
         atomicAdd(&torque_next[i].z, torque.z);
+
+        // Add energy dissipation.
+        atomicAdd(&inelastic_counter->w, 0.5 * damping_force * (normal_displacement - compression_old[matrix_i]));
 
         // Add the potential energies.
         atomicAdd(& potential_energy->w, U_N);
