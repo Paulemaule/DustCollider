@@ -90,100 +90,118 @@ __host__ __device__ double get_G_i(const double E_i, const double nu_i) {
 }
 
 /**
- * @brief Calculates the
+ * @brief Calculates the combined shear modulus of two monomers.
  * 
- * @param
- * @returns The 
+ * @param E_i: The shear modulus of monomer i.
+ * @param E_j: The shear modulus of monomer j.
+ * @param nu_j: Poissons ratio of monomer i.
+ * @param nu_j: Poissons ratio of monomer j.
+ * @returns The combined shear modulus.
  */
 __host__ __device__ double get_E_s(const double E_i, const double E_j, const double nu_i, const double nu_j) {
     return 1. / (((1 - nu_i * nu_i) / E_i) + ((1 - nu_j * nu_j) / E_j));
 }
 
 /**
- * @brief Calculates the
+ * @brief Calculates the combined Youngs modulus of two monomers.
  * 
- * @param
- * @returns The 
+ * @param G_i: Youngs modulus of monomer i.
+ * @param G_j: Youngs modulus of monomer j.
+ * @param nu_j: Poissons ratio of monomer i.
+ * @param nu_j: Poissons ratio of monomer j.
+ * @returns The combined Youngs modulus.
  */
 __host__ __device__ double get_G_s(const double G_i, const double G_j, const double nu_i, const double nu_j) {
     return 1. / ((1. - nu_i * nu_i) / G_i + (1. - nu_j * nu_j) / G_j);
 }
 
 /**
- * @brief Calculates the
+ * @brief Calculates the combined surface energy of two monomers.
  * 
- * @param
- * @returns The 
+ * @param gamma_i: The surface energy of monomer i.
+ * @param gamma_j: The surface energy of monomer j.
+ * @returns The combined surface energy.
  */
 __host__ __device__ double get_gamma(const double gamma_i, const double gamma_j) {
     return gamma_i + gamma_j - 2.0 / (1.0 / gamma_i + 1.0 / gamma_j);
 }
 
 /**
- * @brief Calculates the
+ * @brief Calculates the equilibrium contact surface radius of two monomers.
  * 
- * @param
- * @returns The 
+ * @param gamma: The combined surface energy of the two monomers.
+ * @param R: The reduced radius of two monomers.
+ * @param E_s: The combined shear modulus of the two monomers.
+ * @returns The equilibrium contact surface radius.
  */
 __host__ __device__ double get_a_0(const double gamma, const double R, const double E_s) {
     return pow(9 * PI * gamma * R * R / E_s, 1.0 / 3.0);
 }
 
 /**
- * @brief Calculates the
+ * @brief Calculates the critical normal displacement of two monomers.
  * 
- * @param
- * @returns The 
+ * @param a_0: The equilibrium contact surface radius of the two monomers.
+ * @param R: The reduced radius of the two monomers.
+ * @returns The critical normal displacement.
  */
 __host__ __device__ double get_delta_N_crit(const double a_0, const double R) {
     return 0.5 * a_0 * a_0 / (R * pow(6.0, 1.0 / 3.0));
 }
 
 /**
- * @brief Calculates the
+ * @brief Calculates the critical sliding displacement of two monomers.
  * 
- * @param
- * @returns The 
+ * @param nu_i: Poissons ratio of monomer i.
+ * @param nu_j: Poissons ratio of monomer j.
+ * @param a_0: The equilibrium contact surface radius of the two monomers.
+ * @returns The critical sliding displacement.
  */
 __host__ __device__ double get_delta_S_crit(const double nu_i, const double nu_j, const double a_0) {
     return (2.0 - 0.5 * (nu_i + nu_j)) * a_0 / (16.0 * PI);
 }
 
 /**
- * @brief Calculates the
+ * @brief Calculates the normal potential between two monomers.
  * 
- * @param
- * @returns The 
+ * @param F_c: The normal force at separation of the two monomers.
+ * @param delta_N_crit: The critical normal displacement of the two monomers.
+ * @param a: The contact surface radius of the two monomers.
+ * @param a_0: The equilibrium contact surface radius of the two monomers.
+ * @returns The normal potential.
  */
-__host__ __device__ double get_U_N(const double F_c, const double delta_c, const double a, const double a_0) {
-    return F_c * delta_c * (0.84661389438303971 + 4. * pow(6., (1. / 3.)) * ((4. / 5.) * pow(a / a_0, 5.) - (4. / 3.) * pow(a / a_0, (7. / 2.)) + (1. / 3.) * pow(a / a_0, 2.)));
+__host__ __device__ double get_U_N(const double F_c, const double delta_N_crit, const double a, const double a_0) {
+    return F_c * delta_N_crit * (0.84661389438303971 + 4. * pow(6., (1. / 3.)) * ((4. / 5.) * pow(a / a_0, 5.) - (4. / 3.) * pow(a / a_0, (7. / 2.)) + (1. / 3.) * pow(a / a_0, 2.)));
 }
 
 /**
- * @brief Calculates the
+ * @brief Calculates the sliding potential between two monomers.
  * 
- * @param
- * @returns The 
+ * @param k_s: The strenght of the sliding interaction between the two monomers.
+ * @param sliding_displacement: The sliding displacement of the two monomers.
+ * @returns The sliding potential.
  */
 __host__ __device__ double get_U_S(const double k_s, const double3 sliding_displacement) {
     return 0.5 * k_s * vec_lenght_sq(sliding_displacement);
 }
 
 /**
- * @brief Calculates the
+ * @brief Calculates the rolling potential between two monomers.
  * 
- * @param
- * @returns The 
+ * @param k_r: The strenght of the rolling interaction between the two monomers.
+ * @param rolling_displacement: The rolling displacement of the two monomers.
+ * @returns The rolling potential.
  */
 __host__ __device__ double get_U_R(const double k_r, const double3 rolling_displacement) {
     return  0.5 * k_r * vec_lenght_sq(rolling_displacement);
 }
 
 /**
- * @brief Calculates the
+ * @brief Calculates the twisting potential between two monomers.
  * 
- * @param
- * @returns The 
+ * @param k_t: The strenght of the twisting interaction between the two monomers.
+ * @param twisting_displacement: The twisting displacement of the two monomers.
+ * @returns The twisting potential.
  */
 __host__ __device__ double get_U_T(const double k_t, const double3 twisting_displacement) {
     return  0.5 * k_t * vec_lenght_sq(twisting_displacement);
