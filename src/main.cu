@@ -12,9 +12,6 @@
 #include <algorithm>
 #include <format>
 
-using namespace std;
-using namespace std::chrono;
-
 #include <cuda_runtime.h>
 #include "device_launch_parameters.h"
 
@@ -24,13 +21,11 @@ using namespace std::chrono;
 #include "utils/printing.cuh"
 #include "utils/typedefs.cuh"
 
+#include "pipeline.cuh"
+
 #include "physics/state.cuh"
 #include "physics/materialProperties.cuh"
 #include "physics/integrator.cuh"
-
-#include "vector.cuh"
-#include "pipeline.cuh"
-#include "physics.cuh"
 
 int main(const int argc, const char** argv)
 {
@@ -41,7 +36,7 @@ int main(const int argc, const char** argv)
 
     CPipeline pipeline;
 
-    auto start = high_resolution_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
 
     // Check command line input for command file.
     if (!pipeline.init(argc, argv))
@@ -672,8 +667,8 @@ int main(const int argc, const char** argv)
     CUDA_LAST_ERROR_CHECK();
 
     // Calculate and print the final runtime.
-    auto end = high_resolution_clock::now();
-    auto elapsed = chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
 
     char buffer[14];
     ns_to_time_string(elapsed.count(), buffer, 14);
