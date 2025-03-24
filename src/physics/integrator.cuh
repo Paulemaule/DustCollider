@@ -306,7 +306,7 @@ __global__ void evaluate(
     double t_vis = 0.5 * (viscous_damping_timescale[i] + viscous_damping_timescale[j]);
 
     // Calculate contact effects only if the monomers are in contact.
-    if (vec_lenght(pointer_i) != 0. & vec_lenght(pointer_j) != 0.) {
+    if (vec_lenght(pointer_i) != 0. && vec_lenght(pointer_j) != 0.) {
         // Corotate the contact pointers
         pointer_i = quat_apply_inverse(rotation_next[matrix_i], pointer_i);
         pointer_j = quat_apply_inverse(rotation_next[matrix_j], pointer_j);
@@ -496,6 +496,7 @@ __global__ void updatePointers(
     double delta_R_crit = 0.5 * (crit_rolling_displacement[i] + crit_rolling_displacement[j]);  // The critical rolling displacement of the monomer pair.
     double delta_T_crit = 1. / (16. * PI);                      // The critical twisting displacement of the monomer pair.
 
+    if (vec_lenght_sq(pointer_i) != 0. && vec_lenght_sq(pointer_j) != 0.) {
         // Corotate the contact pointers.
         double4 rotation_i = rotation_curr[matrix_i];
         double4 rotation_j = rotation_curr[matrix_j];
