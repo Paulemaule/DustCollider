@@ -692,7 +692,11 @@ __global__ void updatePointers(
             vec_normalize(pointer_i);
             
             // Track inelastic motion
-            atomicAdd(&inelastic_counter->x, pow(10., double(i))); // TODO: Properly implement dissipated energy, see Wada07
+            double k_s = 8. * a_0 * G_s;
+            double dissipated_energy = k_s * delta_S_crit * (sliding_displacement_abs - delta_S_crit);
+
+            // TODO: Where does the 1/4 come from?
+            atomicAdd(&inelastic_counter->x, 0.25 * dissipated_energy);
         }
 
         if (rolling_displacement_abs > delta_R_crit) {
@@ -715,12 +719,11 @@ __global__ void updatePointers(
             vec_normalize(pointer_i);
 
             // Track inelastic motion 
-            // TODO: Check the time penalty for tracking dissipated energy!
-            double F_c = 3 * PI * gamma * R;
-            double k_r = 4. * F_c / R;
+            double k_r = 12. * PI * gamma;
             double dissipated_energy = k_r * delta_R_crit * (rolling_displacement_abs - delta_R_crit);
 
-            atomicAdd(&inelastic_counter->y, dissipated_energy);
+            // TODO: Where does the 1/4 come from?
+            atomicAdd(&inelastic_counter->y, 0.25 * dissipated_energy);
         }
 
         // If there were any corrections, apply them to the contact pointer.
@@ -736,7 +739,10 @@ __global__ void updatePointers(
             twisting_next[matrix_i] = sign * delta_T_crit;
             
             // Track inelastic motion
-            atomicAdd(&inelastic_counter->z, pow(10., double(i))); // TODO: Properly implement dissipated energy, see Wada07
+            double k_t = (16. / 3.) * G * a_0 * a_0 * a_0;
+            double dissipated_energy = k_t * delta_T_crit * (twisting_displacement - delta_T_crit);
+
+            atomicAdd(&inelastic_counter->z, 0.25 * dissipated_energy); // TODO: Properly implement dissipated energy, see Wada07
         }
     } else {
         double normal_displacement;             // The displacement in the normal-dof of the contact.
