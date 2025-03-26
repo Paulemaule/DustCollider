@@ -200,9 +200,9 @@ __host__ __device__ double get_U_R(const double k_r, const double3 rolling_displ
  * @brief Calculates the twisting potential between two monomers.
  * 
  * @param k_t: The strenght of the twisting interaction between the two monomers.
- * @param twisting_displacement: The twisting displacement of the two monomers.
+ * @param twisting_displacement: The twisting displacement of the two monomers. This is conceptually different from Wada (2007). Only the intergated part of eq. (24) is included here.
  * @returns The twisting potential.
  */
-__host__ __device__ double get_U_T(const double k_t, const double3 twisting_displacement) {
-    return  0.5 * k_t * vec_lenght_sq(twisting_displacement);
+__host__ __device__ double get_U_T(const double k_t, const double twisting_displacement) {
+    return  0.5 * k_t * twisting_displacement * twisting_displacement;
 }

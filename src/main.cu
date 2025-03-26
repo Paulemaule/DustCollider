@@ -296,7 +296,7 @@ int main(const int argc, const char** argv)
 
 #ifdef DEBUG
     // This change the following line to enable/disable code that pulls the current and next state during the simulation. This has a significant resource drain and should only be used for debugging.
-    #define DEBUG_PULL_STATES
+    #define DDEBUG_PULL_STATES
 #endif
 
 #ifdef DEBUG_PULL_STATES
@@ -330,7 +330,7 @@ int main(const int argc, const char** argv)
         );
         
         predictor_pointer <<<nBlocks_pair, BLOCK_SIZE>>> (
-            device_state_curr.contact_rotation, device_state_curr.contact_twist, device_state_curr.omega, device_state_curr.torque,
+            device_state_curr.contact_rotation, device_state_curr.contact_twist, device_state_next.position, device_state_curr.omega, device_state_curr.torque,
             device_state_next.contact_rotation, device_state_next.contact_twist, 
             device_matProperties.moment, time_step, Nmon
         );
@@ -359,9 +359,7 @@ int main(const int argc, const char** argv)
 #endif
 
         corrector <<<nBlocks_single, BLOCK_SIZE>>> (
-            device_state_curr.velocity, device_state_curr.omega,
-            device_state_curr.force, device_state_next.force,
-            device_state_curr.torque, device_state_next.torque,
+            device_state_curr.velocity, device_state_curr.omega, device_state_curr.force, device_state_next.force, device_state_curr.torque, device_state_next.torque,
             device_state_next.velocity, device_state_next.omega,
             device_matProperties.mass, device_matProperties.moment,
             time_step, Nmon
@@ -375,6 +373,7 @@ int main(const int argc, const char** argv)
         state_pullFromDevice(device_state_next, next, Nmon);
 #endif
 
+        // FIXME: This is not the correct order. It should be: predictor, pointer, evaluate, corrector...
         updatePointers <<<nBlocks_pair, BLOCK_SIZE>>> (
             device_state_next.position, device_state_curr.contact_pointer, device_state_curr.contact_rotation, device_state_curr.contact_compression,
             device_state_next.contact_pointer, device_state_next.contact_rotation, device_state_next.contact_twist, device_state_next.contact_compression, device_inelastic_counter,

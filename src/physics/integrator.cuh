@@ -1,3 +1,5 @@
+// FIXME: Check if the structure of the PEC is correct. Check if _curr and _next are used correctly at each point...
+
 /**
  * @file integrator.cuh
  * @brief Implements a synchronized leapfrog algorithm for time integration.
@@ -73,6 +75,9 @@ __global__ void predictor(
 __global__ void predictor_pointer(
     const double4*              rotation_curr,
     const double*               twisting_curr,
+    // FIXME: Ensure that the predictor and predictor_pointer kernel are not run concurrently, otherwise: Race issue.
+    // FIXME: Is position_next or position_curr correct here? See formula (24) in wada07.
+    const double3*              position_next,
     const double3*              omega_curr,
     const double3*              torque_curr,
     
@@ -138,8 +143,19 @@ __global__ void predictor_pointer(
     rotation_next[matrix_i].z = rot.z;
 
     // Integrate contact twisting matrix
-    // FIXME: Finish this implementation.    
-    twisting_next[matrix_i] = twisting_curr[matrix_i];
+    // FIXME: Cleanup of this implementation. Parts of it are duplicates from above.
+    double3 omega_i = omega_curr[i];
+    double3 omega_j = omega_curr[j];
+
+    double3 position_i = position_next[i];
+    double3 position_j = position_next[j];
+
+    double3 n_c = vec_diff(position_i, position_j);
+
+    double twisting_dot = vec_dot(vec_diff(omega_i, omega_j), n_c);
+    double twisting_ddot = 0.; // FIXME: Implement second order derivative.
+
+    twisting_next[matrix_i] = twisting_curr[matrix_i] + timestep * twisting_dot + 0.5 * timestep * timestep * twisting_ddot;
 };
 
 /**
@@ -317,7 +333,7 @@ __global__ void evaluate(
         double normal_displacement;             // The displacement in the normal-dof of the contact.
         double3 sliding_displacement;           // The displacement in the sliding-dof of the contact.
         double3 rolling_displacement;           // The displacement in the rolling-dof of the contact.
-        double twisting_displacement;           // The displacement in the twisting-dof of the contact.
+        double twisting_displacement;           // The displacement in the twisting-dof of the contact, this is conceptually slightly different from Wada (2007). The twisting displacement here is only the integrated part of equation (24).
 
         normal_displacement = r_i + r_j - vec_dist_len(position_i, position_j);
         
@@ -376,9 +392,11 @@ __global__ void evaluate(
         torque.z += - R * k_r * tmp_r.z;
 
         // Twisting
-        //torque.x += - k_t * twisting_displacement.x;
-        //torque.y += - k_t * twisting_displacement.y;
-        //torque.z += - k_t * twisting_displacement.z;
+        double tmp_t = k_t * twisting_displacement;
+
+        torque.x += - tmp_t * pointer_pos.x;
+        torque.y += - tmp_t * pointer_pos.y;
+        torque.z += - tmp_t * pointer_pos.z;
 
         // Add the forces and torques from the pair interaction onto the total for monomer i.
         atomicAdd(&force_next[i].x, force.x);
@@ -396,7 +414,7 @@ __global__ void evaluate(
         atomicAdd(&potential_energy->w, 0.5 * get_U_N(F_c, delta_N_crit, a, a_0));
         atomicAdd(&potential_energy->x, 0.5 * get_U_S(k_s, sliding_displacement));
         atomicAdd(&potential_energy->y, 0.5 * get_U_R(k_r, rolling_displacement));
-        atomicAdd(&potential_energy->z, 0.5 * get_U_T(k_t, { 0., 0., 0. }));
+        atomicAdd(&potential_energy->z, 0.5 * get_U_T(k_t, twisting_displacement));
     }
 }
 
@@ -539,7 +557,7 @@ __global__ void updatePointers(
             atomicAdd(&inelastic_counter->w, 0.5 * get_U_N(F_c, delta_N_crit, get_contact_radius(normal_displacement, a_0, R), a_0));
             atomicAdd(&inelastic_counter->x, 0.5 * get_U_S(k_s, sliding_displacement));
             atomicAdd(&inelastic_counter->y, 0.5 * get_U_R(k_r, rolling_displacement));
-            atomicAdd(&inelastic_counter->z, 0.5 * get_U_T(k_t, { 0., 0., 0. }));
+            atomicAdd(&inelastic_counter->z, 0.5 * get_U_T(k_t, twisting_displacement));
 
             return; 
         } else {
@@ -612,7 +630,7 @@ __global__ void updatePointers(
             twisting_next[matrix_i] = sign * delta_T_crit;
             
             // Track dissipated energy.
-            atomicAdd(&inelastic_counter->z, 0.5 * k_t * delta_T_crit * (twisting_displacement - delta_T_crit));
+            atomicAdd(&inelastic_counter->z, 0.5 * k_t * delta_T_crit * (abs(twisting_displacement) - delta_T_crit));
         }
     } else {
         double normal_displacement;             // The displacement in the normal-dof of the contact.
