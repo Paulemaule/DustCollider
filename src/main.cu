@@ -73,8 +73,8 @@ int main(const int argc, const char** argv)
     double* storage_inelastic_S = nullptr;  // Array of dissipated energies in sliding direction.
     double* storage_inelastic_R = nullptr;  // Array of dissipated energies in rolling direction.
     double* storage_inelastic_T = nullptr;  // Array of dissipated energies in twisting direction.
-    int* storage_cluster = nullptr;         // TODO
-    int* clusterIDs = nullptr;              // TODO
+    int* storage_cluster = nullptr;         // Array of cluster IDs for each snapshot.
+    int* clusterIDs = nullptr;              // Array of cluster IDs for a single snapshot. Resets every snapshot.
 
     // Read the initial state of the system from the monomer files
     // Prepare arrays for the monomer data
@@ -255,10 +255,10 @@ int main(const int argc, const char** argv)
             memset(storage_inelastic_T, 0, N_store * sizeof(double));
         }
 
-        if (pipeline.saveCluster())
+        if (true)
         {
             storage_cluster = new int[N_store_mon];
-            memset(storage_cluster, 0, N_store_mon * sizeof(int));
+            std::fill(storage_cluster, storage_cluster + N_store_mon, -1);
         }
     }
 
@@ -328,7 +328,8 @@ int main(const int argc, const char** argv)
             device_state_next.position,
             device_matProperties.mass, time_step, Nmon
         );
-        
+        // FIXME: Check if there is an implied synchronize here.
+
         predictor_pointer <<<nBlocks_pair, BLOCK_SIZE>>> (
             device_state_curr.contact_rotation, device_state_curr.contact_twist, device_state_next.position, device_state_curr.omega, device_state_curr.torque,
             device_state_next.contact_rotation, device_state_next.contact_twist, 
@@ -483,11 +484,14 @@ int main(const int argc, const char** argv)
                         CHECK_CUDA(cudaMemset(device_inelastic_counter, 0, sizeof(double4)));
                     }
 
-                    if (storage_cluster != 0)
+                    if (storage_cluster != nullptr)
                     {
+                        // Initialize the cluster IDs to -1.
                         fill(clusterIDs, clusterIDs + Nmon, -1);
-                        // FIXME: (Re-)implement clustering algorithm
-                        //cpu_findConnectedComponents(Nmon, host_state_curr.contact_compression, clusterIDs);
+                        // Perform the cluster search algorithm.
+                        findMonomerClusters(Nmon, host_state_curr.contact_pointer, clusterIDs);
+
+                        // Store the results in the storage array.
                         copy(clusterIDs, clusterIDs + Nmon, storage_cluster + start_index);
                     }
                 }

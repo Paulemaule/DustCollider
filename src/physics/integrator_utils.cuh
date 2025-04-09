@@ -206,3 +206,49 @@ __host__ __device__ double get_U_R(const double k_r, const double3 rolling_displ
 __host__ __device__ double get_U_T(const double k_t, const double twisting_displacement) {
     return  0.5 * k_t * twisting_displacement * twisting_displacement;
 }
+
+/**
+ * @brief A function to recursively search for nodes connected to the current node.
+ * 
+ * This function uses a depth-first search (DFS) algorithm to explore the graph represented by the connection matrix.
+ * 
+ * @param node: The current node being explored.
+ * @param n: The total number of nodes.
+ * @param matrix: The connection matrix representing the graph.
+ * @param clusters: The array storing the cluster IDs for each node.
+ * @param currentCluster: The ID of the current cluster being assigned.
+ */
+void dfs(const int node, const int n, const double3* matrix, int* clusters, const int currentCluster) {
+    // Assign the current cluster ID to the node.
+    clusters[node] = currentCluster;
+
+    // Check all nodes to see if they are connected to the current node.
+    for (int i = 0; i < n; i++) {
+        // Check if there's an edge and the node has not been assigned to a cluster
+        if (vec_lenght_sq(matrix[node * n + i]) != 0. && clusters[i] == -1) {
+            dfs(i, n, matrix, clusters, currentCluster);
+        }
+    }
+}
+
+/**
+ * @brief A function to find distinct dust aggregates using the contact pointer matrix as an adjacency matrix.
+ * 
+ * This function iterates through all nodes in the graph and uses a depth-first search (DFS) algorithm to find connected monomers.
+ * 
+ * @param Nmon: The number of nodes in the graph.
+ * @param contact_pointer: The matrix of current contact pointers.
+ * @param cluster: The array storing the cluster IDs for each node.
+ */
+void findMonomerClusters(const int Nmon, const double3* contact_pointer, int* cluster) {
+    int currentCluster = 0;  // Cluster ID counter
+
+    // Iterate through all nodes
+    for (int i = 0; i < Nmon; ++i) {
+        if (cluster[i] == -1)
+        {  // If node hasn't been assigned to a cluster
+            dfs(i, Nmon, contact_pointer, cluster, currentCluster);
+            currentCluster++;  // Move to the next cluster ID
+        }
+    }
+}
