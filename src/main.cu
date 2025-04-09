@@ -520,6 +520,7 @@ int main(const int argc, const char** argv)
             ns_to_time_string(remaining_ns, buffer, 14);
 
             printf("Simulation progress  :%5.1f %%\n      Remaining time ~ %s\n", percentage, buffer);
+            std::cout << std::flush;
         }
     }
 
