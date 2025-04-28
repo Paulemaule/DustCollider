@@ -191,7 +191,7 @@ int main(const int argc, const char** argv)
 
     if (N_save > 0)
     {
-        N_store = int((double(N_iter) / double(N_save) + 0.5));
+        N_store = ((N_iter - 1) / N_save) + 1;
         N_store_mon = Nmon * N_store;
 
         clusterIDs = new int[Nmon];
@@ -433,67 +433,66 @@ int main(const int argc, const char** argv)
 
                 ullong start_index = counter_save * Nmon;
 
+                // Check if the storage arrays are large enough to store the current state.
                 if (long(N_store_mon) - long(start_index) < Nmon)
                 {
-                    PRINT_ERROR("Storage overrun!")
+                    PRINT_ERROR("Attempting to store more states than allocated memory allows!")
                     return -1;
                 }
 
-                if (start_index < N_store_mon) //just a failsave if there was a rounding error in N_store_mon
+                // Store the current state in the storage arrays.
+                if (storage_pos != 0)
                 {
-                    if (storage_pos != 0)
-                    {
-                        CHECK_CUDA(cudaMemcpy(storage_pos + start_index, host_state_curr.position, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost))
-                    }
+                    CHECK_CUDA(cudaMemcpy(storage_pos + start_index, host_state_curr.position, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost))
+                }
 
-                    if (storage_vel != 0)
-                    {
-                        CHECK_CUDA(cudaMemcpy(storage_vel + start_index, host_state_curr.velocity, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost))
-                    }
+                if (storage_vel != 0)
+                {
+                    CHECK_CUDA(cudaMemcpy(storage_vel + start_index, host_state_curr.velocity, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost))
+                }
 
-                    if (storage_force != 0)
-                    {
-                        CHECK_CUDA(cudaMemcpy(storage_force + start_index, host_state_curr.force, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost))
-                    }
+                if (storage_force != 0)
+                {
+                    CHECK_CUDA(cudaMemcpy(storage_force + start_index, host_state_curr.force, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost))
+                }
 
-                    if (storage_torque != 0)
-                    {
-                        CHECK_CUDA(cudaMemcpy(storage_torque + start_index, host_state_curr.torque, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost))
-                    }
+                if (storage_torque != 0)
+                {
+                    CHECK_CUDA(cudaMemcpy(storage_torque + start_index, host_state_curr.torque, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost))
+                }
 
-                    if (storage_omega != 0)
-                    {
-                        CHECK_CUDA(cudaMemcpy(storage_omega + start_index, host_state_curr.omega, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost))
-                    }
+                if (storage_omega != 0)
+                {
+                    CHECK_CUDA(cudaMemcpy(storage_omega + start_index, host_state_curr.omega, Nmon * sizeof(double3), cudaMemcpyKind::cudaMemcpyHostToHost))
+                }
 
-                    if (device_potential_energy != nullptr) {
-                        CHECK_CUDA(cudaMemcpy(storage_potential_N + counter_save, &device_potential_energy->w, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
-                        CHECK_CUDA(cudaMemcpy(storage_potential_S + counter_save, &device_potential_energy->x, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
-                        CHECK_CUDA(cudaMemcpy(storage_potential_R + counter_save, &device_potential_energy->y, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
-                        CHECK_CUDA(cudaMemcpy(storage_potential_T + counter_save, &device_potential_energy->z, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
-                        // Reset the potential energy counter.
-                        CHECK_CUDA(cudaMemset(device_potential_energy, 0, sizeof(double4)));
-                    }
+                if (device_potential_energy != nullptr) {
+                    CHECK_CUDA(cudaMemcpy(storage_potential_N + counter_save, &device_potential_energy->w, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+                    CHECK_CUDA(cudaMemcpy(storage_potential_S + counter_save, &device_potential_energy->x, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+                    CHECK_CUDA(cudaMemcpy(storage_potential_R + counter_save, &device_potential_energy->y, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+                    CHECK_CUDA(cudaMemcpy(storage_potential_T + counter_save, &device_potential_energy->z, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+                    // Reset the potential energy counter.
+                    CHECK_CUDA(cudaMemset(device_potential_energy, 0, sizeof(double4)));
+                }
 
-                    if (device_inelastic_counter != nullptr) {
-                        CHECK_CUDA(cudaMemcpy(storage_inelastic_N + counter_save, &device_inelastic_counter->w, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
-                        CHECK_CUDA(cudaMemcpy(storage_inelastic_S + counter_save, &device_inelastic_counter->x, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
-                        CHECK_CUDA(cudaMemcpy(storage_inelastic_R + counter_save, &device_inelastic_counter->y, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
-                        CHECK_CUDA(cudaMemcpy(storage_inelastic_T + counter_save, &device_inelastic_counter->z, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
-                        // Reset the inelastic motion counter.
-                        CHECK_CUDA(cudaMemset(device_inelastic_counter, 0, sizeof(double4)));
-                    }
+                if (device_inelastic_counter != nullptr) {
+                    CHECK_CUDA(cudaMemcpy(storage_inelastic_N + counter_save, &device_inelastic_counter->w, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+                    CHECK_CUDA(cudaMemcpy(storage_inelastic_S + counter_save, &device_inelastic_counter->x, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+                    CHECK_CUDA(cudaMemcpy(storage_inelastic_R + counter_save, &device_inelastic_counter->y, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+                    CHECK_CUDA(cudaMemcpy(storage_inelastic_T + counter_save, &device_inelastic_counter->z, sizeof(double), cudaMemcpyKind::cudaMemcpyDeviceToHost));
+                    // Reset the inelastic motion counter.
+                    CHECK_CUDA(cudaMemset(device_inelastic_counter, 0, sizeof(double4)));
+                }
 
-                    if (storage_cluster != nullptr)
-                    {
-                        // Initialize the cluster IDs to -1.
-                        fill(clusterIDs, clusterIDs + Nmon, -1);
-                        // Perform the cluster search algorithm.
-                        findMonomerClusters(Nmon, host_state_curr.contact_pointer, clusterIDs);
+                if (storage_cluster != nullptr)
+                {
+                    // Initialize the cluster IDs to -1.
+                    fill(clusterIDs, clusterIDs + Nmon, -1);
+                    // Perform the cluster search algorithm.
+                    findMonomerClusters(Nmon, host_state_curr.contact_pointer, clusterIDs);
 
-                        // Store the results in the storage array.
-                        copy(clusterIDs, clusterIDs + Nmon, storage_cluster + start_index);
-                    }
+                    // Store the results in the storage array.
+                    copy(clusterIDs, clusterIDs + Nmon, storage_cluster + start_index);
                 }
 
                 // Increment the number of states stored in the storage arrays.
