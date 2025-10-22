@@ -2127,8 +2127,7 @@ private:
             }
             else
             {
-                std::cout << "Could not create directory." << std::endl << std::flush;
-                //PRINT_ERROR("Failed to create directory: " + strerror(errno));
+                PRINT_ERROR("Failed to create directory: " + path + " with error number: " + std::to_string(errno));
             }
         }
         #else
