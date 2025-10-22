@@ -526,6 +526,7 @@ public:
             return false;
         }
 
+        // TODO: Remove these. No longer necessary
         if (path_A.length() <= 5)
         {
             std::cout << "ERROR: Invalid path for aggregate A!" << std::endl << std::flush;
