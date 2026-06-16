@@ -1,288 +1,162 @@
 #pragma once
 
-#include "../utils/errors.cuh"
+#include <algorithm>
+#include <cstring>
+#include "../utils/buffer.cuh"
+
 
 /**
- * @brief A struct of pointers to host memory of arrays containing system state information.
+ * @brief Non-owning view of device state arrays. Passed directly to kernels.
  */
-typedef struct {
-    double3* position;                      // Array - Nmon * sizeof(<T>)
-    double3* magnetization;                 // Array - Nmon * sizeof(<T>)
-    double3* velocity;                      // Array - Nmon * sizeof(<T>)
-    double3* omega;                         // Array - Nmon * sizeof(<T>)
-    double3* magnetization_change;          // Array - Nmon * sizeof(<T>)
-    double3* force;                         // Array - Nmon * sizeof(<T>)
-    double3* torque;                        // Array - Nmon * sizeof(<T>)
-    double* contact_compression;            // Matrix - Nmon * Nmon * sizeof(<T>)
-    double* contact_twist;                  // Matrix - Nmon * Nmon * sizeof(<T>)
-    double3* contact_pointer;               // Matrix - Nmon * Nmon * sizeof(<T>)
-    double3* contact_normal;                // Matrix - Nmon * Nmon * sizeof(<T>)
-    double4* contact_rotation;              // Matrix - Nmon * Nmon * sizeof(<T>)
-} hostState;
+struct DeviceStateView {
+    double3*    position;                      // Array - Nmon * sizeof(<T>)
+    double3*    velocity;                      // Array - Nmon * sizeof(<T>)
+    double3*    omega;                         // Array - Nmon * sizeof(<T>)
+    double3*    force;                         // Array - Nmon * sizeof(<T>)
+    double3*    torque;                        // Array - Nmon * sizeof(<T>)
+    double*     contact_compression;           // Matrix - Nmon * Nmon * sizeof(<T>)
+    double*     contact_twist;                 // Matrix - Nmon * Nmon * sizeof(<T>)
+    double3*    contact_pointer;               // Matrix - Nmon * Nmon * sizeof(<T>)
+    double3*    contact_normal;                // Matrix - Nmon * Nmon * sizeof(<T>)
+    double4*    contact_rotation;              // Matrix - Nmon * Nmon * sizeof(<T>)
+};
 
 /**
- * @brief A struct of pointers to device memory of arrays containing system state information.
+ * @brief RAII container for the device memory of the system state.
+ *
+ * Automatically allocates all arrays on construction and frees them on destruction.
+ * To pass the data to the kernel use ::view() to obtain a struct of raw pointers.
  */
-typedef struct {
-    double3* position;                      // Array - Nmon * sizeof(<T>)
-    double3* magnetization;                 // Array - Nmon * sizeof(<T>)
-    double3* velocity;                      // Array - Nmon * sizeof(<T>)
-    double3* omega;                         // Array - Nmon * sizeof(<T>)
-    double3* magnetization_change;          // Array - Nmon * sizeof(<T>)
-    double3* force;                         // Array - Nmon * sizeof(<T>)
-    double3* torque;                        // Array - Nmon * sizeof(<T>)
-    double* contact_compression;            // Matrix - Nmon * Nmon * sizeof(<T>)
-    double* contact_twist;                  // Matrix - Nmon * Nmon * sizeof(<T>)
-    double3* contact_pointer;               // Matrix - Nmon * Nmon * sizeof(<T>)
-    double3* contact_normal;                // Matrix - Nmon * Nmon * sizeof(<T>)
-    double4* contact_rotation;              // Matrix - Nmon * Nmon * sizeof(<T>)
-} deviceState;
+class DeviceState {
+    DeviceBuffer<double3> position;
+    DeviceBuffer<double3> velocity;
+    DeviceBuffer<double3> omega;
+    DeviceBuffer<double3> force;
+    DeviceBuffer<double3> torque;
+    DeviceBuffer<double>  contact_compression;
+    DeviceBuffer<double>  contact_twist;
+    DeviceBuffer<double3> contact_pointer;
+    DeviceBuffer<double3> contact_normal;
+    DeviceBuffer<double4> contact_rotation;
+
+public:
+    /**
+     * @brief Allocates device memory for the state of a system with Nmon monomers.
+     * @param Nmon The number of monomers in the system.
+     */
+    explicit DeviceState(size_t Nmon) 
+        : position(Nmon),            velocity(Nmon),           omega(Nmon)
+        , force(Nmon),               torque(Nmon)
+        , contact_compression(Nmon * Nmon), contact_twist(Nmon * Nmon)
+        , contact_pointer(Nmon * Nmon),     contact_normal(Nmon * Nmon)
+        , contact_rotation(Nmon * Nmon)
+    {}
+
+    /** @brief Generates a view over the device system state for passing into kernels. */
+    DeviceStateView view() {
+        return {
+            position.data(),            velocity.data(),          omega.data(),
+            force.data(),               torque.data(),
+            contact_compression.data(), contact_twist.data(),
+            contact_pointer.data(),     contact_normal.data(),
+            contact_rotation.data()
+        };
+    }
+
+
+};
 
 /**
- * @brief Allocates memory for a host state.
- * 
- * @param state: The host state for whos members to allocate memory.
+ * @brief Non-owning view of pinned host state arrays.
  */
-void state_allocateHostMemory(hostState& state, size_t Nmon) {
-    // Allocate memory of the appropriate size for all fields of the state.
-    // This memory is pinned memory!
-    CHECK_CUDA(cudaMallocHost(& state.position, Nmon * sizeof(double3)));
-    CHECK_CUDA(cudaMallocHost(& state.magnetization, Nmon * sizeof(double3)));
-    CHECK_CUDA(cudaMallocHost(& state.velocity, Nmon * sizeof(double3)));
-    CHECK_CUDA(cudaMallocHost(& state.omega, Nmon * sizeof(double3)));
-    CHECK_CUDA(cudaMallocHost(& state.magnetization_change, Nmon * sizeof(double3)));
-    CHECK_CUDA(cudaMallocHost(& state.force, Nmon * sizeof(double3)));
-    CHECK_CUDA(cudaMallocHost(& state.torque, Nmon * sizeof(double3)));
-    CHECK_CUDA(cudaMallocHost(& state.contact_compression, Nmon * Nmon * sizeof(double)));
-    CHECK_CUDA(cudaMallocHost(& state.contact_twist, Nmon * Nmon * sizeof(double)));
-    CHECK_CUDA(cudaMallocHost(& state.contact_pointer, Nmon * Nmon * sizeof(double3)));
-    CHECK_CUDA(cudaMallocHost(& state.contact_normal, Nmon * Nmon * sizeof(double3)));
-    CHECK_CUDA(cudaMallocHost(& state.contact_rotation, Nmon * Nmon * sizeof(double4)));
-}
+struct HostStateView {
+    double3*    position;                      // Array - Nmon * sizeof(<T>)
+    double3*    velocity;                      // Array - Nmon * sizeof(<T>)
+    double3*    omega;                         // Array - Nmon * sizeof(<T>)
+    double3*    force;                         // Array - Nmon * sizeof(<T>)
+    double3*    torque;                        // Array - Nmon * sizeof(<T>)
+    double*     contact_compression;           // Matrix - Nmon * Nmon * sizeof(<T>)
+    double*     contact_twist;                 // Matrix - Nmon * Nmon * sizeof(<T>)
+    double3*    contact_pointer;               // Matrix - Nmon * Nmon * sizeof(<T>)
+    double3*    contact_normal;                // Matrix - Nmon * Nmon * sizeof(<T>)
+    double4*    contact_rotation;              // Matrix - Nmon * Nmon * sizeof(<T>)
+};
 
 /**
- * @brief Allocates memory for a device state.
- * 
- * @param state: The device state for whos members to allocate memory.
+ * @brief RAII owner of all pinned host-side state arrays for one time-step buffer.
+ *
+ * Allocates all arrays on construction and frees them on destruction.
+ * Call view() to obtain a HostStateView of raw pointers.
  */
-void state_allocateDeviceMemory(deviceState& state, size_t Nmon) {
-    // Allocate memory of the appropriate size on the device for all fields of the state.
-    CHECK_CUDA(cudaMalloc(& state.position, Nmon * sizeof(double3)));
-    CHECK_CUDA(cudaMalloc(& state.magnetization, Nmon * sizeof(double3)));
-    CHECK_CUDA(cudaMalloc(& state.velocity, Nmon * sizeof(double3)));
-    CHECK_CUDA(cudaMalloc(& state.omega, Nmon * sizeof(double3)));
-    CHECK_CUDA(cudaMalloc(& state.magnetization_change, Nmon * sizeof(double3)));
-    CHECK_CUDA(cudaMalloc(& state.force, Nmon * sizeof(double3)));
-    CHECK_CUDA(cudaMalloc(& state.torque, Nmon * sizeof(double3)));
-    CHECK_CUDA(cudaMalloc(& state.contact_compression, Nmon * Nmon * sizeof(double)));
-    CHECK_CUDA(cudaMalloc(& state.contact_twist, Nmon * Nmon * sizeof(double)));
-    CHECK_CUDA(cudaMalloc(& state.contact_pointer, Nmon * Nmon * sizeof(double3)))
-    CHECK_CUDA(cudaMalloc(& state.contact_normal, Nmon * Nmon * sizeof(double3)));
-    CHECK_CUDA(cudaMalloc(& state.contact_rotation, Nmon * Nmon * sizeof(double4)));
-}
+class HostState {
+    HostBuffer<double3> position;
+    HostBuffer<double3> velocity;
+    HostBuffer<double3> omega;
+    HostBuffer<double3> force;
+    HostBuffer<double3> torque;
+    HostBuffer<double>  contact_compression;
+    HostBuffer<double>  contact_twist;
+    HostBuffer<double3> contact_pointer;
+    HostBuffer<double3> contact_normal;
+    HostBuffer<double4> contact_rotation;
 
-/**
- * @brief Frees all allocated memory contained by the host state.
- * 
- * @param The state contining the pointers that are to be freed.
- */
-void state_freeHost(hostState& state) {
-    // Free all arrays pointed to by members of the state.
-    CHECK_CUDA(cudaFreeHost(state.position));
-    state.position = nullptr;
-    CHECK_CUDA(cudaFreeHost(state.magnetization));
-    state.magnetization = nullptr;
-    CHECK_CUDA(cudaFreeHost(state.velocity));
-    state.velocity = nullptr;
-    CHECK_CUDA(cudaFreeHost(state.omega));
-    state.omega = nullptr;
-    CHECK_CUDA(cudaFreeHost(state.magnetization_change));
-    state.magnetization_change = nullptr;
-    CHECK_CUDA(cudaFreeHost(state.force));
-    state.force = nullptr;
-    CHECK_CUDA(cudaFreeHost(state.torque));
-    state.torque = nullptr;
-    CHECK_CUDA(cudaFreeHost(state.contact_compression));
-    state.contact_compression = nullptr;
-    CHECK_CUDA(cudaFreeHost(state.contact_twist));
-    state.contact_twist = nullptr;
-    CHECK_CUDA(cudaFreeHost(state.contact_pointer));
-    state.contact_pointer = nullptr;
-    CHECK_CUDA(cudaFreeHost(state.contact_normal));
-    state.contact_normal = nullptr;
-    CHECK_CUDA(cudaFreeHost(state.contact_rotation));
-    state.contact_rotation = nullptr;
-}
+public:
+    explicit HostState(size_t Nmon)
+        : position(Nmon),            velocity(Nmon),           omega(Nmon)
+        , force(Nmon),               torque(Nmon)
+        , contact_compression(Nmon * Nmon), contact_twist(Nmon * Nmon)
+        , contact_pointer(Nmon * Nmon),     contact_normal(Nmon * Nmon)
+        , contact_rotation(Nmon * Nmon)
+    {}
 
-/**
- * @brief Frees all allocated memory contained by the device state.
- * 
- * @param The state containing the pointers that are to be freed.
- */
-void state_freeDevice(deviceState& state) {
-    // Free all arrays pointed to by members of the state.
-    CHECK_CUDA(cudaFree(state.position));
-    state.position = nullptr;
-    CHECK_CUDA(cudaFree(state.magnetization));
-    state.magnetization = nullptr;
-    CHECK_CUDA(cudaFree(state.velocity));
-    state.velocity = nullptr;
-    CHECK_CUDA(cudaFree(state.omega));
-    state.omega = nullptr;
-    CHECK_CUDA(cudaFree(state.magnetization_change));
-    state.magnetization_change = nullptr;
-    CHECK_CUDA(cudaFree(state.force));
-    state.force = nullptr;
-    CHECK_CUDA(cudaFree(state.torque));
-    state.torque = nullptr;
-    CHECK_CUDA(cudaFree(state.contact_compression));
-    state.contact_compression = nullptr;
-    CHECK_CUDA(cudaFree(state.contact_twist));
-    state.contact_twist = nullptr;
-    CHECK_CUDA(cudaFree(state.contact_pointer));
-    state.contact_pointer = nullptr;
-    CHECK_CUDA(cudaFree(state.contact_normal));
-    state.contact_normal = nullptr;
-    CHECK_CUDA(cudaFree(state.contact_rotation));
-    state.contact_rotation = nullptr;
-}
+    /** @brief Generates a view over the pinned host system state for direct data access. */
+    HostStateView view() {
+        return {
+            position.data(),            velocity.data(),          omega.data(),
+            force.data(),               torque.data(),
+            contact_compression.data(), contact_twist.data(),
+            contact_pointer.data(),     contact_normal.data(),
+            contact_rotation.data()
+        };
+    }
 
-/**
- * @brief Copies the fields of a host state to a device state.
- * 
- * @param &host_state: The host state from which to copy.
- * @param &device_state: The device state to which to copy.
- * @param Nmon: The number of monomers.
- */
-void state_pushToDevice(hostState& host_state, deviceState& device_state, size_t Nmon) {
-    // Copy the contents of the arrays pointed to by the pointers to the device.
-    CHECK_CUDA(cudaMemcpy(
-        device_state.position, host_state.position, 
-        Nmon * sizeof(double3), 
-        cudaMemcpyKind::cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(
-        device_state.magnetization, host_state.magnetization, 
-        Nmon * sizeof(double3), 
-        cudaMemcpyKind::cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(
-        device_state.velocity, host_state.velocity,
-        Nmon * sizeof(double3), 
-        cudaMemcpyKind::cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(
-        device_state.omega, host_state.omega,
-        Nmon * sizeof(double3),
-        cudaMemcpyKind::cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(
-        device_state.magnetization_change, host_state.magnetization_change,
-        Nmon * sizeof(double3),
-        cudaMemcpyKind::cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(
-        device_state.force, host_state.force,
-        Nmon * sizeof(double3), 
-        cudaMemcpyKind::cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(
-        device_state.torque, host_state.torque, 
-        Nmon * sizeof(double3), 
-        cudaMemcpyKind::cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(
-        device_state.contact_compression, host_state.contact_compression, 
-        Nmon * Nmon * sizeof(double), 
-        cudaMemcpyKind::cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(
-        device_state.contact_twist, host_state.contact_twist,
-        Nmon * Nmon * sizeof(double),
-        cudaMemcpyKind::cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(
-        device_state.contact_pointer, host_state.contact_pointer,
-        Nmon * Nmon * sizeof(double3),
-        cudaMemcpyKind::cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(
-        device_state.contact_normal, host_state.contact_normal,
-        Nmon * Nmon * sizeof(double3),
-        cudaMemcpyKind::cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(
-        device_state.contact_rotation, host_state.contact_rotation,
-        Nmon * Nmon * sizeof(double4),
-        cudaMemcpyKind::cudaMemcpyHostToDevice));
-}
+    /**
+     * @brief Copies this host memory system state into a device side system state.
+     *  
+     * @param d The device state to push the state into.
+     * @param Nmon The number of monomers in the system.
+     */
+    void push_to(DeviceState& d, size_t Nmon) {
+        DeviceStateView dv = d.view();
+        CHECK_CUDA(cudaMemcpy(dv.position,            position.data(),            Nmon        * sizeof(double3), cudaMemcpyHostToDevice));
+        CHECK_CUDA(cudaMemcpy(dv.velocity,            velocity.data(),            Nmon        * sizeof(double3), cudaMemcpyHostToDevice));
+        CHECK_CUDA(cudaMemcpy(dv.omega,               omega.data(),               Nmon        * sizeof(double3), cudaMemcpyHostToDevice));
+        CHECK_CUDA(cudaMemcpy(dv.force,               force.data(),               Nmon        * sizeof(double3), cudaMemcpyHostToDevice));
+        CHECK_CUDA(cudaMemcpy(dv.torque,              torque.data(),              Nmon        * sizeof(double3), cudaMemcpyHostToDevice));
+        CHECK_CUDA(cudaMemcpy(dv.contact_compression, contact_compression.data(), Nmon * Nmon * sizeof(double),  cudaMemcpyHostToDevice));
+        CHECK_CUDA(cudaMemcpy(dv.contact_twist,       contact_twist.data(),       Nmon * Nmon * sizeof(double),  cudaMemcpyHostToDevice));
+        CHECK_CUDA(cudaMemcpy(dv.contact_pointer,     contact_pointer.data(),     Nmon * Nmon * sizeof(double3), cudaMemcpyHostToDevice));
+        CHECK_CUDA(cudaMemcpy(dv.contact_normal,      contact_normal.data(),      Nmon * Nmon * sizeof(double3), cudaMemcpyHostToDevice));
+        CHECK_CUDA(cudaMemcpy(dv.contact_rotation,    contact_rotation.data(),    Nmon * Nmon * sizeof(double4), cudaMemcpyHostToDevice));
+    }
 
-/**
- * @brief Copies the fields of a device state to a host state.
- * 
- * @param &device_state: The device state from which to copy.
- * @param &host_state: The host state to which to copy.
- * @param Nmon: The number of monomers.
- */
-void state_pullFromDevice(deviceState& device_state, hostState& host_state, size_t Nmon) {
-    // Copy the contents of the arrays pointed to by the pointers to the host.
-    CHECK_CUDA(cudaMemcpy(
-        host_state.position, device_state.position,
-        Nmon * sizeof(double3), 
-        cudaMemcpyKind::cudaMemcpyDeviceToHost));
-    CHECK_CUDA(cudaMemcpy(
-        host_state.magnetization, device_state.magnetization, 
-        Nmon * sizeof(double3), 
-        cudaMemcpyKind::cudaMemcpyDeviceToHost));
-    CHECK_CUDA(cudaMemcpy(
-        host_state.velocity, device_state.velocity,
-        Nmon * sizeof(double3), 
-        cudaMemcpyKind::cudaMemcpyDeviceToHost));
-    CHECK_CUDA(cudaMemcpy(
-        host_state.omega, device_state.omega,
-        Nmon * sizeof(double3),
-        cudaMemcpyKind::cudaMemcpyDeviceToHost))
-    CHECK_CUDA(cudaMemcpy(
-        host_state.magnetization_change, device_state.magnetization_change,
-        Nmon * sizeof(double3),
-        cudaMemcpyKind::cudaMemcpyDeviceToHost));
-    CHECK_CUDA(cudaMemcpy(
-        host_state.force, device_state.force,
-        Nmon * sizeof(double3), 
-        cudaMemcpyKind::cudaMemcpyDeviceToHost));
-    CHECK_CUDA(cudaMemcpy(
-        host_state.torque, device_state.torque, 
-        Nmon * sizeof(double3), 
-        cudaMemcpyKind::cudaMemcpyDeviceToHost));
-    CHECK_CUDA(cudaMemcpy(
-        host_state.contact_compression, device_state.contact_compression, 
-        Nmon * Nmon * sizeof(double), 
-        cudaMemcpyKind::cudaMemcpyDeviceToHost));
-    CHECK_CUDA(cudaMemcpy(
-        host_state.contact_twist, device_state.contact_twist,
-        Nmon * Nmon * sizeof(double),
-        cudaMemcpyKind::cudaMemcpyDeviceToHost));
-    CHECK_CUDA(cudaMemcpy(
-        host_state.contact_pointer, device_state.contact_pointer,
-        Nmon * Nmon * sizeof(double3),
-        cudaMemcpyKind::cudaMemcpyDeviceToHost));
-    CHECK_CUDA(cudaMemcpy(
-        host_state.contact_normal, device_state.contact_normal,
-        Nmon * Nmon * sizeof(double3),
-        cudaMemcpyKind::cudaMemcpyDeviceToHost));
-    CHECK_CUDA(cudaMemcpy(
-        host_state.contact_rotation, device_state.contact_rotation,
-        Nmon * Nmon * sizeof(double4),
-        cudaMemcpyKind::cudaMemcpyDeviceToHost));
-}
-
-/**
- * @brief Sets the values of all fields of a host state to 0.
- * 
- * @param &state: The device state whos values are to be set.
- * @param Nmon: The number of monomers.
- */
-void state_clearHost(hostState& state, size_t Nmon) {
-    // FIXME: memset is not good for complex types. I should use something else like std::fill.
-    memset(state.position, 0, Nmon * sizeof(double3));
-    memset(state.magnetization, 0, Nmon * sizeof(double3));
-    memset(state.velocity, 0, Nmon * sizeof(double3));
-    memset(state.omega, 0, Nmon * sizeof(double3));
-    memset(state.magnetization_change, 0, Nmon * sizeof(double3));
-    memset(state.force, 0, Nmon * sizeof(double3));
-    memset(state.torque, 0, Nmon * sizeof(double3));
-    memset(state.contact_compression, 0, Nmon * Nmon * sizeof(double));
-    memset(state.contact_twist, 0, Nmon * Nmon * sizeof(double));
-    memset(state.contact_pointer, 0, Nmon * Nmon * sizeof(double3));
-    memset(state.contact_normal, 0, Nmon * Nmon * sizeof(double3));
-    memset(state.contact_rotation, 0, Nmon * Nmon * sizeof(double4)); 
-}
+    /** 
+     * @brief Copies the system state from device memory into this host memory.
+     *  
+     * @param d The device state to pull the state from.
+     * @param Nmon The number of monomers in the system.
+     */
+    void pull_from(DeviceState& d, size_t Nmon) {
+        DeviceStateView dv = d.view();
+        CHECK_CUDA(cudaMemcpy(position.data(),            dv.position,            Nmon        * sizeof(double3), cudaMemcpyDeviceToHost));
+        CHECK_CUDA(cudaMemcpy(velocity.data(),            dv.velocity,            Nmon        * sizeof(double3), cudaMemcpyDeviceToHost));
+        CHECK_CUDA(cudaMemcpy(omega.data(),               dv.omega,               Nmon        * sizeof(double3), cudaMemcpyDeviceToHost));
+        CHECK_CUDA(cudaMemcpy(force.data(),               dv.force,               Nmon        * sizeof(double3), cudaMemcpyDeviceToHost));
+        CHECK_CUDA(cudaMemcpy(torque.data(),              dv.torque,              Nmon        * sizeof(double3), cudaMemcpyDeviceToHost));
+        CHECK_CUDA(cudaMemcpy(contact_compression.data(), dv.contact_compression, Nmon * Nmon * sizeof(double),  cudaMemcpyDeviceToHost));
+        CHECK_CUDA(cudaMemcpy(contact_twist.data(),       dv.contact_twist,       Nmon * Nmon * sizeof(double),  cudaMemcpyDeviceToHost));
+        CHECK_CUDA(cudaMemcpy(contact_pointer.data(),     dv.contact_pointer,     Nmon * Nmon * sizeof(double3), cudaMemcpyDeviceToHost));
+        CHECK_CUDA(cudaMemcpy(contact_normal.data(),      dv.contact_normal,      Nmon * Nmon * sizeof(double3), cudaMemcpyDeviceToHost));
+        CHECK_CUDA(cudaMemcpy(contact_rotation.data(),    dv.contact_rotation,    Nmon * Nmon * sizeof(double4), cudaMemcpyDeviceToHost));
+    }
+};

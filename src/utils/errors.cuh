@@ -1,5 +1,18 @@
 #pragma once
 
+///////////////////////// 
+
+/**
+ * @brief This enum is used by the Pipeline to track errors.
+ * 
+ * A function should return Status::ok if the function executed without problems.
+ * If an error was encountered during the execution the function should instead return Status::error.
+ */
+enum class Status {
+    ok,
+    error
+};
+
 ///////////////////////// ERRORS /////////////////////////
 
 // A makro that throws a runtime error with a predefined structure and variable description.

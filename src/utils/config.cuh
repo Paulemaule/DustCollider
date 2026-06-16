@@ -37,7 +37,7 @@
 
 ///////////////////////// ALGORITHM CONFIG /////////////////////////
 
-// Makro for a very negative value, used in minimum number algorithm.
+// Makro for a very positive value, used in minimum number algorithm.
 #define MIN_DEF  1e100
 
 // Makro for a very negative value, used in maximum number algorithm.

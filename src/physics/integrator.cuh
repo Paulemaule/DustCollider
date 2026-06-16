@@ -23,7 +23,6 @@
 #pragma once
 
 #include "utils/vector.cuh"
-#include "utils/typedefs.cuh"
 #include "utils/constant.cuh"
 
 #include "physics/integrator_utils.cuh"
@@ -51,7 +50,7 @@ __global__ void predictor(
     
     const double*               mass,
     const double                timestep,
-    const double                Nmon
+    const int                   Nmon
 ) {
     // Retrieve the ID of the current thread.
     int threadID = blockDim.x * blockIdx.x + threadIdx.x; // The ID of the current thread.
