@@ -126,7 +126,4 @@ struct SimulationConfig {
     double                          timestep  = 0.0;
     double3                         B_ext     = {0.0, 0.0, 0.0};
     double                          T_dust    = 15.0;
-    bool                            spinup_active = false;
-    double3                         spinup_target = {0.0, 0.0, 0.0};
-    double3                         spinup_torque = {0.0, 0.0, 0.0};
 };

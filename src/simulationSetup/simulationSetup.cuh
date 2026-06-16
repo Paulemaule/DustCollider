@@ -159,7 +159,7 @@ private:
             printf("Warning: <timestep> was set in the command file. Proper calculation of the timestep is skipped.");
         }
 
-        if ( skip_timestep && !run_config.spinup_active ) return Status::ok;
+        if ( skip_timestep ) return Status::ok;
 
         const size_t Nmon = run_config.initial_state.radii.size();
         double tau_min  = 1e200; // The smallest dynamical timescale of the system.
@@ -203,19 +203,6 @@ private:
         if ( !skip_timestep ) {
             run_config.timestep = 0.005 * tau_min;
             PRINT_LOG(std::string("Timestep auto-calculated: ") + std::to_string(run_config.timestep) + " s", 2);
-        }
-
-        if ( run_config.spinup_active ) {
-            double3 spinup_target = run_config.spinup_target;
-
-            double torque_mag   = 1e-2 * min_Fc_R;
-            double inv          = 1.0 / vec_lenght(spinup_target);
-
-            run_config.spinup_torque = { torque_mag * spinup_target.x* inv, 
-                                            torque_mag * spinup_target.y * inv, 
-                                            torque_mag * spinup_target.z * inv };
-            PRINT_LOG(std::string("Spin-up torque magnitude: ") + std::to_string(torque_mag) + " N*m", 2);
-            }
         }
 
         return Status::ok;

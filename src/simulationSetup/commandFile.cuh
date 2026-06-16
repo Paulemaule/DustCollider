@@ -504,24 +504,6 @@ private:
             return Status::ok;
         }
 
-        if (tag == "spinup_target") {
-            std::vector<double> components;
-
-            Status _s = split_values(value, components);
-            if ( _s != Status::ok ) return _s;
-
-            if ( components.size() != 3 ) {
-                printf("ERROR : <spinup_target> needs to be three dimensional.");
-                return Status::error;
-            }
-            out_config.spinup_target = { components[0], components[1], components[2] };
-            
-            // If a spinup target is given, the spinup mechanism is automatically enabled.
-            out_config.spinup_active = true;
-
-            return Status::ok;
-        }
-
         if (tag == "save_ovito") {
             bool save;
 
