@@ -66,8 +66,11 @@ $(BUILD_DIR)/%.cu.o: %.cu
 # Include dependencies for tracking
 -include $(DEPENDENCIES)
 
-# Removes all files produced by this Makefile
-.PHONY: clean
+# Build and run the unit test suite
+test:
+	$(MAKE) -C tests run BUILD=$(BUILD)
+
+# Removes all files produced by this Makefile (including test build artifacts)
 clean:
 	@echo "### REMOVING OBJECT DIRECTORY"
 	rm -rf $(BUILD_DIR)
