@@ -352,8 +352,10 @@ private:
         if ( l_pos != std::string::npos && r_pos != std::string::npos && r_pos > l_pos) {
             // Extract the command tag.
             command_tag = line.substr(l_pos + 1, r_pos - l_pos - 1);
-            // Extract the command value.
-            command_value = line.substr(r_pos + 2); // TODO: This can cause an issue if the line is '<tag>'. Switch to r_pos + 1 and then trim potential leading whitespaces.
+            // Extract the command value. The command value starts at the first non whitespace character after the closing bracket '>'.
+            command_value = line.substr(r_pos + 1);
+            std::string::size_type value_start = command_value.find_first_not_of(' ');
+            command_value = (value_start == std::string::npos) ? "" : command_value.substr(value_start);
         } else {
             printf("ERROR: Cannot find a tag in command file line: \n    \'%s\'", line.c_str());
             return Status::error;
