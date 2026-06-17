@@ -1,6 +1,8 @@
 #pragma once
 
-///////////////////////// 
+#include <cstdio>
+
+/////////////////////////
 
 /**
  * @brief This enum is used by the Pipeline to track errors.

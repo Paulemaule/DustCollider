@@ -1,6 +1,10 @@
 #pragma once
 
+#include <iostream>
 #include <sstream>
+#include <string>
+
+#include "config.cuh"   // VERBOSITY, referenced by the PRINT_LOG macro below
 
 ///////////////////////// PRINT FORMAT /////////////////////////
 
