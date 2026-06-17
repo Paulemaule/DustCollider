@@ -1,5 +1,108 @@
 #pragma once
 
+#include <iostream>
+#include <string>
+#include <format>
+#include <utility>
+
 /**
- * TODO: Implement a consistent Logging tool.
+ * @brief Contains logging functionality.
+ * 
+ * All output is written to std::cout.
+ * When the code was compiled in the test build (-DTEST) all regular output is disabled.
  */
+namespace Logger {
+    // Width of a separator/title rule and the prefix used for header lines.
+    inline const std::string SEP_LINE       = "************************************************************";
+    inline const std::string HEADER_INDENT  = "******";
+
+    /**
+     * @brief Writes a single line to the output stream.
+     *
+     * @param content The string that is to be printed.
+     */
+    inline void _writeLn(const std::string& content) {
+        #ifndef TEST
+            std::cout << content << std::endl;
+        #endif
+    }
+
+    /**
+     * @brief Prints a boxed title (rule / title line / rule).
+     */
+    inline void title(const std::string& title) {
+        std::string title_line = (HEADER_INDENT + " " + title + " " + SEP_LINE).substr(0, SEP_LINE.size());
+
+        _writeLn(SEP_LINE);
+        _writeLn(title_line);
+        _writeLn(SEP_LINE);
+    }
+
+    /**
+     * @brief Prints a single header line.
+     */
+    inline void header(const std::string& header) {
+        std::string header_line = (HEADER_INDENT + " " + header + " " + SEP_LINE).substr(0, SEP_LINE.size());
+
+        _writeLn(header_line);
+    }
+
+    /**
+     * @brief Prints an empty line.
+     */
+    inline void lineBreak() {
+        _writeLn("");
+    }
+
+    /**
+     * @brief Logs an info line, describing the current action.
+     * 
+     * The function uses the std::format syntax.
+     *
+     * @param  fmt  Compile-time std::format format string.
+     * @param  args Values substituted into the `{}` placeholders.
+     */
+    template <class... Args>
+    inline void log(std::format_string<Args...> fmt, Args&&... args) {
+        _writeLn("[>] " + std::format(fmt, std::forward<Args>(args)...));
+    }
+
+    /**
+     * @brief Logs a warning line.
+     *
+     * The function uses the std::format syntax.
+     *
+     * @param  fmt  Compile-time std::format format string.
+     * @param  args Values substituted into the `{}` placeholders.
+     */
+    template <class... Args>
+    inline void warn(std::format_string<Args...> fmt, Args&&... args) {
+        _writeLn("[W] " + std::format(fmt, std::forward<Args>(args)...));
+    }
+
+    /**
+     * @brief Logs an error line, prefixed with "[E]".
+     *
+     * The function uses the std::format syntax.
+     * 
+     * @param  fmt  Compile-time std::format format string.
+     * @param  args Values substituted into the `{}` placeholders.
+     */
+    template <class... Args>
+    inline void error(std::format_string<Args...> fmt, Args&&... args) {
+        _writeLn("[E] " + std::format(fmt, std::forward<Args>(args)...));
+    }
+
+    /**
+     * @brief Prints formatted content.
+     *
+     * The function uses the std::format syntax.
+     * 
+     * @param  fmt  Compile-time std::format format string.
+     * @param  args Values substituted into the `{}` placeholders.
+     */
+    template <class... Args>
+    inline void print(std::format_string<Args...> fmt, Args&&... args) {
+        _writeLn(std::format(fmt, std::forward<Args>(args)...));
+    }
+}
