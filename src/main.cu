@@ -16,14 +16,11 @@
 #include "utils/errors.cuh"
 
 #include "simulationSetup/simulationConfig.cuh"
+#include "simulationSetup/simulationSetup.cuh"
 #include "simulator.cuh"
 
 int main(const int argc, const char** argv)
 {
-    /* ############################################################
-            INITIALIZATION
-       ############################################################ */
-
     auto start = std::chrono::high_resolution_clock::now();
 
     // Run the simulation setup
