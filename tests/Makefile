@@ -5,6 +5,7 @@ BUILD ?= Release
 
 BUILD_FLAGS.Release := -DRELEASE
 BUILD_FLAGS.Debug   := -DDEBUG -g -G
+BUILD_FLAGS.Test	:= # No additional flag passed here, as the -DTEST if added as a fixed COMPILE_FLAG anyways
 
 BUILD_FLAGS := $(BUILD_FLAGS.$(BUILD))
 ifeq ($(BUILD_FLAGS),)
@@ -20,7 +21,7 @@ SRC_DIRS      := $(shell find ../src -type d)
 INCLUDE_FLAGS = $(addprefix -I,$(SRC_DIRS)) -I.
 
 COMPILER      = nvcc
-COMPILE_FLAGS = $(ARCH_FLAGS) $(INCLUDE_FLAGS) $(BUILD_FLAGS)
+COMPILE_FLAGS = $(ARCH_FLAGS) $(INCLUDE_FLAGS) $(BUILD_FLAGS) -DTEST
 
 BUILD_DIR     = ../build/tests
 

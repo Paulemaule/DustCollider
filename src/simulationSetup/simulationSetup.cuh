@@ -55,6 +55,8 @@ public:
             #endif
         #elif defined(DEBUG)
             PRINT_LOG("Compiled in Debug build", 0);
+        #elif defined(TEST)
+            PRINT_LOG("Compiled in Test build", 0);
         #else
             PRINT_ERROR("Compiler was missing build information.");
             return Status::error;

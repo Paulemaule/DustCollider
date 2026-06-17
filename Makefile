@@ -2,13 +2,14 @@
 
 ## SETUP
 # The Build configuration
-# BUILD can be either "Release" or "Debug"
-# The default Build is "Release"
+# BUILD can be either "Release", "Debug" or "Test"
+# If now BUILD is defined, default to Release
 BUILD ?= Release
 
-# Compiler flags per build type; adding a new type is one new line here
+# Compiler flags per build type
 BUILD_FLAGS.Release := -DRELEASE
 BUILD_FLAGS.Debug   := -DDEBUG -g -G
+BUILD_FLAGS.Test	:= -DTEST
 
 BUILD_FLAGS := $(BUILD_FLAGS.$(BUILD))
 ifeq ($(BUILD_FLAGS),)
