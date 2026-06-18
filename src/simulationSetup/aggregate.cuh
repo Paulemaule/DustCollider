@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sstream>
 
+#include "../utils/logging.cuh"
 #include "../utils/errors.cuh"
 
 /**
@@ -51,7 +52,7 @@ public:
 
         // Check ifstream health
         if ( !aggregate_file.is_open() ) {
-            printf("ERROR : Could not open aggregate file '%s'.", aggregate_file_path.c_str());
+            Logger::error("Could not open aggregate file {}", aggregate_file_path);
             throw std::runtime_error("Failed to open aggregate file.");
         }
 
@@ -66,10 +67,11 @@ public:
             // Line 0: header — Nmon, external_radius [nm], effective_radius [nm]
             if ( line_counter == 0 ) {
                 if ( parse_line_values(line, line_contents) != Status::ok )
+                    Logger::error("Could not read aggregate header line.");
                     throw std::runtime_error("Could not read aggregate header line.");
 
                 if ( line_contents.size() < 3 ) {
-                    printf("ERROR : Aggregate header needs at least 3 values, got %zu.", line_contents.size());
+                    Logger::error("Aggregate header needs at least 3 values, not {}", line_contents.size());
                     throw std::runtime_error("Aggregate header too short.");
                 }
 
@@ -82,12 +84,14 @@ public:
 
             // Lines 5+: monomer data — x y z ? radius ? mat_id  (all in nm, mat_id 1-indexed)
             if ( line_counter > 4 ) {
-                if ( parse_line_values(line, line_contents) != Status::ok )
+                if ( parse_line_values(line, line_contents) != Status::ok ){
+                    Logger::error("Could not read aggregate monomer line. '{}'", line);
                     throw std::runtime_error("Could not read aggregate monomer line.");
+                }
 
                 if ( line_contents.size() != 7 ) {
-                    printf("ERROR : Aggregate monomer line %d has %zu values, expected 7.",
-                           line_counter, line_contents.size());
+                    Logger::error("Aggregate monomer line '{}' has {} values, expected 7.",
+                        line_counter, line_contents.size());
                     throw std::runtime_error("Aggregate monomer line has wrong number of values.");
                 }
 
@@ -109,6 +113,7 @@ public:
     }
 
     /**
+     * @brief A function that would construct an instances of Aggregate from the system state.
      * TODO: Implement
      */
     static Aggregate from_state() {
@@ -120,9 +125,12 @@ public:
     }
 
     /**
+     * @brief A function that would store an instance of Aggregate to the disk.
      * TODO: Implement
      */
     Status to_file(std::string& aggregate_file_path) {
+        throw std::runtime_error("Not implemented yet.");
+
         return Status::error;
     }
     
@@ -147,7 +155,7 @@ private:
             try {
                 out.push_back(std::stod(t));
             } catch (...) {
-                printf("ERROR : Could not convert '%s' to double in aggregate file.", t.c_str());
+                Logger::error("Coulr not convert '{}' to double in aggregate file.", t);
                 return Status::error;
             }
         }

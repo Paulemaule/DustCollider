@@ -13,6 +13,7 @@
 
 #include <chrono>
 
+#include "utils/logging.cuh"
 #include "utils/errors.cuh"
 
 #include "simulationSetup/simulationConfig.cuh"
@@ -28,7 +29,7 @@ int main(const int argc, const char** argv)
 
     Status _s = setup.run(argc, argv);
     if (_s != Status::ok) {
-        printf("An error occured during simlation setup. Terminating.");
+        Logger::error("An error occured during simulation setup. Terminating.");
         return -1;
     }
 
@@ -47,10 +48,10 @@ int main(const int argc, const char** argv)
 
     char buffer[14];
     ns_to_time_string(elapsed.count(), buffer, 14);
-    printf("Total runtime : %s .\n", buffer);
+    Logger::print("Total runtime : {} .", buffer);
     
-    PRINT_CLR_LINE();
-    PRINT_TITLE("DONE");
+    Logger::lineBreak();
+    Logger::header("DONE");
 
     return 0;
 }

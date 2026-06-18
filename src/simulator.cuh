@@ -12,6 +12,7 @@
 
 #include <cuda_runtime.h>
 
+#include "utils/logging.cuh"
 #include "utils/config.cuh"
 #include "utils/errors.cuh"
 #include "utils/printing.cuh"
@@ -107,6 +108,8 @@ private:
  * Initializes the energy trackers.
  */
 inline void Simulator::init_state() {
+    Logger::log("Preparing initial system state in device memory.");
+    
     const InitialState& is = config.initial_state;
     HostStateView hv = host_state.view();
 
@@ -141,6 +144,8 @@ inline void Simulator::init_state() {
  * The material properties are then pushed to device.
  */
 inline void Simulator::init_mat() {
+    Logger::log("Preparing full material monomer properties in device memory.");
+
     const InitialState& is = config.initial_state;
     HostMaterialsView mv = host_materials.view();
 
@@ -169,8 +174,10 @@ inline void Simulator::init_mat() {
  * @brief Allocates host memory for the snapshots and other diagnostic information.
  */
 inline void Simulator::allocate_snapshots() {
+    Logger::log("Allocating memory for snapshot and diagnostic storage.");
+
     if (config.output.N_save <= 0) {
-        printf("WARNING: N_save = %i, no snapshot storage will be allocated.");
+        Logger::warn("N_save = {} => no snapshot storage will be allocated.", config.output.N_save);
         return;
     }
 
@@ -255,10 +262,10 @@ inline void Simulator::run() {
     // Timing variable that containes a moving average of the computation time each iteration takes.
     unsigned long long  ns_per_iter  = 0;
 
-    PRINT_CLR_LINE();
-    PRINT_TITLE("SIMULATING");
-    PRINT_CLR_LINE();
-
+    Logger::lineBreak();
+    Logger::header("SIMULATING");
+    Logger::lineBreak();
+    
     // The main simulation loop
     for (int iter = 0; iter < config.N_iter; iter++) {
         auto iter_start = std::chrono::high_resolution_clock::now();
@@ -368,10 +375,7 @@ inline void Simulator::run() {
         }
     }
 
-    if (config.output.ovito && snap_pos_)
-        write_ovito();
-
-    PRINT_CLR_LINE();
+    Logger::lineBreak();
 }
 
 /**
@@ -382,10 +386,10 @@ inline void Simulator::run() {
  * The force is scaled by |F|^(1/8).
  */
 inline void Simulator::write_ovito() const {
-    namespace fs = std::filesystem;
+    Logger::log("Writing Ovito files.");
 
-    const auto ovito_path = fs::path(config.output.path) / "ovito";
-    fs::create_directories(ovito_path);
+    const auto ovito_path = std::filesystem::path(config.output.path) / "ovito";
+    std::filesystem::create_directories(ovito_path);
 
     const size_t N_store_mon = Nmon * N_store_;
     const std::vector<double3>& pos = *snap_pos_;
@@ -413,7 +417,7 @@ inline void Simulator::write_ovito() const {
 
         std::ofstream writer(filepath);
         if (!writer) {
-            PRINT_ERROR(("Cannot open OVITO file:\n      " + filepath).c_str());
+            Logger::error("Failed to open OVITO file target: '{}'", filepath);
             continue;
         }
 
@@ -484,6 +488,9 @@ inline void Simulator::write_ovito() const {
  * @brief Write binary files for the system snapshots and energy diagnostics.
  */
 inline void Simulator::write_output() const {
+    Logger::header("WRITING SIMULATION DATA");
+    Logger::lineBreak();
+
     if (N_store_ == 0) return;
 
     // Determine file location
@@ -491,30 +498,29 @@ inline void Simulator::write_output() const {
     std::filesystem::create_directories(bin_path);
     const std::string bin = bin_path.string();
 
-    PRINT_TITLE("WRITING SIMULATION DATA");
-    PRINT_CLR_LINE();
-
     // Helper function that write a specific type of data
     auto write_vec3 = [&](const std::string& name, const std::vector<double3>& v) {
         std::ofstream f(bin + "/" + name, std::ios::binary);
-        if (!f) { PRINT_ERROR(("Failed to open " + name).c_str()); return; }
+        if (!f) { Logger::error("Failed to open binary target file: '{}'", name); }
         f.write(reinterpret_cast<const char*>(v.data()), (std::streamsize)(v.size() * sizeof(double3)));
     };
 
     auto write_double = [&](const std::string& name, const std::vector<double>& v) {
         std::ofstream f(bin + "/" + name, std::ios::binary);
-        if (!f) { PRINT_ERROR(("Failed to open " + name).c_str()); return; }
+        if (!f) { Logger::error("Failed to open binary target file: '{}'", name); }
         f.write(reinterpret_cast<const char*>(v.data()), (std::streamsize)(v.size() * sizeof(double)));
     };
 
     auto write_int = [&](const std::string& name, const std::vector<int>& v) {
         std::ofstream f(bin + "/" + name, std::ios::binary);
-        if (!f) { PRINT_ERROR(("Failed to open " + name).c_str()); return; }
+        if (!f) { Logger::error("Failed to open binary target file: '{}'", name); }
         f.write(reinterpret_cast<const char*>(v.data()), (std::streamsize)(v.size() * sizeof(int)));
     };
 
     // Write the monomer data
     // TODO: Write header.txt (N_iter, Nmon, N_save, timestep, N_mat)
+    Logger::log("Writing snapshots to disk.");
+
     write_double("agg_a_mon.bin",    config.initial_state.radii);
     write_double("agg_mass_mon.bin", config.initial_state.masses);
     {
@@ -534,7 +540,17 @@ inline void Simulator::write_output() const {
     if (!snap_cluster_.empty())
         write_int("sim_cluster.bin", snap_cluster_);
 
+    // Write Ovito files
+    if ( config.output.ovito ) {
+        if ( snap_pos_ )
+            write_ovito();
+        else
+            Logger::warn("Cannot write Ovito output: No position data available.");
+    }
+
     // Write the energy diagnostics
+    Logger::log("Writing energy diagnostics to disk.");
+    
     if (!snap_pot_N_.empty()) {
         // The potential energies are accumulated over all iterations and will need to be averaged
         const double inv = 1.0 / config.output.N_save;
@@ -557,5 +573,5 @@ inline void Simulator::write_output() const {
         write_double("sim_twisting_diss.bin", snap_dis_T_);
     }
 
-    PRINT_CLR_LINE();
+    Logger::lineBreak();
 }

@@ -2,9 +2,12 @@
 
 #include "commandFile.cuh"
 #include "aggregate.cuh"
+
+#include "../utils/logging.cuh"
 #include "../utils/errors.cuh"
 #include "../utils/vector.cuh"
 #include "../utils/constant.cuh"
+
 #include <filesystem>
 /**
  * TODO: Replace Macro based logging with dedicated Logging tool
@@ -23,7 +26,6 @@ public:
     }
 
     const SimulationConfig& getConfig() const {
-        
         return run_config; 
     }
 
@@ -43,24 +45,26 @@ public:
      */
     Status run(int argc, const char** argv) {
         // Check and log the version and build of the code.
-        PRINT_HEADLINE();
-        PRINT_CLR_LINE();
+        std::string title = std::string("DUST COLLIDER - ") + VERSION;
+
+        Logger::title(title);
+        Logger::lineBreak();
 
         #if defined(RELEASE)
-            #if defined(DEBUG)
-                PRINT_ERROR("Dust collider was compiled in both Release and Debug build.");
-                return Status::error;
-            #else
-                PRINT_LOG("Compiled in Release build", 0);
-            #endif
+            Logger::log("Code compiled in Release build");
         #elif defined(DEBUG)
-            PRINT_LOG("Compiled in Debug build", 0);
+            Logger::warn("Code compiled in Debug build");
         #elif defined(TEST)
-            PRINT_LOG("Compiled in Test build", 0);
+            Logger::warn("Code compiled in Test build");
         #else
-            PRINT_ERROR("Compiler was missing build information.");
+            Logger::error("Compiler did not pass build information.");
             return Status::error;
         #endif
+
+        Logger::lineBreak();
+
+        Logger::header("SETUP");
+        Logger::lineBreak();
 
         // Parse the command line arguments
         std::string command_file_path;
@@ -85,10 +89,15 @@ public:
         _s = calculate_system_properties();
         if ( _s != Status::ok ) return _s;
 
+        Logger::lineBreak();
+        
         // Pretty print the entire simulation config
         print_config(run_config);
 
         // Sanity checks on the simulation config
+        Logger::seperator();
+        Logger::lineBreak();
+
         _s = check_simulation_config(run_config);
         if ( _s != Status::ok ) return _s;
 
@@ -102,6 +111,8 @@ private:
      * @brief Populates run_config.initial_state from loaded aggregate data.
      */
     Status build_initial_state(const std::vector<Aggregate>& aggregates) {
+        Logger::log("Prepare initial state from aggregate data.");
+
         size_t Nmon = 0;
         for ( const Aggregate& agg : aggregates ) Nmon += agg.header.Nmon;
 
@@ -156,8 +167,11 @@ private:
      * This includes the timestep.
      */
     Status calculate_system_properties() {
+        Logger::log("Calculate simulation timestep.");
+
         const bool skip_timestep = (run_config.timestep != 0.0);
         if ( skip_timestep ) {
+            Logger::warn("<timestep> was set in command file. Timestep was set to {} ns.", run_config.timestep);
             printf("Warning: <timestep> was set in the command file. Proper calculation of the timestep is skipped.");
         }
 
@@ -204,7 +218,6 @@ private:
 
         if ( !skip_timestep ) {
             run_config.timestep = 0.005 * tau_min;
-            PRINT_LOG(std::string("Timestep auto-calculated: ") + std::to_string(run_config.timestep) + " s", 2);
         }
 
         return Status::ok;
@@ -214,10 +227,10 @@ private:
      * @brief Parse the command line.
      */
     Status parse_commandline(int argc, const char** argv, std::string& command_file_path) {
-        printf("Parsing command line input.");
+        Logger::log("Parsing command line input.");
 
         if (argc != 2) {
-            PRINT_ERROR("Wrong number of command line inputs. Only the command file location is required.");
+            Logger::error("Wrong number ({} !=) of command line inputs. Command line should be 'dust_collider <command_file_path>'", argc);
             return Status::error;
         }
 
@@ -236,7 +249,7 @@ private:
         // Resolve relative paths against the command file's directory
         std::filesystem::path command_file_parent = std::filesystem::path(command_file_path).parent_path();
 
-        // Function to resolve relative paths
+        // Helper function that resolves file system paths inplace
         auto resolve = [&](std::string& p) {
             if (!p.empty() && !std::filesystem::path(p).is_absolute())
                 p = std::filesystem::weakly_canonical(command_file_parent / p).string();
@@ -244,6 +257,7 @@ private:
 
         // Resolve out path
         resolve(out_config.output.path);
+
         // Resolve aggregate paths
         for (auto& agg : out_config.aggregates)
             resolve(agg.path);
@@ -267,19 +281,22 @@ private:
 
     static inline Status check_aggregate_config(const AggregateConfig& a) {
         if (a.path.empty()) {
-            PRINT_ERROR(std::string("Aggregate '") + a.name + "': file path is empty.");
+            Logger::error("Aggregate '{}'s path '{}' is emtpy.", a.name, a.path);
             return Status::error;
         }
         if (!is_finite3(a.position)) {
-            PRINT_ERROR(std::string("Aggregate '") + a.name + "': position contains non-finite values.");
+            Logger::error("Aggregate '{}'s position '({:.2e}, {:.2e}, {:.2e})' contains non-finite values.", 
+                            a.name, a.position.x, a.position.y, a.position.z);
             return Status::error;
         }
         if (!is_finite3(a.velocity)) {
-            PRINT_ERROR(std::string("Aggregate '") + a.name + "': velocity contains non-finite values.");
+            Logger::error("Aggregate '{}'s velocity '({:.2e}, {:.2e}, {:.2e})' contains non-finite values.", 
+                            a.name, a.velocity.x, a.velocity.y, a.velocity.z);
             return Status::error;
         }
         if (!is_finite3(a.angular)) {
-            PRINT_ERROR(std::string("Aggregate '") + a.name + "': angular velocity contains non-finite values.");
+            Logger::error("Aggregate '{}'s angular velocity '({:.2e}, {:.2e}, {:.2e})' contains non-finite values.",
+                            a.name, a.angular.x, a.angular.y, a.angular.z);
             return Status::error;
         }
         return Status::ok;
@@ -289,22 +306,25 @@ private:
      * @brief Check the simulation config for errors or unusual setups.
      */
     Status check_simulation_config(const SimulationConfig& cfg) {
-        printf("Validating simulation config.");
+        Logger::log("Validating simulation config.");
 
         if (cfg.N_iter <= 0) {
-            PRINT_ERROR("<N_iter> must be > 0.");
+            Logger::error("<N_iter> = {} must be > 0.", cfg.N_iter);
             return Status::error;
         }
+
         if (cfg.output.N_save <= 0) {
-            PRINT_ERROR("<N_save> must be > 0.");
+            Logger::error("<N_save> = {} must be > 0.", cfg.output.N_save);
             return Status::error;
         }
+
         if (cfg.output.N_save > cfg.N_iter) {
-            printf("Warning: <N_save> is larger than <N_iter>. No intermediate outputs will be written.");
+            Logger::warn("<N_save> = {} is larger than <N_iter> = {}. No intermediate outputs will be written.",
+                                cfg.output.N_save, cfg.N_iter);
         }
 
         if (cfg.aggregates.empty()) {
-            PRINT_ERROR("No aggregates defined in command file.");
+            Logger::error("No aggregates defined in command file.");
             return Status::error;
         }
 
@@ -313,13 +333,13 @@ private:
         }
 
         if ( needs_output(cfg) && cfg.output.path.empty() ) {
-            PRINT_ERROR("Output requested (save_* flags set) but <path_results> is empty.");
+            Logger::error("Output requested (save_* flags set) but <path_results> is empty.");
             return Status::error;
         }
 
         // Material checks
         if (cfg.materials.empty()) {
-            PRINT_ERROR("No materials defined.");
+            Logger::error("No materials defined.");
             return Status::error;
         }
 
@@ -328,7 +348,7 @@ private:
 
             // Msat and Tc must both be zero (non-magnetic) or both non-zero (magnetic).
             if ((mat.Msat == 0.0) != (mat.Tc == 0.0)) {
-                PRINT_ERROR(("Material '" + mat.name + "': Msat and Tc must both be zero or both be non-zero.").c_str());
+                Logger::error("Material '{}': Msat and Tc must both be zero or both be non-zero.", mat.name);
                 return Status::error;
             }
         }
@@ -340,15 +360,15 @@ private:
             if (mat.Msat != 0.0 || mat.chi != 0.0) { has_mag_mat = true; break; }
         }
         if (has_bext && !has_mag_mat)
-            printf("Warning: <B_ext> is set but no material has magnetic properties.\n");
+            Logger::warn("<B_ext> is set but no material has magnetic properties.");
         if (!has_bext && has_mag_mat)
-            printf("Warning: A magnetic material is defined but <B_ext> is zero.\n");
+            Logger::warn("A magnetic material is defined but <B_ext> is zero.");
 
         // Dust temperature
         if (cfg.T_dust == -1.0) {
-            printf("Warning: T_dust = -1: temperature corrections are disabled.\n");
+            Logger::warn("T_dust = -1: temperature corrections are disabled.");
         } else if (cfg.T_dust <= 0.0) {
-            PRINT_ERROR("T_dust must be > 0 (or -1 to disable temperature corrections).");
+            Logger::error("T_dust must be > 0 (or -1 to disable temperature corrections).");
             return Status::error;
         }
 
@@ -358,7 +378,7 @@ private:
             if (vec_lenght_sq(a.position) > 0.0) { any_nonzero_pos = true; break; }
         }
         if (!any_nonzero_pos) {
-            printf("Warning: All aggregates are centred at the origin — they will start overlapping.\n");
+            Logger::warn("All aggregates are centred at the origin.");
         }
 
         // Warn if all velocities are zero — simulation will be static
@@ -368,7 +388,7 @@ private:
                 any_motion = true;
         }
         if ( !any_motion ) {
-            printf("Warning: The simulation is static — all aggregate velocities are zero.\n");
+            Logger::warn("The simulation is static — all aggregate velocities are zero.");
         }
 
         return Status::ok;
@@ -381,59 +401,98 @@ private:
      */
     static void print_config(const SimulationConfig& cfg) {
         // Run parameters
-        PRINT_TITLE("RUN PARAMETERS");
-        printf(">  N_iter:   %d\n", cfg.N_iter);
-        printf(">  N_save:   %d\n", cfg.output.N_save);
-        printf(">  >  %d snapshots will be saved\n", cfg.N_iter / cfg.output.N_save);
-        printf(">  timestep: %.3e s\n", cfg.timestep);
-        printf(">  T_dust:   %.3g K\n", cfg.T_dust);
-        if (cfg.T_dust == -1.0) printf(">  >  T_dust:   disabled\n");
-        printf(">  B_ext:    (%.3e, %.3e, %.3e) T\n",
+        Logger::header("SIMULATION CONFIG");
+        Logger::lineBreak();
+
+        Logger::print("   N_iter:   {}", cfg.N_iter);
+        Logger::print("   Nmon:     {}", cfg.initial_state.positions.size());
+        Logger::print("   timestep: {:.4e} s", cfg.timestep);
+        Logger::print("   T_dust:   {:.2g} K", cfg.T_dust);
+        if (cfg.T_dust == -1.0) {
+            Logger::print("      T_dust:   disabled");
+        }
+        Logger::print("   B_ext:    ({:.3e}, {:.3e}, {:.3e}) T",
                cfg.B_ext.x, cfg.B_ext.y, cfg.B_ext.z);
 
+        Logger::lineBreak();
+
         // Aggregates
-        PRINT_TITLE("AGGREGATES");
+        Logger::print("Aggregate:");
+        Logger::lineBreak();
         for (const AggregateConfig& a : cfg.aggregates) {
-            printf(">  [%s]  %s\n", a.name.c_str(), a.path.c_str());
-            printf(">  >  pos: (%.3e, %.3e, %.3e) m\n",
+            Logger::print("   [{}] from {}", a.name.c_str(), a.path.c_str());
+            Logger::print("      pos: ({:.3e}, {:.3e}, {:.3e}) m",
                    a.position.x, a.position.y, a.position.z);
-            printf(">  >  vel: (%.3e, %.3e, %.3e) m/s\n",
+            Logger::print("      vel: ({:.3e}, {:.3e}, {:.3e}) m/s",
                    a.velocity.x, a.velocity.y, a.velocity.z);
-            printf(">  >  ang: (%.3e, %.3e, %.3e) rad/s\n",
+            Logger::print("      ang: ({:.3e}, {:.3e}, {:.3e}) rad/s",
                    a.angular.x, a.angular.y, a.angular.z);
         }
 
+        Logger::lineBreak();
+
         // Materials
-        PRINT_TITLE("MATERIALS");
-        for (int i = 0; i < (int)cfg.materials.size(); i++) {
+        Logger::print("Materials:");
+        Logger::lineBreak();
+        Logger::print("   - Mechanical properties -");
+        Logger::print("   {:<2} | {:<20} | {:<9} | {:<9} | {:<9} | {:<9} | {:<9} | {:<9}",
+            "ID", "name", "gamma", "E", "nu", "rho", "xi", "tvis");
+        Logger::print("   {:<2} | {:<20} | {:<9} | {:<9} | {:<9} | {:<9} | {:<9} | {:<9}",
+            "", "", "J/m^2", "Pa", "", "kg/m^3", "m", "s");
+
+        Logger::lineBreak();
+
+        bool magnetic_print = false;
+        for ( int i = 0; i < (int)cfg.materials.size(); i++ ) {
             const MaterialEntry& m = cfg.materials[i];
-            printf(">  [%d] %s\n", i, m.name.c_str());
-            printf(">  >  gamma = %.3e J/m^2  E = %.3e Pa  nu = %.3e  rho = %.3e kg/m^3\n",
-                   m.gamma, m.E, m.nu, m.rho);
-            printf(">  >  xi = %.3e m   tvis = %.3e s\n", m.xi, m.tvis);
-            if (m.Msat != 0.0 || m.chi != 0.0) {
-                printf(">  >  [magnetic]  tss = %.3e s  tsl = %.3e s\n", m.tss, m.tsl);
-                printf(">  >              Msat = %.3e A/m  chi = %.3e  Tc = %.3e K\n",
-                       m.Msat, m.chi, m.Tc);
+            Logger::print("   {:<2} | {:>20} | {:>9.2e} | {:>9.2e} | {:>9.2e} | {:>9.2e} | {:>9.2e} | {:>9.2e}", 
+                i, m.name, m.gamma, m.E, m.nu, m.rho, m.xi, m.tvis);
+
+            // Check if any of the materials have magnetic properties defined
+            if ( m.Msat != 0.0 || m.chi != 0.0 ) {
+                magnetic_print = true;
             }
         }
 
-        // Output
-        PRINT_TITLE("OUTPUT");
-        printf(">  Path:   %s\n", cfg.output.path.c_str());
-        printf(">  N_save: %d\n", cfg.output.N_save);
-        printf(">  ovito=%-3s  pos=%-3s  vel=%-3s  ang=%-3s  force=%-3s  torque=%-3s  energy=%-3s\n",
-               cfg.output.ovito    ? "yes" : "no",
-               cfg.output.position ? "yes" : "no",
-               cfg.output.velocity ? "yes" : "no",
-               cfg.output.angular  ? "yes" : "no",
-               cfg.output.force    ? "yes" : "no",
-               cfg.output.torque   ? "yes" : "no",
-               cfg.output.energy   ? "yes" : "no");
+        Logger::lineBreak();
 
-        // System summary
-        PRINT_TITLE("SYSTEM SUMMARY");
-        printf(">  Total monomers: %zu\n", cfg.initial_state.positions.size());
-        PRINT_SEP_LINE();
+        if (magnetic_print) {
+            Logger::print("   - Magnetic properties -");
+            Logger::print("   {:<2} | {:<20} | {:<9} | {:<9} | {:<9} | {:<9} | {:<9}",
+                "ID", "name", "tss", "tsl", "Msat", "chi", "Tc");
+            Logger::print("   {:<2} | {:<20} | {:<9} | {:<9} | {:<9} | {:<9} | {:<9}",
+                "", "", "s", "s", "", "A/m", "", "K");
+            Logger::lineBreak();
+
+            for ( int i = 0; i < (int)cfg.materials.size(); i++ ) {
+                const MaterialEntry& m = cfg.materials[i];
+                if ( m.Msat != 0.0 || m.chi != 0.0 ) {
+                    Logger::print("   {:<2} | {:<20} | {:<9.2e} | {:<9.2e} | {:<9.2e} | {:<9.2e} | {:<9.2e}",
+                        i, m.name, m.tss, m.tsl, m.Msat, m.chi, m.Tc);
+                } else {
+                    Logger::print("   {:<2} | {:<20} | XXX",
+                        i, m.name);
+                }
+            }
+
+            Logger::lineBreak();
+        }
+
+        // Output
+        Logger::print("Simulation Output");
+        Logger::lineBreak();
+        Logger::print("   Path:     {}", cfg.output.path.c_str());
+        Logger::print("   N_save:   {}", cfg.output.N_save);
+        Logger::print("      =>     {} snapshots will be saved", cfg.N_iter / cfg.output.N_save);
+        Logger::print("   ovito={:<3}  pos={:<3}  vel={:<3}  ang={:<3}  force={:<3}  torque={:<3}  energy={:<3}",
+            cfg.output.ovito    ? "yes" : "no",
+            cfg.output.position ? "yes" : "no",
+            cfg.output.velocity ? "yes" : "no",
+            cfg.output.angular  ? "yes" : "no",
+            cfg.output.force    ? "yes" : "no",
+            cfg.output.torque   ? "yes" : "no",
+            cfg.output.energy   ? "yes" : "no");
+
+        Logger::lineBreak();
     }
 };

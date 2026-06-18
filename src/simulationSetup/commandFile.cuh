@@ -7,6 +7,7 @@
 #include <vector>
 #include <unordered_map>
 
+#include "../utils/logging.cuh"
 #include "../utils/errors.cuh"
 #include "simulationConfig.cuh"
 
@@ -40,7 +41,7 @@ public:
 
         // Check ifstream health
         if ( !command_file.is_open() ) {
-            printf("ERROR : Could not open command file '%s'.", command_file_path.c_str());
+            Logger::error("Could not open command file '{}'.", command_file_path);
             return Status::error;
         }
 
@@ -357,7 +358,7 @@ private:
             std::string::size_type value_start = command_value.find_first_not_of(' ');
             command_value = (value_start == std::string::npos) ? "" : command_value.substr(value_start);
         } else {
-            printf("ERROR: Cannot find a tag in command file line: \n    \'%s\'", line.c_str());
+            Logger::error("Cannot find a tag in command file line: '{}'", line.c_str());
             return Status::error;
         }
 
@@ -398,7 +399,7 @@ private:
 
             // Check for errors.
             if ( path.size() == 0 ) {
-                printf("ERROR : No path found in <path_results>.");
+                Logger::error("No path found in <path_results>.");
                 return Status::error;
             }
 
@@ -429,7 +430,7 @@ private:
             if ( tag.find("_path") != std::string::npos ) {
                 std::string path = extract_substring(value);
                 if ( path.empty() ) {
-                    printf("ERROR : No path found in <%s>.", tag.c_str());
+                    Logger::error("No path found in <{}>.", tag);
                     return Status::error;
                 }
                 cfg->path = path;
@@ -441,7 +442,7 @@ private:
                 Status _s = split_values(value, components);
                 if ( _s != Status::ok ) return _s;
                 if ( components.size() != 3 ) {
-                    printf("ERROR : <%s> needs to be three dimensional.", tag.c_str());
+                    Logger::error("<{}> needs to be three dimensional.", tag);
                     return Status::error;
                 }
                 cfg->position = { components[0], components[1], components[2] };
@@ -453,7 +454,7 @@ private:
                 Status _s = split_values(value, components);
                 if ( _s != Status::ok ) return _s;
                 if ( components.size() != 3 ) {
-                    printf("ERROR : <%s> needs to be three dimensional.", tag.c_str());
+                    Logger::error("<{}> needs to be three dimensional.", tag);
                     return Status::error;
                 }
                 cfg->velocity = { components[0], components[1], components[2] };
@@ -465,7 +466,7 @@ private:
                 Status _s = split_values(value, components);
                 if ( _s != Status::ok ) return _s;
                 if ( components.size() != 3 ) {
-                    printf("ERROR : <%s> needs to be three dimensional.", tag.c_str());
+                    Logger::error("<{}> needs to be three dimensional.", tag);
                     return Status::error;
                 }
                 cfg->angular = { components[0], components[1], components[2] };
@@ -481,7 +482,7 @@ private:
             try {
                 N_iter = std::stoi(value);
             } catch (...) {
-                printf("ERROR : Could not convert <N_iter> to integer.");
+                Logger::error("Could not convert <N_iter> '{}' to integer.", value);
                 return Status::error;
             }
 
@@ -497,7 +498,7 @@ private:
             try {
                 N_save = std::stoi(value);
             } catch (...) {
-                printf("ERROR : Could not convert <N_save> to integer.");
+                Logger::error("Could not convert <N_save> '{}' to integer.", value);
                 return Status::error;
             }
 
@@ -605,14 +606,14 @@ private:
             // Extract material name (first quoted token in value)
             std::string name = extract_substring(value);
             if ( name.empty() ) {
-                printf("ERROR : No material name found in <%s>.", tag.c_str());
+                Logger::error("No material name found in <{}>.", tag);
                 return Status::error;
             }
 
             // Extract material ID (second quoted token; the sanitizer moved it to the end of value)
             std::string id_str = extract_substring(value);
             if ( id_str.empty() ) {
-                printf("ERROR : No material ID found in <%s>.", tag.c_str());
+                Logger::error("No material ID found in <{}>.", tag);
                 return Status::error;
             }
             
@@ -620,7 +621,7 @@ private:
             try {
                 mat_id = std::stoi(id_str);
             } catch (...) {
-                printf("ERROR : Could not convert material ID '%s' to integer.", id_str.c_str());
+                Logger::error("Could not convert material ID '{}' to integer.", id_str);
                 return Status::error;
             }
 
@@ -653,15 +654,15 @@ private:
                 mat.chi   = params[9];
                 mat.Tc    = params[10];
             } else {
-                printf("ERROR : Material '%s' has %zu parameters, expected 6 (non-magnetic) or 11 (magnetic).",
-                       name.c_str(), params.size());
+                Logger::error("Material '{}' has {} parameters, expected 6 (non-magnetic) or 11 (magnetic).",
+                    name, params.size());
                 return Status::error;
             }
 
             // IDs are 1-indexed in the command file; store at (id - 1)
             int idx = mat_id - 1;
             if ( idx < 0 ) {
-                printf("ERROR : Material ID must be >= 1, got %d.", mat_id);
+                Logger::error("Material ID must be >= 1, got {}.", mat_id);
                 return Status::error;
             }
             if ( idx >= static_cast<int>(out_config.materials.size()) ) {
@@ -677,7 +678,7 @@ private:
             Status _s = split_values(value, components);
             if ( _s != Status::ok ) return _s;
             if ( components.size() != 3 ) {
-                printf("ERROR : <B_ext> needs to be three dimensional.");
+                Logger::error("<B_ext> needs to be three dimensional.");
                 return Status::error;
             }
             out_config.B_ext = { components[0], components[1], components[2] };
@@ -688,7 +689,7 @@ private:
             try {
                 out_config.T_dust = std::stod(value);
             } catch (...) {
-                printf("ERROR : Could not convert <T_dust> to double.");
+                Logger::error("Could not convert <T_dust> to double.");
                 return Status::error;
             }
             return Status::ok;
@@ -698,14 +699,14 @@ private:
             try {
                 out_config.timestep = std::stod(value);
             } catch (...) {
-                printf("ERROR : Could not convert <timestep> to double.");
+                Logger::error("Could not convert <timestep> to double.");
                 return Status::error;
             }
             return Status::ok;
         }
 
         // Tag matches no known pattern
-        printf("ERROR: unknown tag '%s' with value '%s'\n", tag.c_str(), value.c_str());
+        Logger::error("Unknown tag '{}' with value '{}'", tag.c_str(), value.c_str());
         return Status::error;
     }
 
@@ -738,7 +739,7 @@ private:
             try {
                 out.push_back(std::stod(t));
             } catch (...) {
-                printf("ERROR : Error when attemting to convert the string '%s' to double.", t.c_str());
+                Logger::error("Error when attemting to convert the string '{}' to double.", t);
                 return Status::error;
             }
         }
@@ -778,7 +779,7 @@ private:
         }
         else {
             out = false;
-            printf("ERROR : The string '%s' could not be converted to a boolean value. 'False' was set by default.", s.c_str());
+            Logger::error("The string '{}' could not be converted to a boolean value. 'False' was set by default.", s);
             return Status::error;
         }
     }
