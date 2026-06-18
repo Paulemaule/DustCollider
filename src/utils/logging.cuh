@@ -21,7 +21,7 @@ namespace Logger {
      *
      * @param content The string that is to be printed.
      */
-    inline void _writeLn(const std::string& content) {
+    inline void writeLn(const std::string& content) {
         #ifndef TEST
             std::cout << content << std::endl;
         #endif
@@ -29,13 +29,21 @@ namespace Logger {
 
     /**
      * @brief Prints a boxed title (rule / title line / rule).
+     * 
+     * If the title is too large for the box it will still be printed in full,
+     * the box formatting will just not look as good tho.
      */
     inline void title(const std::string& title) {
-        std::string title_line = (HEADER_INDENT + " " + title + " " + SEP_LINE).substr(0, SEP_LINE.size());
+        std::string title_line = (HEADER_INDENT + " " + title);
 
-        _writeLn(SEP_LINE);
-        _writeLn(title_line);
-        _writeLn(SEP_LINE);
+        // Ensure that the title is not cut as it may contain critical information
+        if (title_line.size() <= SEP_LINE.size()) {
+            title_line = (title_line + " " + SEP_LINE).substr(0, SEP_LINE.size());
+        }
+
+        writeLn(SEP_LINE);
+        writeLn(title_line);
+        writeLn(SEP_LINE);
     }
 
     /**
@@ -44,14 +52,14 @@ namespace Logger {
     inline void header(const std::string& header) {
         std::string header_line = (HEADER_INDENT + " " + header + " " + SEP_LINE).substr(0, SEP_LINE.size());
 
-        _writeLn(header_line);
+        writeLn(header_line);
     }
 
     /**
      * @brief Prints an empty line.
      */
     inline void lineBreak() {
-        _writeLn("");
+        writeLn("");
     }
 
     /**
@@ -64,7 +72,7 @@ namespace Logger {
      */
     template <class... Args>
     inline void log(std::format_string<Args...> fmt, Args&&... args) {
-        _writeLn("[>] " + std::format(fmt, std::forward<Args>(args)...));
+        writeLn("[>] " + std::format(fmt, std::forward<Args>(args)...));
     }
 
     /**
@@ -77,7 +85,7 @@ namespace Logger {
      */
     template <class... Args>
     inline void warn(std::format_string<Args...> fmt, Args&&... args) {
-        _writeLn("[W] " + std::format(fmt, std::forward<Args>(args)...));
+        writeLn("[W] " + std::format(fmt, std::forward<Args>(args)...));
     }
 
     /**
@@ -90,7 +98,7 @@ namespace Logger {
      */
     template <class... Args>
     inline void error(std::format_string<Args...> fmt, Args&&... args) {
-        _writeLn("[E] " + std::format(fmt, std::forward<Args>(args)...));
+        writeLn("[E] " + std::format(fmt, std::forward<Args>(args)...));
     }
 
     /**
@@ -103,6 +111,6 @@ namespace Logger {
      */
     template <class... Args>
     inline void print(std::format_string<Args...> fmt, Args&&... args) {
-        _writeLn(std::format(fmt, std::forward<Args>(args)...));
+        writeLn(std::format(fmt, std::forward<Args>(args)...));
     }
 }
