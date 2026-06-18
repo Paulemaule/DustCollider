@@ -63,6 +63,13 @@ namespace Logger {
     }
 
     /**
+     * @brief Prints a seperator
+     */
+    inline void seperator() {
+        writeLn(SEP_LINE);
+    }
+
+    /**
      * @brief Logs an info line, describing the current action.
      * 
      * The function uses the std::format syntax.
