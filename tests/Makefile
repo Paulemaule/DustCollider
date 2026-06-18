@@ -21,7 +21,7 @@ SRC_DIRS      := $(shell find ../src -type d)
 INCLUDE_FLAGS = $(addprefix -I,$(SRC_DIRS)) -I.
 
 COMPILER      = nvcc
-COMPILE_FLAGS = $(ARCH_FLAGS) $(INCLUDE_FLAGS) $(BUILD_FLAGS) -DTEST
+COMPILE_FLAGS = -std=c++20 $(ARCH_FLAGS) $(INCLUDE_FLAGS) $(BUILD_FLAGS) -DTEST
 
 BUILD_DIR     = ../build/tests
 

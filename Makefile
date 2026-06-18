@@ -40,7 +40,7 @@ TARGET_FILE = $(BUILD_DIR)/dust_collider
 
 # Compiler configuration
 COMPILER = nvcc
-COMPILER_FLAGS = -gencode arch=compute_89,code=sm_89 $(INCLUDE_FLAGS) $(DEP_FLAGS) -DVERSION="\"$(VERSION_ID)\"" $(BUILD_FLAGS)
+COMPILER_FLAGS = -std=c++20 -gencode arch=compute_89,code=sm_89 $(INCLUDE_FLAGS) $(DEP_FLAGS) -DVERSION="\"$(VERSION_ID)\"" $(BUILD_FLAGS)
 LINKER_FLAGS =
 
 ## TARGETS
