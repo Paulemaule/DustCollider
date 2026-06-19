@@ -87,12 +87,14 @@ public:
         init_state();
         init_mat();
         allocate_snapshots();
+        log_device_info();
     }
 
     void run();
     void write_output() const;
 
 private:
+    void log_device_info() const;
     void init_state();
     void init_mat();
     void allocate_snapshots();
@@ -100,10 +102,38 @@ private:
     void write_ovito() const;
 };
 
-/** 
+/**
+ * @brief Prints an overview of the active CUDA compute devices.
+ */
+inline void Simulator::log_device_info() const {
+    Logger::lineBreak();
+    Logger::header("OVERVIEW OF COMPUTE DEVICE");
+    Logger::lineBreak();
+
+    // Retrieve device information
+    int device_count = 0;
+    CHECK_CUDA(cudaGetDeviceCount(&device_count));
+    int active_device_id = 0;
+    CHECK_CUDA(cudaGetDevice(&active_device_id));
+
+    cudaDeviceProp prop;
+    CHECK_CUDA(cudaGetDeviceProperties(&prop, active_device_id));
+
+    // Log device information
+    Logger::print("Active device: {} of {}", active_device_id + 1, device_count);
+    Logger::print("   Name:                  {}", prop.name);
+    Logger::print("   Compute capability:    {}.{}", prop.major, prop.minor);
+    Logger::print("   Total global mem:      {} bytes", prop.totalGlobalMem);
+    Logger::print("   Warp size:             {} threads", prop.warpSize);
+    Logger::print("   Max threads / block:   {} threads", prop.maxThreadsPerBlock);
+
+    Logger::lineBreak();
+}
+
+/**
  * @brief Prepares the initial system state in device memory.
- * 
- * This function copies the initial state from the simulation config into a host state, 
+ *
+ * This function copies the initial state from the simulation config into a host state,
  * initializes additional values properly and then pushes it into the device memory.
  * Initializes the energy trackers.
  */
@@ -262,7 +292,6 @@ inline void Simulator::run() {
     // Timing variable that containes a moving average of the computation time each iteration takes.
     unsigned long long  ns_per_iter  = 0;
 
-    Logger::lineBreak();
     Logger::header("SIMULATING");
     Logger::lineBreak();
     
