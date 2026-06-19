@@ -66,9 +66,10 @@ public:
 
             // Line 0: header — Nmon, external_radius [nm], effective_radius [nm]
             if ( line_counter == 0 ) {
-                if ( parse_line_values(line, line_contents) != Status::ok )
+                if ( parse_line_values(line, line_contents) != Status::ok ) {
                     Logger::error("Could not read aggregate header line.");
                     throw std::runtime_error("Could not read aggregate header line.");
+                }
 
                 if ( line_contents.size() < 3 ) {
                     Logger::error("Aggregate header needs at least 3 values, not {}", line_contents.size());
