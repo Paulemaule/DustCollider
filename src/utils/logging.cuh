@@ -23,7 +23,7 @@ namespace Logger {
      */
     inline void writeLn(const std::string& content) {
         #ifndef TEST
-            std::cout << content << std::endl;
+            std::cout << content << std::endl << std::flush;
         #endif
     }
 
