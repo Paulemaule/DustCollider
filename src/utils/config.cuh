@@ -1,10 +1,6 @@
 #pragma once
 
-///////////////////////// BUILD CONFIG /////////////////////////
-
 ///////////////////////// LOGGING CONFIG /////////////////////////
-
-#define VERBOSITY 3
 
 // How many progress reports will be printed in total.
 #define PROGRESS_LOG_AMMOUNT 5
@@ -14,9 +10,6 @@
 #define ROLLING_AVERAGE_WEIGHT 0.01
 
 ///////////////////////// CUDA CONFIG /////////////////////////
-
-// A makro that enables code execution on the device.
-#define RUN_ON_GPU
 
 // A makro for the number of threads per block for CUDA-Kernel execution.
 #define BLOCK_SIZE 256
