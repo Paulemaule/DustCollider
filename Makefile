@@ -61,7 +61,7 @@ $(TARGET_FILE): $(OBJECT_FILES)
 $(BUILD_DIR)/%.cu.o: %.cu
 	@echo "### COMPILING SOURCE FILE: $<"
 	@mkdir -p $(dir $@)
-	$(COMPILER) $(COMPILER_FLAGS) -c $< -o $@
+	$(COMPILER) $(COMPILER_FLAGS) -Xptxas -v -c $< -o $@
 	@echo ""
 
 # Include dependencies for tracking
