@@ -68,8 +68,9 @@ $(BUILD_DIR)/%.cu.o: %.cu
 -include $(DEPENDENCIES)
 
 # Build and run the unit test suite
+# Passes build and version information into test compilation.
 test:
-	$(MAKE) -C tests run BUILD=$(BUILD)
+	$(MAKE) -C tests run BUILD=$(BUILD) VERSION_ID="$(VERSION_ID)"
 
 # Removes all files produced by this Makefile (including test build artifacts)
 clean:

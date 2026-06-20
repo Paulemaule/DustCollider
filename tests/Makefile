@@ -20,8 +20,11 @@ ARCH_FLAGS = -gencode arch=compute_89,code=sm_89
 SRC_DIRS      := $(shell find ../src -type d)
 INCLUDE_FLAGS = $(addprefix -I,$(SRC_DIRS)) -I.
 
+# VERSION_ID is passed by the higher Makefile
+VERSION_ID ?=
+
 COMPILER      = nvcc
-COMPILE_FLAGS = -std=c++20 $(ARCH_FLAGS) $(INCLUDE_FLAGS) $(BUILD_FLAGS) -DTEST
+COMPILE_FLAGS = -std=c++20 $(ARCH_FLAGS) $(INCLUDE_FLAGS) $(BUILD_FLAGS) -DTEST -DVERSION="\"$(VERSION_ID)\""
 
 BUILD_DIR     = ../build/tests
 
