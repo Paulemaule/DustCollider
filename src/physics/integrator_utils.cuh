@@ -8,9 +8,9 @@
 #include <stack>
 
 /**
- * @brief A makro that calculates the monomer pair indices from the threadID.
+ * @brief A macro that calculates the monomer pair indices from the threadID.
  * 
- * This makro determines the layout of monomers pairs in the contact matrices!
+ * This macro determines the layout of monomers pairs in the contact matrices!
  * The layout in the matrices is: M = {ij} = {00, 10, ..., N0, 01, 11, ..., N1, ..., N-1N, NN}
  */
 #define CALC_MONOMER_INDICES(threadID, i, j, matrix_i, matrix_j, Nmon)  \
@@ -47,7 +47,7 @@ __host__ __device__ double get_contact_radius(
     // The equation that is to be solved becomes: 0 = 3 * x^2 - 2 * sqrt(x) - y.
     double y = delta_N / delta_N_0;
     
-    // There is no solution to the equation when the critical displacement is exeeded.
+    // There is no solution to the equation when the critical displacement is exceeded.
     // Instead the value at the critical displacement is returned.
     double critical_displacement = - pow(9. / 16., 2. / 3.) * delta_N_0;
     if (delta_N <= critical_displacement) {
@@ -60,7 +60,7 @@ __host__ __device__ double get_contact_radius(
 
     // Use Newtons method to determine the solution.
     for (int n = 0; n < 20; n++) {
-        // Recursiveley adjust the guess using the update rule x_n+1 = x_n - f(x_n) / f'(x_n).
+        // Recursively adjust the guess using the update rule x_n+1 = x_n - f(x_n) / f'(x_n).
         // TODO: Check for optimization opportunities. This piece of code is executed very often.
         x_n = x_n - (3. * x_n * x_n - 2. * sqrt(x_n) - y) / (6. * x_n - 1. / sqrt(x_n));
     }
@@ -179,29 +179,29 @@ __host__ __device__ double get_U_N(const double F_c, const double delta_N_crit, 
 /**
  * @brief Calculates the sliding potential between two monomers.
  * 
- * @param k_s: The strenght of the sliding interaction between the two monomers.
+ * @param k_s: The strength of the sliding interaction between the two monomers.
  * @param sliding_displacement: The sliding displacement of the two monomers.
  * @returns The sliding potential.
  */
 __host__ __device__ double get_U_S(const double k_s, const double3 sliding_displacement) {
-    return 0.5 * k_s * vec_lenght_sq(sliding_displacement);
+    return 0.5 * k_s * vec_length_sq(sliding_displacement);
 }
 
 /**
  * @brief Calculates the rolling potential between two monomers.
  * 
- * @param k_r: The strenght of the rolling interaction between the two monomers.
+ * @param k_r: The strength of the rolling interaction between the two monomers.
  * @param rolling_displacement: The rolling displacement of the two monomers.
  * @returns The rolling potential.
  */
 __host__ __device__ double get_U_R(const double k_r, const double3 rolling_displacement) {
-    return  0.5 * k_r * vec_lenght_sq(rolling_displacement);
+    return  0.5 * k_r * vec_length_sq(rolling_displacement);
 }
 
 /**
  * @brief Calculates the twisting potential between two monomers.
  * 
- * @param k_t: The strenght of the twisting interaction between the two monomers.
+ * @param k_t: The strength of the twisting interaction between the two monomers.
  * @param twisting_displacement: The twisting displacement of the two monomers. This is conceptually different from Wada (2007). Only the intergated part of eq. (24) is included here.
  * @returns The twisting potential.
  */
@@ -230,7 +230,7 @@ static void dfs_iterative(const int seed, const int Nmon, const double3* contact
         stack.pop();
 
         for (int i = 0; i < Nmon; i++) {
-            if (cluster[i] == -1 && vec_lenght_sq(contact_pointer[node * Nmon + i]) != 0.0) {
+            if (cluster[i] == -1 && vec_length_sq(contact_pointer[node * Nmon + i]) != 0.0) {
                 cluster[i] = cluster_id;
                 stack.push(i);
             }

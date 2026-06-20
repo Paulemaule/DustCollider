@@ -167,7 +167,7 @@ inline void Simulator::init_state() {
 }
 
 /**
- * @brief Prepares the material paramters in device memory.
+ * @brief Prepares the material parameters in device memory.
  * 
  * This function takes the per material properties from the simulation config 
  * and prepares a per monomer properties struct in pinned host memory.
@@ -386,13 +386,13 @@ inline void Simulator::run() {
         unsigned long long iter_ns = (unsigned long long)
             std::chrono::duration_cast<std::chrono::nanoseconds>(iter_end - iter_start).count();
 
-        // The rolling average wheight is set to 1 for the first two iterations as they are very voletile and would throw the average off.
+        // The rolling average weight is set to 1 for the first two iterations as they are very volatile and would throw the average off.
         const double weight = (iter < 2) ? 1.0 : ROLLING_AVERAGE_WEIGHT;
         ns_per_iter = (unsigned long long)((1.0 - weight) * (double)ns_per_iter + weight * (double)iter_ns);
 
         // Print the progress if scheduled.
-        if (config.N_iter >= PROGRESS_LOG_AMMOUNT) {
-            const int step = config.N_iter / PROGRESS_LOG_AMMOUNT;
+        if (config.N_iter >= PROGRESS_LOG_AMOUNT) {
+            const int step = config.N_iter / PROGRESS_LOG_AMOUNT;
             if (step > 0 && ((iter - PROGRESS_LOG_OFFSET) % step) == 0) {
                 float pct = 100.f * float(iter) / float(config.N_iter);
                 unsigned long long remaining_ns = ns_per_iter * (unsigned long long)(config.N_iter - iter);
@@ -471,7 +471,7 @@ inline void Simulator::write_ovito() const {
             double vx = 0, vy = 0, vz = 0;
             if (snap_vel_) {
                 double3 v = (*snap_vel_)[base + j];
-                const double len = vec_lenght(v);
+                const double len = vec_length(v);
                 if (len > 0.0) { vx = v.x/len; vy = v.y/len; vz = v.z/len; }
             }
 
@@ -479,7 +479,7 @@ inline void Simulator::write_ovito() const {
             double fx = 0, fy = 0, fz = 0;
             if (snap_force_) {
                 const double3& fv  = (*snap_force_)[base + j];
-                const double   len = vec_lenght(fv);
+                const double   len = vec_length(fv);
                 if (len > 0.0) {
                     const double s8 = std::pow(len, 1.0/8.0);
                     fx = fv.x/len*s8; fy = fv.y/len*s8; fz = fv.z/len*s8;

@@ -81,7 +81,7 @@ public:
             aggregates.push_back(Aggregate::from_file(agg_cfg.path));
         }
 
-        // Calculate the initials system state from the aggregates
+        // Calculate the initial system state from the aggregates
         _s = build_initial_state(aggregates);
         if ( _s != Status::ok ) return _s;
 
@@ -95,7 +95,7 @@ public:
         print_config(run_config);
 
         // Sanity checks on the simulation config
-        Logger::seperator();
+        Logger::separator();
         Logger::lineBreak();
 
         _s = check_simulation_config(run_config);
@@ -280,7 +280,7 @@ private:
 
     static inline Status check_aggregate_config(const AggregateConfig& a) {
         if (a.path.empty()) {
-            Logger::error("Aggregate '{}'s path '{}' is emtpy.", a.name, a.path);
+            Logger::error("Aggregate '{}'s path '{}' is empty.", a.name, a.path);
             return Status::error;
         }
         if (!is_finite3(a.position)) {
@@ -353,7 +353,7 @@ private:
         }
 
         // Warn if B_ext is set but no material is magnetic, or vice versa.
-        const bool has_bext = vec_lenght_sq(cfg.B_ext) > 0.0;
+        const bool has_bext = vec_length_sq(cfg.B_ext) > 0.0;
         bool has_mag_mat = false;
         for (const MaterialEntry& mat : cfg.materials) {
             if (mat.Msat != 0.0 || mat.chi != 0.0) { has_mag_mat = true; break; }
@@ -374,7 +374,7 @@ private:
         // Warn if all aggregate positions are at the origin
         bool any_nonzero_pos = false;
         for (const AggregateConfig& a : cfg.aggregates) {
-            if (vec_lenght_sq(a.position) > 0.0) { any_nonzero_pos = true; break; }
+            if (vec_length_sq(a.position) > 0.0) { any_nonzero_pos = true; break; }
         }
         if (!any_nonzero_pos) {
             Logger::warn("All aggregates are centred at the origin.");
@@ -383,7 +383,7 @@ private:
         // Warn if all velocities are zero — simulation will be static
         bool any_motion = false;
         for ( const AggregateConfig& a : cfg.aggregates ) {
-            if ( vec_lenght_sq(a.angular) + vec_lenght_sq(a.velocity) > 0.0 )
+            if ( vec_length_sq(a.angular) + vec_length_sq(a.velocity) > 0.0 )
                 any_motion = true;
         }
         if ( !any_motion ) {

@@ -16,16 +16,16 @@ void test_vectors() {
     // ------------------------------------------------------------------ //
 
     // 3-4-5 Pythagorean triple
-    CHECK_APPROX(vec_lenght({3.0, 4.0, 0.0}), 5.0, 1e-14);
+    CHECK_APPROX(vec_length({3.0, 4.0, 0.0}), 5.0, 1e-14);
     // Unit vector
-    CHECK_APPROX(vec_lenght({1.0, 0.0, 0.0}), 1.0, 1e-14);
+    CHECK_APPROX(vec_length({1.0, 0.0, 0.0}), 1.0, 1e-14);
 
     // ------------------------------------------------------------------ //
     // Squared vector length
     // ------------------------------------------------------------------ //
 
-    CHECK_APPROX(vec_lenght_sq({3.0, 4.0, 0.0}), 25.0, 1e-14);
-    CHECK_APPROX(vec_lenght_sq({0.0, 0.0, 5.0}), 25.0, 1e-14);
+    CHECK_APPROX(vec_length_sq({3.0, 4.0, 0.0}), 25.0, 1e-14);
+    CHECK_APPROX(vec_length_sq({0.0, 0.0, 5.0}), 25.0, 1e-14);
 
     // ------------------------------------------------------------------ //
     // Dot product
@@ -56,7 +56,7 @@ void test_vectors() {
 
     // u × u = 0
     double3 c3 = vec_cross({1.0, 2.0, 3.0}, {1.0, 2.0, 3.0});
-    CHECK_APPROX(vec_lenght(c3), 0.0, 1e-14);
+    CHECK_APPROX(vec_length(c3), 0.0, 1e-14);
 
     // ------------------------------------------------------------------ //
     // Vector difference
@@ -88,14 +88,14 @@ void test_vectors() {
 
     double3 n = {3.0, 4.0, 0.0};
     vec_normalize(n);
-    CHECK_APPROX(vec_lenght(n),  1.0,       1e-14);
+    CHECK_APPROX(vec_length(n),  1.0,       1e-14);
     CHECK_APPROX(n.x,            3.0 / 5.0, 1e-14);
     CHECK_APPROX(n.y,            4.0 / 5.0, 1e-14);
 
     // Zero vector: guard in the implementation leaves it unchanged
     double3 nz = {0.0, 0.0, 0.0};
     vec_normalize(nz);
-    CHECK_APPROX(vec_lenght(nz), 0.0, 1e-14);
+    CHECK_APPROX(vec_length(nz), 0.0, 1e-14);
 
     // ------------------------------------------------------------------ //
     // vec_get_normal: unit vector pointing from v to u, i.e. (u-v)/|u-v|
@@ -105,7 +105,7 @@ void test_vectors() {
     CHECK_APPROX(gn.x,            1.0, 1e-14);
     CHECK_APPROX(gn.y,            0.0, 1e-14);
     CHECK_APPROX(gn.z,            0.0, 1e-14);
-    CHECK_APPROX(vec_lenght(gn),  1.0, 1e-14);
+    CHECK_APPROX(vec_length(gn),  1.0, 1e-14);
 
     // ------------------------------------------------------------------ //
     // vec_get_normalized: normalises the argument in-place AND returns it
@@ -114,7 +114,7 @@ void test_vectors() {
     double3 vgn = {0.0, 3.0, 4.0};
     double3 ret = vec_get_normalized(vgn);
     // The input is modified
-    CHECK_APPROX(vec_lenght(vgn), 1.0, 1e-14);
+    CHECK_APPROX(vec_length(vgn), 1.0, 1e-14);
     // The return value equals the modified input
     CHECK_APPROX(ret.x, vgn.x, 1e-15);
     CHECK_APPROX(ret.y, vgn.y, 1e-15);
@@ -146,9 +146,9 @@ void test_vectors() {
     // ------------------------------------------------------------------ //
 
     // Identity quaternion {x,y,z,w} = {0,0,0,1}
-    CHECK_APPROX(quat_lenght({0.0, 0.0, 0.0, 1.0}), 1.0, 1e-14);
+    CHECK_APPROX(quat_length({0.0, 0.0, 0.0, 1.0}), 1.0, 1e-14);
     // 3-4-5 triple in the w and x components
-    CHECK_APPROX(quat_lenght({3.0, 0.0, 0.0, 4.0}), 5.0, 1e-14);
+    CHECK_APPROX(quat_length({3.0, 0.0, 0.0, 4.0}), 5.0, 1e-14);
 
     // ------------------------------------------------------------------ //
     // quat_normalize (in-place)
@@ -156,7 +156,7 @@ void test_vectors() {
 
     double4 q = {3.0, 0.0, 0.0, 4.0};
     quat_normalize(q);
-    CHECK_APPROX(quat_lenght(q), 1.0,       1e-14);
+    CHECK_APPROX(quat_length(q), 1.0,       1e-14);
     CHECK_APPROX(q.x,            3.0 / 5.0, 1e-14);
     CHECK_APPROX(q.w,            4.0 / 5.0, 1e-14);
 

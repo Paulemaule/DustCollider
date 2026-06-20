@@ -122,7 +122,7 @@ __global__ void predictor_pointer(
 
     double temp = 0.5 * e_dot.w;
 
-    e_ddot.w = - 0.25 * (rot.w * vec_lenght_sq(omega) + 2.0 * (rot.x * omega_dot.x + rot.y * omega_dot.y + rot.z * omega_dot.z));
+    e_ddot.w = - 0.25 * (rot.w * vec_length_sq(omega) + 2.0 * (rot.x * omega_dot.x + rot.y * omega_dot.y + rot.z * omega_dot.z));
     e_ddot.x = temp * omega.x + 0.5 * (rot.w * omega_dot.x - rot.y * omega_dot.z + rot.z * omega_dot.y);
     e_ddot.y = temp * omega.y + 0.5 * (rot.w * omega_dot.y - rot.z * omega_dot.x + rot.x * omega_dot.z);
     e_ddot.z = temp * omega.z + 0.5 * (rot.w * omega_dot.z - rot.x * omega_dot.y + rot.y * omega_dot.x);
@@ -307,11 +307,11 @@ __global__ void evaluate(
     // The equilibrium contact radius of the monomer pair.
     double a_0 = get_a_0(gamma, R, E_s);
 
-    // The force and torque strenghts.
+    // The force and torque strengths.
     double F_c = 3. * PI * gamma * R;                   // The critical force at monomer separation.
-    double k_s = 8. * G_s * a_0;                        // The strenght of the sliding force and torque.
-    double k_r = 4. * F_c / R;                          // The strenght of the rolling torque.
-    double k_t = 16. * G * a_0 * a_0 * a_0 / 3.;        // The strenght of the twisting torque.
+    double k_s = 8. * G_s * a_0;                        // The strength of the sliding force and torque.
+    double k_r = 4. * F_c / R;                          // The strength of the rolling torque.
+    double k_t = 16. * G * a_0 * a_0 * a_0 / 3.;        // The strength of the twisting torque.
 
     // The critical displacements.
     double delta_N_crit = get_delta_N_crit(a_0, R);
@@ -320,7 +320,7 @@ __global__ void evaluate(
     double t_vis = 0.5 * (viscous_damping_timescale[i] + viscous_damping_timescale[j]);
 
     // Calculate contact effects only if the monomers are in contact.
-    if (vec_lenght(pointer_i) != 0. && vec_lenght(pointer_j) != 0.) {
+    if (vec_length(pointer_i) != 0. && vec_length(pointer_j) != 0.) {
         // Corotate the contact pointers
         pointer_i = quat_apply_inverse(rotation_next[matrix_i], pointer_i);
         pointer_j = quat_apply_inverse(rotation_next[matrix_j], pointer_j);
@@ -361,9 +361,9 @@ __global__ void evaluate(
         force.z += normal_force * pointer_pos.z;
 
         // Damping
-        double vis_damping_strenght = 2.0 * t_vis / (nu_i * nu_j) * E_s;
+        double vis_damping_strength = 2.0 * t_vis / (nu_i * nu_j) * E_s;
         double delta_N_dot = (normal_displacement - compression_old[matrix_i]) / timestep;
-        double damping_force = vis_damping_strenght * a * delta_N_dot;
+        double damping_force = vis_damping_strength * a * delta_N_dot;
 
         force.x += damping_force * pointer_pos.x;
         force.y += damping_force * pointer_pos.y;
@@ -498,11 +498,11 @@ __global__ void updatePointers(
     // The equilibrium contact radius of the monomer pair.
     double a_0 = get_a_0(gamma, R, E_s);
 
-    // The force and torque strenghts.
+    // The force and torque strengths.
     double F_c = 3. * PI * gamma * R;                           // The critical force at monomer separation.
-    double k_s = 8. * G_s * a_0;                                // The strenght of the sliding force and torque.
-    double k_r = 4. * F_c / R;                                  // The strenght of the rolling torque.
-    double k_t = 16. * G * a_0 * a_0 * a_0 / 3.;                // The strenght of the twisting torque.
+    double k_s = 8. * G_s * a_0;                                // The strength of the sliding force and torque.
+    double k_r = 4. * F_c / R;                                  // The strength of the rolling torque.
+    double k_t = 16. * G * a_0 * a_0 * a_0 / 3.;                // The strength of the twisting torque.
 
     // The critical displacements.
     double delta_N_crit = get_delta_N_crit(a_0, R);             // The critical normal displacement of the monomer pair.
@@ -511,7 +511,7 @@ __global__ void updatePointers(
     double delta_R_crit = 0.5 * (crit_rolling_displacement[i] + crit_rolling_displacement[j]);  // The critical rolling displacement of the monomer pair.
     double delta_T_crit = 1. / (16. * PI);                      // The critical twisting displacement of the monomer pair.
 
-    if (vec_lenght_sq(pointer_i) != 0. && vec_lenght_sq(pointer_j) != 0.) {
+    if (vec_length_sq(pointer_i) != 0. && vec_length_sq(pointer_j) != 0.) {
         // Corotate the contact pointers.
         double4 rotation_i = rotation_curr[matrix_i];
         double4 rotation_j = rotation_curr[matrix_j];
@@ -566,9 +566,9 @@ __global__ void updatePointers(
             // rotation_next, twisting_next do not need to be updated here, as they are allready being updated in the pointer_corrector
         }
 
-        // FIXME: This is not perfect. The correction to rolling, can, if inelestic sliding also occurs, be inaccurate because rolling displacement has been calculated with an inaccurate pointer.
-        double sliding_displacement_abs = vec_lenght(sliding_displacement);
-        double rolling_displacement_abs = vec_lenght(rolling_displacement);
+        // FIXME: This is not perfect. The correction to rolling, can, if inelastic sliding also occurs, be inaccurate because rolling displacement has been calculated with an inaccurate pointer.
+        double sliding_displacement_abs = vec_length(sliding_displacement);
+        double rolling_displacement_abs = vec_length(rolling_displacement);
 
         if (sliding_displacement_abs > delta_S_crit) {
             // Inelastic sliding motion.
@@ -578,7 +578,7 @@ __global__ void updatePointers(
             correction.z = sliding_displacement.z * (1. - delta_S_crit / sliding_displacement_abs);
 
             // FIXME: Ensure that the calculation of the angle theta_1 (wada07) is correct.
-            double correction_factor = vec_dot(pointer_i, correction) / vec_lenght(correction);
+            double correction_factor = vec_dot(pointer_i, correction) / vec_length(correction);
             correction_factor = 1. / (1. - correction_factor * correction_factor);
             correction_factor = correction_factor / (2. * r_i);
 
@@ -601,7 +601,7 @@ __global__ void updatePointers(
             correction.y = rolling_displacement.y * (1. - delta_R_crit / rolling_displacement_abs);
             correction.z = rolling_displacement.z * (1. - delta_R_crit / rolling_displacement_abs);
 
-            double correction_factor = vec_dot(pointer_i, correction) / vec_lenght(correction);
+            double correction_factor = vec_dot(pointer_i, correction) / vec_length(correction);
             correction_factor = 1. / (1. - correction_factor * correction_factor);
             correction_factor = correction_factor / (2. * r_i);
             

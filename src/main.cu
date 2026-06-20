@@ -29,7 +29,7 @@ int main(const int argc, const char** argv)
 
     Status _s = setup.run(argc, argv);
     if (_s != Status::ok) {
-        Logger::error("An error occured during simulation setup. Terminating.");
+        Logger::error("An error occurred during simulation setup. Terminating.");
         return -1;
     }
 

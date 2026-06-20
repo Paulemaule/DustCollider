@@ -63,9 +63,9 @@ namespace Logger {
     }
 
     /**
-     * @brief Prints a seperator
+     * @brief Prints a separator
      */
-    inline void seperator() {
+    inline void separator() {
         writeLn(SEP_LINE);
     }
 

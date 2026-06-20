@@ -19,12 +19,12 @@ enum class Status {
 
 ///////////////////////// ERRORS /////////////////////////
 
-// A makro that throws a runtime error with a predefined structure and variable description.
+// A macro that throws a runtime error with a predefined structure and variable description.
 #define PANIC(description) throw std::runtime_error(std::string("ERROR: ") + description + " | " + "Source: " + __FILE__ + ":" + std::to_string(__LINE__) + "\n")
 
 ///////////////////////// CUDA API ERRORS /////////////////////////
 
-// A makro that checks for the last cuda error and throws an exception if one is encountered.
+// A macro that checks for the last cuda error and throws an exception if one is encountered.
 #define CUDA_LAST_ERROR_CHECK()                                              \
     do {                                                                     \
         cudaError_t err = cudaGetLastError();                                \
@@ -36,7 +36,7 @@ enum class Status {
         }                                                                    \
     } while (0)
 
-// A wrapper makro that will check the return code of a CUDA API call.
+// A wrapper macro that will check the return code of a CUDA API call.
 #define CHECK_CUDA(ans) { checkErrorCode((ans), __FILE__, __LINE__); }
 
 // A function that will check the return code of a CUDA API call.

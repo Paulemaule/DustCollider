@@ -136,7 +136,7 @@ public:
     }
     
 private:
-    // Constructors for this class should not be publicly accessable.
+    // Constructors for this class should not be publicly accessible.
     Aggregate() {};
 
     /**
@@ -156,7 +156,7 @@ private:
             try {
                 out.push_back(std::stod(t));
             } catch (...) {
-                Logger::error("Coulr not convert '{}' to double in aggregate file.", t);
+                Logger::error("Could not convert '{}' to double in aggregate file.", t);
                 return Status::error;
             }
         }

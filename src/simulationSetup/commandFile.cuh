@@ -56,13 +56,13 @@ public:
             // Sanitize the line
             line = sanitize_line(line);
             
-            // If the line is emtpy after sanitation skip it
+            // If the line is empty after sanitation skip it
             if ( line.empty() ) continue;
 
             // Extract values from the line and place them in the SimulationConfig object
             Status _s = extract_values(line, out_config);
             if ( _s != Status::ok ) {
-                return _s;          // Propagate any error that occured during parameter extraction
+                return _s;          // Propagate any error that occurred during parameter extraction
             }
         }
 
@@ -89,7 +89,7 @@ private:
             pos1 = line.find("\"");
             pos2 = line.find("\"", pos1 + 1);
 
-            // If the line contains only one '"' the function will simply return an emtpy string as the substring
+            // If the line contains only one '"' the function will simply return an empty string as the substring
             if ( pos2 == std::string::npos ) 
                 return substring;
 
@@ -143,7 +143,7 @@ private:
      *     chaining.
      *
      * @note
-     *     Encapsulated substrings might cause issues if missused.
+     *     Encapsulated substrings might cause issues if misused.
      *     They are meant only for encapsulating paths.
      */
     std::string sanitize_line(std::string& line) {
