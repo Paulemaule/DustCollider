@@ -12,7 +12,7 @@
 ///////////////////////// CUDA CONFIG /////////////////////////
 
 // A makro for the number of threads per block for CUDA-Kernel execution.
-#define BLOCK_SIZE 256
+#define BLOCK_SIZE 128
 
 ///////////////////////// SYSTEM CONFIG /////////////////////////
 
