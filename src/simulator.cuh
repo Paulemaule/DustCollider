@@ -230,6 +230,21 @@ inline void Simulator::allocate_snapshots() {
 
     // Preallocate and initialize memory for the cluster membership.
     snap_cluster_.assign(N_store_mon, -1);
+
+    // Sum up the allocated memory for logging.
+    size_t n_vec3 = 0;
+    if (snap_pos_)    n_vec3++;
+    if (snap_vel_)    n_vec3++;
+    if (snap_force_)  n_vec3++;
+    if (snap_torque_) n_vec3++;
+    if (snap_omega_)  n_vec3++;
+
+    const size_t bytes = n_vec3 * N_store_mon * sizeof(double3)  // kinematic snapshots
+                       + 8 * N_store_ * sizeof(double)           // energy trackers
+                       + N_store_mon * sizeof(int);              // cluster membership
+
+    Logger::log("Allocated {} snapshot slots ({} monomers each) using {} of host memory.",
+                N_store_, Nmon, bytes_to_string(bytes));
 }
 
 /**

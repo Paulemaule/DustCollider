@@ -48,6 +48,26 @@ inline std::string current_time_string() {
     return buffer;
 }
 
+/**
+ * @brief Converts a byte count into a human readable string, e.g. "1.50 MiB".
+ */
+inline std::string bytes_to_string(const size_t bytes) {
+    const char* units[] = { "B", "KiB", "MiB", "GiB", "TiB" };
+
+    double value = static_cast<double>(bytes);
+    int    unit  = 0;
+    while (value >= 1024.0 && unit < 4) {
+        value /= 1024.0;
+        unit++;
+    }
+
+    char buffer[32];
+    if (unit == 0) std::snprintf(buffer, sizeof(buffer), "%zu B", bytes);
+    else           std::snprintf(buffer, sizeof(buffer), "%.2f %s", value, units[unit]);
+
+    return buffer;
+}
+
 ///////////////////////// DEBUGGING /////////////////////////
 void print_double (double* array, int start, int stop) {
     for (int i = start; i < stop; i++) {
