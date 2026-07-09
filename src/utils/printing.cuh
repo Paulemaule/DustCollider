@@ -1,5 +1,6 @@
 #pragma once
 
+#include <ctime>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -34,7 +35,17 @@ void ns_to_time_string(const long duration, char* buffer, size_t buffer_size) {
 
     double seconds = static_cast<double>(remaining) / 1'000'000'000.0;
     
-    std::snprintf(buffer, buffer_size, "%04ld:%02ld:%05.02f\n", hours, minutes, seconds);
+    std::snprintf(buffer, buffer_size, "%04ld:%02ld:%05.02f", hours, minutes, seconds);
+}
+
+/**
+ * @brief Returns the current wall-clock time as a "YYYY-MM-DD HH:MM:SS" string.
+ */
+inline std::string current_time_string() {
+    std::time_t now = std::time(nullptr);
+    char buffer[20];
+    std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", std::localtime(&now));
+    return buffer;
 }
 
 ///////////////////////// DEBUGGING /////////////////////////

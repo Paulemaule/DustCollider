@@ -61,6 +61,8 @@ public:
             return Status::error;
         #endif
 
+        Logger::log("Run started at {}.", current_time_string());
+
         Logger::lineBreak();
 
         Logger::header("SETUP");
