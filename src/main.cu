@@ -49,7 +49,8 @@ int main(const int argc, const char** argv)
     char buffer[14];
     ns_to_time_string(elapsed.count(), buffer, 14);
     Logger::print("Total runtime : {} .", buffer);
-    
+    Logger::log("Run finished at {}.", current_time_string());
+
     Logger::lineBreak();
     Logger::header("DONE");
 
