@@ -52,7 +52,7 @@ public:
 
         // Check ifstream health
         if ( !aggregate_file.is_open() ) {
-            Logger::error("Could not open aggregate file {}", aggregate_file_path);
+            Logger::error("Could not open aggregate file '{}'.", aggregate_file_path);
             throw std::runtime_error("Failed to open aggregate file.");
         }
 
@@ -72,7 +72,7 @@ public:
                 }
 
                 if ( line_contents.size() < 3 ) {
-                    Logger::error("Aggregate header needs at least 3 values, not {}", line_contents.size());
+                    Logger::error("Aggregate header needs at least 3 values, not '{}'.", line_contents.size());
                     throw std::runtime_error("Aggregate header too short.");
                 }
 
