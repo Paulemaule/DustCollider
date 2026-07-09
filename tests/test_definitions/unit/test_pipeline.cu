@@ -77,10 +77,10 @@ void test_pipeline() {
         snprintf(cmd, sizeof(cmd),
             "<N_iter> 200\n"
             "<N_save> 20\n"
-            "<aggregate_A_path> \"%s\"\n"
-            "<aggregate_A_pos> 1e-6 2e-6 3e-6\n"
-            "<aggregate_A_vel> 0.0 0.0 -1.5\n"
-            "<timestep> 1e-10\n"
+            "<path_A> \"%s\"\n"
+            "<pos_A> 1e-6 2e-6 3e-6\n"
+            "<vel_A> 0.0 0.0 -1.5\n"
+            "<time_step> 1e-10\n"
             "<material id=\"1\"> \"silica\" 0.03 5e10 0.17 2200.0 2e-10 1e-9\n",
             PIPE_AGG);
         write_file(PIPE_CMD, cmd);
@@ -149,11 +149,11 @@ void test_pipeline() {
         snprintf(cmd, sizeof(cmd),
             "<N_iter> 100\n"
             "<N_save> 10\n"
-            "<aggregate_A_path> \"%s\"\n"
-            "<aggregate_A_pos> 0.0 0.0 1e-6\n"
-            "<aggregate_A_vel> 1.0 0.0 0.0\n"
-            "<aggregate_A_ang> 0.0 0.0 %.6e\n"
-            "<timestep> 1e-10\n"
+            "<path_A> \"%s\"\n"
+            "<pos_A> 0.0 0.0 1e-6\n"
+            "<vel_A> 1.0 0.0 0.0\n"
+            "<ang_A> 0.0 0.0 %.6e\n"
+            "<time_step> 1e-10\n"
             "<material id=\"1\"> \"silica\" 0.03 5e10 0.17 2200.0 2e-10 1e-9\n",
             PIPE_AGG, omega);
         write_file(PIPE_CMD, cmd);
@@ -180,13 +180,13 @@ void test_pipeline() {
         snprintf(cmd, sizeof(cmd),
             "<N_iter> 100\n"
             "<N_save> 10\n"
-            "<aggregate_A_path> \"%s\"\n"
-            "<aggregate_A_pos> 0.0 0.0  1e-6\n"
-            "<aggregate_A_vel> 0.0 0.0 -1.0\n"
-            "<aggregate_B_path> \"%s\"\n"
-            "<aggregate_B_pos> 0.0 0.0 -1e-6\n"
-            "<aggregate_B_vel> 0.0 0.0  1.0\n"
-            "<timestep> 1e-10\n"
+            "<path_A> \"%s\"\n"
+            "<pos_A> 0.0 0.0  1e-6\n"
+            "<vel_A> 0.0 0.0 -1.0\n"
+            "<path_B> \"%s\"\n"
+            "<pos_B> 0.0 0.0 -1e-6\n"
+            "<vel_B> 0.0 0.0  1.0\n"
+            "<time_step> 1e-10\n"
             "<material id=\"1\"> \"silica\" 0.03 5e10 0.17 2200.0 2e-10 1e-9\n",
             PIPE_AGG, PIPE_AGG2);
         write_file(PIPE_CMD, cmd);
@@ -204,7 +204,7 @@ void test_pipeline() {
     }
 
     // ------------------------------------------------------------------ //
-    // Auto-timestep: when <timestep> is absent, it is calculated from the
+    // Auto-timestep: when <time_step> is absent, it is calculated from the
     // minimum JKR contact timescale across all monomer pairs.
     // With 2 monomers the loop executes once; result must be > 0 and finite.
     // ------------------------------------------------------------------ //
@@ -217,12 +217,12 @@ void test_pipeline() {
         snprintf(cmd, sizeof(cmd),
             "<N_iter> 100\n"
             "<N_save> 10\n"
-            "<aggregate_A_path> \"%s\"\n"
-            "<aggregate_A_pos> 0.0 0.0  1e-6\n"
-            "<aggregate_A_vel> 0.0 0.0 -1.0\n"
-            "<aggregate_B_path> \"%s\"\n"
-            "<aggregate_B_pos> 0.0 0.0 -1e-6\n"
-            "<aggregate_B_vel> 0.0 0.0  1.0\n"
+            "<path_A> \"%s\"\n"
+            "<pos_A> 0.0 0.0  1e-6\n"
+            "<vel_A> 0.0 0.0 -1.0\n"
+            "<path_B> \"%s\"\n"
+            "<pos_B> 0.0 0.0 -1e-6\n"
+            "<vel_B> 0.0 0.0  1.0\n"
             "<material id=\"1\"> \"silica\" 0.03 5e10 0.17 2200.0 2e-10 1e-9\n",
             PIPE_AGG, PIPE_AGG2);
         write_file(PIPE_CMD, cmd);
@@ -247,10 +247,10 @@ void test_pipeline() {
         snprintf(cmd, sizeof(cmd),
             "<N_iter> 0\n"
             "<N_save> 10\n"
-            "<aggregate_A_path> \"%s\"\n"
-            "<aggregate_A_pos> 0.0 0.0 1e-6\n"
-            "<aggregate_A_vel> 0.0 0.0 -1.0\n"
-            "<timestep> 1e-10\n"
+            "<path_A> \"%s\"\n"
+            "<pos_A> 0.0 0.0 1e-6\n"
+            "<vel_A> 0.0 0.0 -1.0\n"
+            "<time_step> 1e-10\n"
             "<material id=\"1\"> \"silica\" 0.03 5e10 0.17 2200.0 2e-10 1e-9\n",
             PIPE_AGG);
         write_file(PIPE_CMD, cmd);
@@ -272,10 +272,10 @@ void test_pipeline() {
         snprintf(cmd, sizeof(cmd),
             "<N_iter> 100\n"
             "<N_save> 10\n"
-            "<aggregate_A_path> \"%s\"\n"
-            "<aggregate_A_pos> 0.0 0.0 1e-6\n"
-            "<aggregate_A_vel> 0.0 0.0 -1.0\n"
-            "<timestep> 1e-10\n"
+            "<path_A> \"%s\"\n"
+            "<pos_A> 0.0 0.0 1e-6\n"
+            "<vel_A> 0.0 0.0 -1.0\n"
+            "<time_step> 1e-10\n"
             "<material id=\"1\"> \"iron\" 0.03 5e10 0.17 7800.0 2e-10 1e-9 1e-9 1e-8 1e5 0.5 0.0\n",
             PIPE_AGG);
         write_file(PIPE_CMD, cmd);

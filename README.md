@@ -42,25 +42,25 @@ Relative paths are resolved relative to the command files location.
 
 ```text
 # Aggregate specification
-<aggregate_A_path>  "./aggregate_A"   # input aggregate file
-<aggregate_B_path>  "./aggregate_B"
-<aggregate_A_pos>   -50.1e-9 0 0      # centre-of-mass position [m]
-<aggregate_B_pos>   +50.1e-9 0 0
-<aggregate_A_vel>   +4 0 0            # bulk velocity [m/s]
-<aggregate_B_vel>   -4 0 0
-<aggregate_A_ang>   0 0 0             # angular velocity [rad/s]
-<aggregate_B_ang>   0 0 0
+<path_A>            "./aggregate_A"   # input aggregate file
+<path_B>            "./aggregate_B"
+<pos_A>             -50.1e-9 0 0      # centre-of-mass position [m]
+<pos_B>             +50.1e-9 0 0
+<vel_A>             +4 0 0            # bulk velocity [m/s]
+<vel_B>             -4 0 0
+<ang_A>             0 0 0             # angular velocity [rad/s]
+<ang_B>             0 0 0
 
 # Run specification
 <N_iter>            1000000           # number of integration steps
 <N_save>            10000             # store a snapshot every N_save steps
-<timestep>          0                 # [s]; Recommended to be omitted, the code determines the optimal timestep based on the material properties.
+<time_step>         0                 # [s]; Recommended to be omitted, the code determines the optimal timestep based on the material properties.
 
 # Output specification
 <save_ovito>        1                 # write OVITO .dump files
-<save_position>     1
-<save_velocity>     1
-<save_angular>      1
+<save_pos>          1
+<save_vel>          1
+<save_omega>        1
 <save_force>        1
 <save_torque>       1
 <path_results>      "./out/"          # output directory
@@ -73,7 +73,7 @@ Relative paths are resolved relative to the command files location.
 The material parameters are: The surface energy `gamma` [J/m²] ; Youngs modulus `E` [Pa] ; Poisson ratio `nu` ; the density `rho` [kg/m³] ; the critical rolling displacement `xi` [m] (see eg Wada et al. 2007) ; and the viscous damping timescale `tvis` [s].
 A material may also define five magnetic parameters (`tss`, `tsl`, `Msat`, `chi`, `Tc`), however they are currently unused.
 
-Aggregates are identified by the key after `aggregate_` (`A`, `B`, …), any number of aggregates should be supported.
+Aggregates are identified by the key after the underscore in `<path_X>`, `<pos_X>`, `<vel_X>` and `<ang_X>` (`A`, `B`, …), any number of aggregates should be supported.
 
 ## Aggregate file format
 

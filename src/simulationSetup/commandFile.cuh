@@ -408,26 +408,37 @@ private:
             return Status::ok;
         }
 
-        // Aggregate parameter parsing
-        if ( tag.find("aggregate_") != std::string::npos ) {
-            // Extract the aggregate key: "aggregate_A_path" -> "A"
-            size_t first  = tag.find('_');
-            size_t second = tag.find('_', first + 1);
-            std::string aggregate_key = tag.substr(first + 1, second - first - 1);
+        // Aggregate parameter parsing. Tags have the form <path_X>, <pos_X>, <vel_X> and <ang_X>,
+        // where X is the aggregate key (e.g. "A").
+        // Conflicting tags like <path_results> need to be matched further up.
+        bool is_agg_path = tag.rfind("path_", 0) == 0;
+        bool is_agg_pos  = tag.rfind("pos_",  0) == 0;
+        bool is_agg_vel  = tag.rfind("vel_",  0) == 0;
+        bool is_agg_ang  = tag.rfind("ang_",  0) == 0;
 
-            // Find an existing entry or create a new one; work through a pointer so
-            // modifications are written directly into the vector element.
+        if ( is_agg_path || is_agg_pos || is_agg_vel || is_agg_ang ) {
+            // Extract the aggregate key
+            std::string aggregate_key = tag.substr(tag.find('_') + 1);
+            if ( aggregate_key.empty() ) {
+                Logger::error("No aggregate key found in tag <{}>.", tag);
+                return Status::error;
+            }
+
+            // Find an existing aggregate entry or create a new one
             AggregateConfig* cfg = nullptr;
             for ( AggregateConfig& a : out_config.aggregates ) {
-                if ( a.name == aggregate_key ) { cfg = &a; break; }
+                if ( a.name == aggregate_key ) { 
+                    cfg = &a; break; 
+                }
             }
+            
             if ( cfg == nullptr ) {
                 out_config.aggregates.push_back(AggregateConfig{});
                 out_config.aggregates.back().name = aggregate_key;
                 cfg = &out_config.aggregates.back();
             }
 
-            if ( tag.find("_path") != std::string::npos ) {
+            if ( is_agg_path ) {
                 std::string path = extract_substring(value);
                 if ( path.empty() ) {
                     Logger::error("No path found in <{}>.", tag);
@@ -437,7 +448,7 @@ private:
                 return Status::ok;
             }
 
-            if ( tag.find("_pos") != std::string::npos ) {
+            if ( is_agg_pos ) {
                 std::vector<double> components;
                 Status _s = split_values(value, components);
                 if ( _s != Status::ok ) return _s;
@@ -449,7 +460,7 @@ private:
                 return Status::ok;
             }
 
-            if ( tag.find("_vel") != std::string::npos ) {
+            if ( is_agg_vel ) {
                 std::vector<double> components;
                 Status _s = split_values(value, components);
                 if ( _s != Status::ok ) return _s;
@@ -461,7 +472,7 @@ private:
                 return Status::ok;
             }
 
-            if ( tag.find("_ang") != std::string::npos ) {
+            if ( is_agg_ang ) {
                 std::vector<double> components;
                 Status _s = split_values(value, components);
                 if ( _s != Status::ok ) return _s;
@@ -520,7 +531,7 @@ private:
             return Status::ok;
         }
 
-        if (tag == "save_position") {
+        if (tag == "save_pos") {
             bool save;
 
             Status _s = to_bool(value, save);
@@ -533,7 +544,7 @@ private:
             return Status::ok;
         }
 
-        if (tag == "save_velocity") {
+        if (tag == "save_vel") {
             bool save;
 
             Status _s = to_bool(value, save);
@@ -546,7 +557,7 @@ private:
             return Status::ok;
         }
 
-        if (tag == "save_angular") {
+        if (tag == "save_omega") {
             bool save;
 
             Status _s = to_bool(value, save);
@@ -695,13 +706,29 @@ private:
             return Status::ok;
         }
 
-        if (tag == "timestep") {
+        if (tag == "time_step") {
             try {
                 out_config.timestep = std::stod(value);
             } catch (...) {
-                Logger::error("Could not convert <timestep> to double.");
+                Logger::error("Could not convert <time_step> to double.");
                 return Status::error;
             }
+            return Status::ok;
+        }
+
+        // Legacy tags that are still accepted so that old command files parse, but no longer have an effect.
+        if ( tag == "time_start" || tag == "time_stop" ) {
+            Logger::warn("<{}> is ignored. The run duration is defined by <N_iter> and <time_step>.", tag);
+            return Status::ok;
+        }
+
+        if ( tag == "save_cluster" ) {
+            Logger::warn("<save_cluster> is ignored. Cluster IDs are always saved.");
+            return Status::ok;
+        }
+
+        if ( tag == "save_mag" ) {
+            Logger::warn("<save_mag> is ignored. Magnetization output is currently not supported.");
             return Status::ok;
         }
 

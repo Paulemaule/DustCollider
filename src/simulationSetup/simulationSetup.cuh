@@ -171,7 +171,7 @@ private:
 
         const bool skip_timestep = (run_config.timestep != 0.0);
         if ( skip_timestep ) {
-            Logger::warn("<timestep> was set in command file. Timestep was set to {} ns.", run_config.timestep);
+            Logger::warn("<time_step> was set in command file. Timestep was set to {} ns.", run_config.timestep);
         }
 
         if ( skip_timestep ) return Status::ok;

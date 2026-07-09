@@ -97,11 +97,11 @@ void test_parser() {
     }
 
     // ------------------------------------------------------------------ //
-    // timestep and T_dust scalars
+    // time_step and T_dust scalars
     // ------------------------------------------------------------------ //
 
     {
-        write_tmp("<timestep> 1.0e-10\n"
+        write_tmp("<time_step> 1.0e-10\n"
                   "<T_dust> 300.0\n");
         CommandFile cf(TMP_FILE);
         SimulationConfig cfg;
@@ -115,8 +115,8 @@ void test_parser() {
     // ------------------------------------------------------------------ //
 
     {
-        write_tmp("<save_position> 1\n"
-                  "<save_velocity> 0\n"
+        write_tmp("<save_pos> 1\n"
+                  "<save_vel> 0\n"
                   "<save_energy> true\n");
         CommandFile cf(TMP_FILE);
         SimulationConfig cfg;
@@ -131,8 +131,8 @@ void test_parser() {
     // ------------------------------------------------------------------ //
 
     {
-        write_tmp("<aggregate_A_pos> 1.0 2.0 3.0\n"
-                  "<aggregate_A_vel> 0.0 0.0 -1.5\n");
+        write_tmp("<pos_A> 1.0 2.0 3.0\n"
+                  "<vel_A> 0.0 0.0 -1.5\n");
         CommandFile cf(TMP_FILE);
         SimulationConfig cfg;
         CHECK(cf.parse(cfg) == Status::ok);
@@ -149,8 +149,8 @@ void test_parser() {
     // ------------------------------------------------------------------ //
 
     {
-        write_tmp("<aggregate_A_pos> 1.0 0.0 0.0\n"
-                  "<aggregate_B_pos> -1.0 0.0 0.0\n");
+        write_tmp("<pos_A> 1.0 0.0 0.0\n"
+                  "<pos_B> -1.0 0.0 0.0\n");
         CommandFile cf(TMP_FILE);
         SimulationConfig cfg;
         CHECK(cf.parse(cfg) == Status::ok);
@@ -191,8 +191,8 @@ void test_parser() {
     // ------------------------------------------------------------------ //
 
     {
-        write_tmp("<aggregate_A_path> \"/some/agg/path\"\n"
-                  "<aggregate_A_ang> 0.1 0.2 0.3\n");
+        write_tmp("<path_A> \"/some/agg/path\"\n"
+                  "<ang_A> 0.1 0.2 0.3\n");
         CommandFile cf(TMP_FILE);
         SimulationConfig cfg;
         CHECK(cf.parse(cfg) == Status::ok);
@@ -208,7 +208,7 @@ void test_parser() {
     // ------------------------------------------------------------------ //
 
     {
-        write_tmp("<aggregate_A_pos> 1.0 2.0\n");
+        write_tmp("<pos_A> 1.0 2.0\n");
         CommandFile cf(TMP_FILE);
         SimulationConfig cfg;
         CHECK(cf.parse(cfg) == Status::error);
@@ -227,14 +227,14 @@ void test_parser() {
 
     // ------------------------------------------------------------------ //
     // Remaining boolean save flags: save_ovito, save_force, save_torque,
-    // save_angular (save_position/velocity/energy are covered above)
+    // save_omega (save_pos/save_vel/save_energy are covered above)
     // ------------------------------------------------------------------ //
 
     {
         write_tmp("<save_ovito> 1\n"
                   "<save_force> 0\n"
                   "<save_torque> true\n"
-                  "<save_angular> 0\n");
+                  "<save_omega> 0\n");
         CommandFile cf(TMP_FILE);
         SimulationConfig cfg;
         CHECK(cf.parse(cfg) == Status::ok);
@@ -249,7 +249,7 @@ void test_parser() {
     // ------------------------------------------------------------------ //
 
     {
-        write_tmp("<save_position> maybe\n");
+        write_tmp("<save_pos> maybe\n");
         CommandFile cf(TMP_FILE);
         SimulationConfig cfg;
         CHECK(cf.parse(cfg) == Status::error);
@@ -278,10 +278,24 @@ void test_parser() {
         CHECK(cf.parse(cfg) == Status::error);
     }
     {
-        write_tmp("<timestep> abc\n");
+        write_tmp("<time_step> abc\n");
         CommandFile cf(TMP_FILE);
         SimulationConfig cfg;
         CHECK(cf.parse(cfg) == Status::error);
+    }
+
+    // ------------------------------------------------------------------ //
+    // Legacy tags are accepted (with a warning) but have no effect
+    // ------------------------------------------------------------------ //
+
+    {
+        write_tmp("<time_start> 0.0\n"
+                  "<time_stop> 1.0e-4\n"
+                  "<save_cluster> 1\n"
+                  "<save_mag> 0\n");
+        CommandFile cf(TMP_FILE);
+        SimulationConfig cfg;
+        CHECK(cf.parse(cfg) == Status::ok);
     }
 
     // ------------------------------------------------------------------ //
@@ -298,7 +312,7 @@ void test_parser() {
         CHECK(cf.parse(cfg) == Status::error);
     }
     {
-        write_tmp("<aggregate_A_path> not_a_path\n");
+        write_tmp("<path_A> not_a_path\n");
         CommandFile cf(TMP_FILE);
         SimulationConfig cfg;
         CHECK(cf.parse(cfg) == Status::error);
