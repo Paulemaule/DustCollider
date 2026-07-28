@@ -639,6 +639,7 @@ __global__ void updatePointers(
             // The monomers are touching -> initialize the contact pointer.
             pointer_next[matrix_i] = vec_get_normal(position_j, position_i);
             rotation_next[matrix_i] = { 0., 0., 0., 1. };
+            twisting_next[matrix_i] = 0.;
             compression_next[matrix_i] = normal_displacement;
 
             atomicAdd(&inelastic_counter->w, - 0.5 * get_U_N(F_c, delta_N_crit, get_contact_radius(normal_displacement, a_0, R), a_0));
