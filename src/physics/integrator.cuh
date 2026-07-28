@@ -624,11 +624,11 @@ __global__ void updatePointers(
 
         if (twisting_displacement * twisting_displacement > delta_T_crit * delta_T_crit) {
             // Inelastic twisting motion.
-            int sign = 1 - (2. * signbit(twisting_displacement)); // Extract the sign of the twisting displacement
+            int sign = twisting_displacement < 0. ? -1 : 1; // Extract the sign of the twisting displacement
             twisting_next[matrix_i] = sign * delta_T_crit;
             
             // Track dissipated energy.
-            atomicAdd(&inelastic_counter->z, 0.5 * k_t * delta_T_crit * (abs(twisting_displacement) - delta_T_crit));
+            atomicAdd(&inelastic_counter->z, 0.5 * k_t * delta_T_crit * (fabs(twisting_displacement) - delta_T_crit));
         }
     } else {
         double normal_displacement;             // The displacement in the normal-dof of the contact.
