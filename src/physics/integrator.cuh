@@ -149,7 +149,7 @@ __global__ void predictor_pointer(
     double3 position_i = position_next[i];
     double3 position_j = position_next[j];
 
-    double3 n_c = vec_diff(position_i, position_j);
+    double3 n_c = vec_get_normal(position_i, position_j);
 
     double twisting_dot = vec_dot(vec_diff(omega_i, omega_j), n_c);
     double twisting_ddot = 0.; // FIXME: Implement second order derivative.
