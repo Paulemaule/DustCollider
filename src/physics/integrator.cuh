@@ -533,7 +533,6 @@ __global__ void updatePointers(
         contact_displacement.y = r_i * pointer_i.y - r_j * pointer_j.y + (r_i + r_j) * pointer_pos.y;
         contact_displacement.z = r_i * pointer_i.z - r_j * pointer_j.z + (r_i + r_j) * pointer_pos.z;
 
-        // ASK: This differs significantly from Stefans implementation, why?
         sliding_displacement.x = contact_displacement.x - vec_dot(contact_displacement, pointer_pos) * pointer_pos.x;
         sliding_displacement.y = contact_displacement.y - vec_dot(contact_displacement, pointer_pos) * pointer_pos.y;
         sliding_displacement.z = contact_displacement.z - vec_dot(contact_displacement, pointer_pos) * pointer_pos.z;
