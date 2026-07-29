@@ -49,7 +49,7 @@ __host__ __device__ double get_contact_radius(
     
     // There is no solution to the equation when the critical displacement is exceeded.
     // Instead the value at the critical displacement is returned.
-    double critical_displacement = - pow(9. / 16., 2. / 3.) * delta_N_0;
+    double critical_displacement = - pow(9. / 16., 1. / 3.) * delta_N_0;
     if (delta_N <= critical_displacement) {
         return pow(1. / 6., 2. / 3.) * a_0;
     }
