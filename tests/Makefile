@@ -12,8 +12,10 @@ ifeq ($(BUILD_FLAGS),)
 	$(error Unsupported BUILD value '$(BUILD)'. Use Release or Debug.)
 endif
 
-# Mirror the architecture flag from the main build.
-ARCH_FLAGS = -gencode arch=compute_89,code=sm_89
+# Helper script that defines the arch flags for GPU code compilation 
+# to ensure compute capability compatibility.
+# Defines 'ARCH_FLAGS'
+include ../arch.mk
 
 # Include all subdirectories of src/ so test files can use the same
 # #include paths as the main code (e.g. "utils/vector.cuh").

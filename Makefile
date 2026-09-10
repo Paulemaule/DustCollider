@@ -16,6 +16,11 @@ ifeq ($(BUILD_FLAGS),)
 	$(error Unsupported BUILD value '$(BUILD)'. Use Release or Debug.)
 endif
 
+# Helper script that defines the arch flags for GPU code compilation 
+# to ensure compute capability compatibility.
+# Defines 'ARCH_FLAGS'
+include arch.mk
+
 # Git version: tag if on a tag, tag+offset+hash if between tags, bare hash if no tags
 VERSION_ID := $(shell git describe --tags --always 2>/dev/null)
 
@@ -40,7 +45,7 @@ TARGET_FILE = $(BUILD_DIR)/dust_collider
 
 # Compiler configuration
 COMPILER = nvcc
-COMPILER_FLAGS = -std=c++20 -gencode arch=compute_89,code=sm_89 $(INCLUDE_FLAGS) $(DEP_FLAGS) -DVERSION="\"$(VERSION_ID)\"" $(BUILD_FLAGS)
+COMPILER_FLAGS = -std=c++20 $(ARCH_FLAGS) $(INCLUDE_FLAGS) $(DEP_FLAGS) -DVERSION="\"$(VERSION_ID)\"" $(BUILD_FLAGS)
 LINKER_FLAGS =
 
 ## TARGETS
