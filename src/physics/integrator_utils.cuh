@@ -92,29 +92,33 @@ __host__ __device__ double get_G_i(const double E_i, const double nu_i) {
 }
 
 /**
- * @brief Calculates the combined shear modulus of two monomers.
- * 
- * @param E_i: The shear modulus of monomer i.
- * @param E_j: The shear modulus of monomer j.
- * @param nu_j: Poissons ratio of monomer i.
+ * @brief Calculates the combined (reduced) Youngs modulus E* of two monomers.
+ *
+ * 1 / E* = (1 - nu_i^2) / E_i + (1 - nu_j^2) / E_j
+ *
+ * @param E_i: Youngs modulus of monomer i.
+ * @param E_j: Youngs modulus of monomer j.
+ * @param nu_i: Poissons ratio of monomer i.
  * @param nu_j: Poissons ratio of monomer j.
- * @returns The combined shear modulus.
+ * @returns The combined Youngs modulus E*.
  */
 __host__ __device__ double get_E_s(const double E_i, const double E_j, const double nu_i, const double nu_j) {
     return 1. / (((1 - nu_i * nu_i) / E_i) + ((1 - nu_j * nu_j) / E_j));
 }
 
 /**
- * @brief Calculates the combined Youngs modulus of two monomers.
- * 
- * @param G_i: Youngs modulus of monomer i.
- * @param G_j: Youngs modulus of monomer j.
- * @param nu_j: Poissons ratio of monomer i.
+ * @brief Calculates the combined (reduced) shear modulus G* of two monomers.
+ *
+ * 1 / G* = (2 - nu_i) / G_i + (2 - nu_j) / G_j
+ *
+ * @param G_i: Shear modulus of monomer i.
+ * @param G_j: Shear modulus of monomer j.
+ * @param nu_i: Poissons ratio of monomer i.
  * @param nu_j: Poissons ratio of monomer j.
- * @returns The combined Youngs modulus.
+ * @returns The combined shear modulus G*.
  */
 __host__ __device__ double get_G_s(const double G_i, const double G_j, const double nu_i, const double nu_j) {
-    return 1. / ((1. - nu_i * nu_i) / G_i + (1. - nu_j * nu_j) / G_j);
+    return 1. / ((2. - nu_i) / G_i + (2. - nu_j) / G_j);
 }
 
 /**

@@ -60,17 +60,20 @@ void test_math() {
     CHECK_APPROX(get_E_s(2.0, 8.0, 0.1, 0.4),  get_E_s(8.0, 2.0, 0.4, 0.1),  1e-14);
 
     // ------------------------------------------------------------------ //
-    // get_G_s: combined shear modulus (same algebraic form as get_E_s)
+    // get_G_s: combined shear modulus
+    //   1 / G* = (2 - nu_i) / G_i + (2 - nu_j) / G_j
     // ------------------------------------------------------------------ //
 
-    // Equal materials, nu=0 -> G/2.
-    CHECK_APPROX(get_G_s(4.0, 4.0, 0.0, 0.0),  2.0,  1e-14);
-    // Non-zero nu and unequal inputs, same checks as get_E_s.
-    CHECK_APPROX(get_G_s(4.0, 4.0, 0.5, 0.5),  4.0 / 1.5,  1e-14);
-    CHECK_APPROX(get_G_s(2.0, 8.0, 0.1, 0.4),  1.0 / 0.6,  1e-14);
+    // Equal materials, nu=0 -> 1/((2/G) + (2/G)) = G/4.  G=4 -> 1.
+    CHECK_APPROX(get_G_s(4.0, 4.0, 0.0, 0.0),  1.0,  1e-14);
+    // Equal materials, nu=0.5 -> 1/(2 * (1.5/4)) = 4/3.
+    CHECK_APPROX(get_G_s(4.0, 4.0, 0.5, 0.5),  4.0 / 3.0,  1e-14);
+    // Unequal: 1/((2-0.1)/2 + (2-0.4)/8) = 1/(0.95 + 0.2) = 1/1.15.
+    CHECK_APPROX(get_G_s(2.0, 8.0, 0.1, 0.4),  1.0 / 1.15,  1e-14);
+    // Symmetric under simultaneous (G, nu) swap of i and j.
     CHECK_APPROX(get_G_s(2.0, 8.0, 0.1, 0.4),  get_G_s(8.0, 2.0, 0.4, 0.1),  1e-14);
-    // get_G_s and get_E_s are the same formula: guard against them drifting apart.
-    CHECK_APPROX(get_G_s(3.0, 7.0, 0.2, 0.35), get_E_s(3.0, 7.0, 0.2, 0.35),  1e-14);
+    // Sanity check
+    CHECK(get_G_s(3.0, 7.0, 0.2, 0.35) != get_E_s(3.0, 7.0, 0.2, 0.35));
 
     // ------------------------------------------------------------------ //
     // get_gamma: combined surface energy
