@@ -156,7 +156,7 @@ inline void log_compiled_architectures(const cudaDeviceProp& prop) {
     }
 #else
     // Toolkits older than CUDA 11.5 do not expose the architecture list to host code.
-    Logger::warn("The CUDA version used to compile this code is too old. CUDA 13.0+ is recommended!")
+    Logger::warn("The CUDA version used to compile this code is too old. CUDA 13.0+ is recommended!");
     (void)prop;
 #endif
 }
