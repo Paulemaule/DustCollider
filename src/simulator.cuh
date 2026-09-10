@@ -103,6 +103,65 @@ private:
 };
 
 /**
+ * @brief Logs the GPU architectures this binary was compiled for and checks for compatibility with the active compute device.
+ * 
+ * The compiler builds a fat binary holding machine code for all specified architectures (see arch.mk).
+ * Additionally forward support for newer architectures through JIT compilation is included.
+ * This function logs the supported architectures and checks if the active compute device is compatible.
+ *
+ * @param prop The properties of the active compute device.
+ */
+inline void log_compiled_architectures(const cudaDeviceProp& prop) {
+#ifdef __CUDA_ARCH_LIST__
+    // nvcc defines __CUDA_ARCH_LIST__ as the compute capabilities present in the binary
+    constexpr int compiled[] = { __CUDA_ARCH_LIST__ };
+
+    // Convert the list of compute capabilities from the compile flag into a string
+    std::string arch_list;
+    for ( const int arch : compiled ) {
+        if ( !arch_list.empty() ) arch_list += ", ";
+        arch_list += std::to_string(arch / 100) + "." + std::to_string((arch / 10) % 10);
+    }
+
+    // Adjust the compute capability of the current active device to the same format
+    const int device_arch = prop.major * 100 + prop.minor * 10;
+
+    int  newest             = 0;      // The newest architecture in the binary, its PTX is the fallback.
+    bool exact_match        = false;  // The binary holds machine code for this exact device.
+    bool compatible_match   = false;  // The binary holds machine code of the same GPU generation.
+
+    for ( const int arch : compiled ) {
+        if ( arch == device_arch ) exact_match = true;
+        // Machine code is compatible upwards within a generation: code for 8.0 also runs on 8.6.
+        if ( arch / 100 == prop.major && arch < device_arch ) compatible_match = true;
+        if ( arch > newest ) newest = arch;
+    }
+
+    // Log the results
+    Logger::print("   compute capabilities:          {}+", arch_list);
+
+    if ( exact_match ) return;
+
+    if ( compatible_match ) {
+        Logger::warn("The binary contains no machine code for compute capability {}.{}. The device runs code "
+                     "of an older minor version, which is not tuned for it. Add {} to CUDA_ARCHS in arch.mk.",
+                     prop.major, prop.minor, device_arch / 10);
+    } else if ( device_arch > newest ) {
+        Logger::warn("This GPU is newer than every architecture the binary was compiled for. The kernels are "
+                     "JIT-compiled from PTX on startup, which costs time. Add {} to CUDA_ARCHS in arch.mk.",
+                     device_arch / 10);
+    } else {
+        Logger::error("This binary can not run on compute capability {}.{}. Rebuild with {} added to "
+                      "CUDA_ARCHS in arch.mk.", prop.major, prop.minor, device_arch / 10);
+    }
+#else
+    // Toolkits older than CUDA 11.5 do not expose the architecture list to host code.
+    Logger::warn("The CUDA version used to compile this code is too old. CUDA 13.0+ is recommended!")
+    (void)prop;
+#endif
+}
+
+/**
  * @brief Prints an overview of the active CUDA compute devices.
  */
 inline void Simulator::log_device_info() const {
@@ -126,6 +185,12 @@ inline void Simulator::log_device_info() const {
     Logger::print("   Total global mem:      {} bytes", prop.totalGlobalMem);
     Logger::print("   Warp size:             {} threads", prop.warpSize);
     Logger::print("   Max threads / block:   {} threads", prop.maxThreadsPerBlock);
+
+    // Print a log comparing the active devices compute capability against the 
+    // available compute capabilites in the compiled fat binary.
+    Logger::lineBreak();
+    Logger::print("Code compiled for: ");
+    log_compiled_architectures(prop);
 
     Logger::lineBreak();
 }
