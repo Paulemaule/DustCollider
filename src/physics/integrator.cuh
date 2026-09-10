@@ -113,19 +113,21 @@ __global__ void predictor_pointer(
     omega_dot.y /= moment_i;
     omega_dot.z /= moment_i;
 
-    // CHECK: Is this formula correct?
+    // Quaternion kinematics for a world-frame angular velocity omega:
+    //      q_dot  = 0.5 * (0,omega) (x) q
+    //      q_ddot = 0.5 * (0,omega_dot) (x) q  -  0.25 * |omega|^2 * q
     double4 e_dot, e_ddot;
+    double omega_sq = vec_length_sq(omega);
+
     e_dot.w = - 0.5 * (rot.x * omega.x + rot.y * omega.y + rot.z * omega.z);
     e_dot.x = 0.5 * (rot.w * omega.x - rot.y * omega.z + rot.z * omega.y);
     e_dot.y = 0.5 * (rot.w * omega.y - rot.z * omega.x + rot.x * omega.z);
     e_dot.z = 0.5 * (rot.w * omega.z - rot.x * omega.y + rot.y * omega.x);
 
-    double temp = 0.5 * e_dot.w;
-
-    e_ddot.w = - 0.25 * (rot.w * vec_length_sq(omega) + 2.0 * (rot.x * omega_dot.x + rot.y * omega_dot.y + rot.z * omega_dot.z));
-    e_ddot.x = temp * omega.x + 0.5 * (rot.w * omega_dot.x - rot.y * omega_dot.z + rot.z * omega_dot.y);
-    e_ddot.y = temp * omega.y + 0.5 * (rot.w * omega_dot.y - rot.z * omega_dot.x + rot.x * omega_dot.z);
-    e_ddot.z = temp * omega.z + 0.5 * (rot.w * omega_dot.z - rot.x * omega_dot.y + rot.y * omega_dot.x);
+    e_ddot.w = - 0.25 * (rot.w * omega_sq + 2.0 * (rot.x * omega_dot.x + rot.y * omega_dot.y + rot.z * omega_dot.z));
+    e_ddot.x = - 0.25 * omega_sq * rot.x + 0.5 * (rot.w * omega_dot.x - rot.y * omega_dot.z + rot.z * omega_dot.y);
+    e_ddot.y = - 0.25 * omega_sq * rot.y + 0.5 * (rot.w * omega_dot.y - rot.z * omega_dot.x + rot.x * omega_dot.z);
+    e_ddot.z = - 0.25 * omega_sq * rot.z + 0.5 * (rot.w * omega_dot.z - rot.x * omega_dot.y + rot.y * omega_dot.x);
 
     rot.w = rot.w + timestep * e_dot.w + 0.5 * timestep * timestep * e_ddot.w;
     rot.x = rot.x + timestep * e_dot.x + 0.5 * timestep * timestep * e_ddot.x;
