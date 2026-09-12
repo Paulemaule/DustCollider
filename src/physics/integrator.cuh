@@ -604,7 +604,15 @@ __global__ void updatePointers(
 
             double correction_factor = vec_dot(pointer_i, correction) / vec_length(correction);
             correction_factor = 1. / (1. - correction_factor * correction_factor);
-            correction_factor = correction_factor / (2. * r_i);
+            // The correction factor for rolling should scale with R not r_i (see sliding).
+            // The reason is that the rolling displacement itself scales with R in the case of 
+            // rolling while it scales with r_i in sliding.
+            // To apply a correction to the pointers via the displacement the inverse of that
+            // should be applied, thus '* 1 / 2 * r_i' for sliding and '* 1 / 2 * R' for rolling.
+            // The additional factor 1/2 is due to the fact that half the total correction is
+            // applied to both pointers.
+            // This is not elaborated in Wada et al '07
+            correction_factor = correction_factor / (2. * R);
             
             // Calculate the corrected pointer
             pointer_i.x -= correction.x * correction_factor;
