@@ -7,6 +7,10 @@
 
 #include <stack>
 
+// PI is used by get_a_0 and get_delta_S_crit below. Included here so this header is self-contained
+// rather than relying on whoever includes it having pulled in constant.cuh first.
+#include "utils/constant.cuh"
+
 /**
  * @brief A macro that calculates the monomer pair indices from the threadID.
  * 

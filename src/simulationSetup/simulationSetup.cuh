@@ -6,6 +6,7 @@
 #include "../utils/logging.cuh"
 #include "../utils/errors.cuh"
 #include "../utils/vector.cuh"
+#include "../physics/integrator_utils.cuh"
 #include "../utils/constant.cuh"
 
 #include <filesystem>
@@ -196,16 +197,16 @@ private:
                 double r_i   = run_config.initial_state.radii[i];
                 double r_j   = run_config.initial_state.radii[j];
 
-                // Calculate pair properties
-                // TODO: Switch from formulas here to implementations of the quantities in integrator_utils.cuh to avoid double implementations.
+                // Calculate pair properties. These MUST come from integrator_utils.cuh rather than be
+                // re-derived here, or the timestep silently drifts away from the kernels that use them.
                 double M            = (m_i * m_j) / (m_i + m_j);
-                double R            = (r_i * r_j) / (r_i + r_j);
+                double R            = get_R(r_i, r_j);
 
-                double Es           = 1.0 / ((1.0 - mat_i.nu * mat_i.nu) / mat_i.E + (1.0 - mat_j.nu * mat_j.nu) / mat_j.E);
-                double gamma_ij     = mat_i.gamma + mat_j.gamma - 2.0 / (1.0 / mat_i.gamma + 1.0 / mat_j.gamma);
+                double Es           = get_E_s(mat_i.E, mat_j.E, mat_i.nu, mat_j.nu);
+                double gamma_ij     = get_gamma(mat_i.gamma, mat_j.gamma);
 
-                double a0           = pow(9.0 * PI * gamma_ij * R * R / Es, 1.0 / 3.0);
-                double delta_N_c    = 0.5 * a0 * a0 / (R * pow(6.0, 1.0 / 3.0));
+                double a0           = get_a_0(gamma_ij, R, Es);
+                double delta_N_c    = get_delta_N_crit(a0, R);
                 double F_c          = 3.0 * PI * gamma_ij * R;
 
                 // The timescale(s) of the system
