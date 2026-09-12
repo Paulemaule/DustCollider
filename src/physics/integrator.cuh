@@ -214,17 +214,17 @@ __global__ void corrector(
     omega_next[threadID].z = omega_curr[threadID].z + 0.5 * inv_moment * timestep * (torque_curr[threadID].z + torque_next[threadID].z);
 }
 
-// TODO: The collaborator list is incomplete.
 /**
  * @brief Implements the evaluation step of the synchronized leapfrog algorithm.
- * 
- * Calculates the forces and torques acting on the monomers according to the interaction model 
- * developed by Johnson, Kendall and Roberts (the JKR model) with further extensions by 
- * Dominik and Nübold (2002), Wada et al. (2007) and (?)
- * 
+ *
+ * Calculates the forces and torques acting on the monomers according to the interaction model
+ * developed by Johnson, Kendall and Roberts (the JKR model) with further extensions by
+ * Dominik and Nübold (2002), Wada et al. (2007) and Seizinger, Krijt and Kley (2013).
+ *
  * The JKR model is used to calculate the inter monomer forces.
- * For this purpose the contact pointer approach described in Dominik and Nübuld (2002) as well as Wada et al (2007) is implemented.
- * The damping force proposed by (?) is included for (?).
+ * For this purpose the contact pointer approach described in Dominik and Nübold (2002) as well as Wada et al (2007) is implemented.
+ * The normal oscillations of monomer pairs are dampened using the addition proposed by Krijt et al (2013)
+ * in the form used by Seizinger, Krijt and Kley (2013).
  */
 __global__ void evaluate(
     const double3*              position_next,
@@ -362,7 +362,10 @@ __global__ void evaluate(
         force.y += normal_force * pointer_pos.y;
         force.z += normal_force * pointer_pos.z;
 
-        // Damping
+        // Damping (see Seizinger, Krijt, Kley 2013)
+        // In the original paper the authors use 2 t_vis E* / nu_i^2 instead of nu_i * nu_j
+        // This would lead to symmetry breaking of the forces between to monomer in contact
+        // This form is used as a comprimise instead.
         double vis_damping_strength = 2.0 * t_vis / (nu_i * nu_j) * E_s;
         double delta_N_dot = (normal_displacement - compression_old[matrix_i]) / timestep;
         double damping_force = vis_damping_strength * a * delta_N_dot;
