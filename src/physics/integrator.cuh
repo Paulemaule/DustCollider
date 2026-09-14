@@ -113,19 +113,21 @@ __global__ void predictor_pointer(
     omega_dot.y /= moment_i;
     omega_dot.z /= moment_i;
 
-    // CHECK: Is this formula correct?
+    // Quaternion kinematics for a world-frame angular velocity omega:
+    //      q_dot  = 0.5 * (0,omega) (x) q
+    //      q_ddot = 0.5 * (0,omega_dot) (x) q  -  0.25 * |omega|^2 * q
     double4 e_dot, e_ddot;
+    double omega_sq = vec_length_sq(omega);
+
     e_dot.w = - 0.5 * (rot.x * omega.x + rot.y * omega.y + rot.z * omega.z);
     e_dot.x = 0.5 * (rot.w * omega.x - rot.y * omega.z + rot.z * omega.y);
     e_dot.y = 0.5 * (rot.w * omega.y - rot.z * omega.x + rot.x * omega.z);
     e_dot.z = 0.5 * (rot.w * omega.z - rot.x * omega.y + rot.y * omega.x);
 
-    double temp = 0.5 * e_dot.w;
-
-    e_ddot.w = - 0.25 * (rot.w * vec_length_sq(omega) + 2.0 * (rot.x * omega_dot.x + rot.y * omega_dot.y + rot.z * omega_dot.z));
-    e_ddot.x = temp * omega.x + 0.5 * (rot.w * omega_dot.x - rot.y * omega_dot.z + rot.z * omega_dot.y);
-    e_ddot.y = temp * omega.y + 0.5 * (rot.w * omega_dot.y - rot.z * omega_dot.x + rot.x * omega_dot.z);
-    e_ddot.z = temp * omega.z + 0.5 * (rot.w * omega_dot.z - rot.x * omega_dot.y + rot.y * omega_dot.x);
+    e_ddot.w = - 0.25 * (rot.w * omega_sq + 2.0 * (rot.x * omega_dot.x + rot.y * omega_dot.y + rot.z * omega_dot.z));
+    e_ddot.x = - 0.25 * omega_sq * rot.x + 0.5 * (rot.w * omega_dot.x - rot.y * omega_dot.z + rot.z * omega_dot.y);
+    e_ddot.y = - 0.25 * omega_sq * rot.y + 0.5 * (rot.w * omega_dot.y - rot.z * omega_dot.x + rot.x * omega_dot.z);
+    e_ddot.z = - 0.25 * omega_sq * rot.z + 0.5 * (rot.w * omega_dot.z - rot.x * omega_dot.y + rot.y * omega_dot.x);
 
     rot.w = rot.w + timestep * e_dot.w + 0.5 * timestep * timestep * e_ddot.w;
     rot.x = rot.x + timestep * e_dot.x + 0.5 * timestep * timestep * e_ddot.x;
@@ -149,7 +151,7 @@ __global__ void predictor_pointer(
     double3 position_i = position_next[i];
     double3 position_j = position_next[j];
 
-    double3 n_c = vec_diff(position_i, position_j);
+    double3 n_c = vec_get_normal(position_i, position_j);
 
     double twisting_dot = vec_dot(vec_diff(omega_i, omega_j), n_c);
     double twisting_ddot = 0.; // FIXME: Implement second order derivative.
@@ -212,17 +214,17 @@ __global__ void corrector(
     omega_next[threadID].z = omega_curr[threadID].z + 0.5 * inv_moment * timestep * (torque_curr[threadID].z + torque_next[threadID].z);
 }
 
-// TODO: The collaborator list is incomplete.
 /**
  * @brief Implements the evaluation step of the synchronized leapfrog algorithm.
- * 
- * Calculates the forces and torques acting on the monomers according to the interaction model 
- * developed by Johnson, Kendall and Roberts (the JKR model) with further extensions by 
- * Dominik and Nübold (2002), Wada et al. (2007) and (?)
- * 
+ *
+ * Calculates the forces and torques acting on the monomers according to the interaction model
+ * developed by Johnson, Kendall and Roberts (the JKR model) with further extensions by
+ * Dominik and Nübold (2002), Wada et al. (2007) and Seizinger, Krijt and Kley (2013).
+ *
  * The JKR model is used to calculate the inter monomer forces.
- * For this purpose the contact pointer approach described in Dominik and Nübuld (2002) as well as Wada et al (2007) is implemented.
- * The damping force proposed by (?) is included for (?).
+ * For this purpose the contact pointer approach described in Dominik and Nübold (2002) as well as Wada et al (2007) is implemented.
+ * The normal oscillations of monomer pairs are dampened using the addition proposed by Krijt et al (2013)
+ * in the form used by Seizinger, Krijt and Kley (2013).
  */
 __global__ void evaluate(
     const double3*              position_next,
@@ -360,7 +362,10 @@ __global__ void evaluate(
         force.y += normal_force * pointer_pos.y;
         force.z += normal_force * pointer_pos.z;
 
-        // Damping
+        // Damping (see Seizinger, Krijt, Kley 2013)
+        // In the original paper the authors use 2 t_vis E* / nu_i^2 instead of nu_i * nu_j
+        // This would lead to symmetry breaking of the forces between to monomer in contact
+        // This form is used as a comprimise instead.
         double vis_damping_strength = 2.0 * t_vis / (nu_i * nu_j) * E_s;
         double delta_N_dot = (normal_displacement - compression_old[matrix_i]) / timestep;
         double damping_force = vis_damping_strength * a * delta_N_dot;
@@ -533,7 +538,6 @@ __global__ void updatePointers(
         contact_displacement.y = r_i * pointer_i.y - r_j * pointer_j.y + (r_i + r_j) * pointer_pos.y;
         contact_displacement.z = r_i * pointer_i.z - r_j * pointer_j.z + (r_i + r_j) * pointer_pos.z;
 
-        // ASK: This differs significantly from Stefans implementation, why?
         sliding_displacement.x = contact_displacement.x - vec_dot(contact_displacement, pointer_pos) * pointer_pos.x;
         sliding_displacement.y = contact_displacement.y - vec_dot(contact_displacement, pointer_pos) * pointer_pos.y;
         sliding_displacement.z = contact_displacement.z - vec_dot(contact_displacement, pointer_pos) * pointer_pos.z;
@@ -603,7 +607,15 @@ __global__ void updatePointers(
 
             double correction_factor = vec_dot(pointer_i, correction) / vec_length(correction);
             correction_factor = 1. / (1. - correction_factor * correction_factor);
-            correction_factor = correction_factor / (2. * r_i);
+            // The correction factor for rolling should scale with R not r_i (see sliding).
+            // The reason is that the rolling displacement itself scales with R in the case of 
+            // rolling while it scales with r_i in sliding.
+            // To apply a correction to the pointers via the displacement the inverse of that
+            // should be applied, thus '* 1 / 2 * r_i' for sliding and '* 1 / 2 * R' for rolling.
+            // The additional factor 1/2 is due to the fact that half the total correction is
+            // applied to both pointers.
+            // This is not elaborated in Wada et al '07
+            correction_factor = correction_factor / (2. * R);
             
             // Calculate the corrected pointer
             pointer_i.x -= correction.x * correction_factor;
@@ -625,11 +637,11 @@ __global__ void updatePointers(
 
         if (twisting_displacement * twisting_displacement > delta_T_crit * delta_T_crit) {
             // Inelastic twisting motion.
-            int sign = 1 - (2. * signbit(twisting_displacement)); // Extract the sign of the twisting displacement
+            int sign = twisting_displacement < 0. ? -1 : 1; // Extract the sign of the twisting displacement
             twisting_next[matrix_i] = sign * delta_T_crit;
             
             // Track dissipated energy.
-            atomicAdd(&inelastic_counter->z, 0.5 * k_t * delta_T_crit * (abs(twisting_displacement) - delta_T_crit));
+            atomicAdd(&inelastic_counter->z, 0.5 * k_t * delta_T_crit * (fabs(twisting_displacement) - delta_T_crit));
         }
     } else {
         double normal_displacement;             // The displacement in the normal-dof of the contact.
@@ -640,6 +652,7 @@ __global__ void updatePointers(
             // The monomers are touching -> initialize the contact pointer.
             pointer_next[matrix_i] = vec_get_normal(position_j, position_i);
             rotation_next[matrix_i] = { 0., 0., 0., 1. };
+            twisting_next[matrix_i] = 0.;
             compression_next[matrix_i] = normal_displacement;
 
             atomicAdd(&inelastic_counter->w, - 0.5 * get_U_N(F_c, delta_N_crit, get_contact_radius(normal_displacement, a_0, R), a_0));
