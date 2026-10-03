@@ -40,6 +40,28 @@ static void write_monomer_agg(const char* path,
     write_file(path, buf);
 }
 
+// Runs the pipeline on a valid two-monomer setup, completed by the given run length and snapshot tags.
+static Status run_schedule_setup(Pipeline& p, const char* schedule_tags) {
+    write_monomer_agg(PIPE_AGG,  0.0, 0.0, 0.0, 100.0, 1);
+    write_monomer_agg(PIPE_AGG2, 0.0, 0.0, 0.0, 100.0, 1);
+
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd),
+        "%s"
+        "<path_A> \"%s\"\n"
+        "<pos_A> 0.0 0.0  1e-6\n"
+        "<vel_A> 0.0 0.0 -1.0\n"
+        "<path_B> \"%s\"\n"
+        "<pos_B> 0.0 0.0 -1e-6\n"
+        "<vel_B> 0.0 0.0  1.0\n"
+        "<material id=\"1\"> \"silica\" 0.03 5e10 0.17 2200.0 2e-10 1e-9\n",
+        schedule_tags, PIPE_AGG, PIPE_AGG2);
+    write_file(PIPE_CMD, cmd);
+
+    const char* argv[] = {"test", PIPE_CMD};
+    return p.run(2, argv);
+}
+
 void test_pipeline() {
 
     // ------------------------------------------------------------------ //
@@ -283,6 +305,105 @@ void test_pipeline() {
         Pipeline p;
         const char* argv[] = {"test", PIPE_CMD};
         CHECK(p.run(2, argv) == Status::error);
+    }
+
+    // ------------------------------------------------------------------ //
+    // Run schedule (issue Z): the run length and snapshot tags are resolved
+    // into N_iter and N_save. Snapshots lie on a uniform grid of N_save
+    // iterations and N_iter is rounded up to a whole number of intervals.
+    // An explicit <time_step> of 1e-12 s keeps the expected counts exact.
+    // ------------------------------------------------------------------ //
+
+    struct ScheduleCase {
+        const char* tags;
+        int         N_iter;
+        int         N_save;
+    };
+
+    for (const ScheduleCase& c : {
+            // <N_iter> + <N_save> that already fit are left unchanged
+            ScheduleCase{ "<N_iter> 1000\n<N_save> 100\n",                      1000,  100 },
+            // An explicit <N_iter> is extended to end on a snapshot
+            ScheduleCase{ "<N_iter> 1003\n<N_save> 100\n",                      1100,  100 },
+            // <N_save> larger than <N_iter> gives a single interval
+            ScheduleCase{ "<N_iter> 100\n<N_save> 1000\n",                      1000, 1000 },
+            // ceil(1e-9 / 1e-12) is 1001 in floating point, which must not extend the run
+            ScheduleCase{ "<time_step> 1e-12\n<t_end> 1e-9\n<N_save> 100\n",    1000,  100 },
+            ScheduleCase{ "<time_step> 1e-12\n<t_end> 1.0005e-9\n<N_save> 100\n", 1100, 100 },
+            // <t_save> is rounded up to whole iterations, with the same tolerance as <t_end>
+            ScheduleCase{ "<time_step> 1e-12\n<N_iter> 1000\n<t_save> 1e-10\n",      1000, 100 },
+            ScheduleCase{ "<time_step> 1e-12\n<N_iter> 1000\n<t_save> 1.0004e-10\n", 1010, 101 },
+            ScheduleCase{ "<time_step> 1e-12\n<N_iter> 1000\n<t_save> 1e-12\n",      1000,   1 },
+            ScheduleCase{ "<time_step> 1e-12\n<t_end> 1e-9\n<t_save> 2.5e-10\n",     1000, 250 },
+            // <t_end> = 50 * <t_save> gives exactly 50 intervals. Rounding <t_save> to nearest (100 iterations)
+            // made the run 22 iterations short of 50 intervals and added a spurious 51st (5100 iterations).
+            ScheduleCase{ "<time_step> 1e-12\n<t_end> 5.002e-9\n<t_save> 1.0004e-10\n", 5050, 101 },
+            // <N_snap> counts both the initial and the final state
+            ScheduleCase{ "<N_iter> 1000\n<N_snap> 11\n",                       1000,  100 },
+            ScheduleCase{ "<N_iter> 1001\n<N_snap> 11\n",                       1010,  101 },
+            ScheduleCase{ "<N_iter> 5\n<N_snap> 11\n",                            10,    1 },
+            ScheduleCase{ "<time_step> 1e-12\n<t_end> 1e-9\n<N_snap> 2\n",      1000, 1000 } }) {
+        Pipeline p;
+        CHECK(run_schedule_setup(p, c.tags) == Status::ok);
+        CHECK(p.getConfig().N_iter        == c.N_iter);
+        CHECK(p.getConfig().output.N_save == c.N_save);
+    }
+
+    // ------------------------------------------------------------------ //
+    // Run schedule: invalid combinations and values → Status::error
+    // ------------------------------------------------------------------ //
+
+    for (const char* tags : {
+            // Run length: none or both
+            "<N_save> 100\n",
+            "<time_step> 1e-12\n<N_iter> 1000\n<t_end> 1e-9\n<N_save> 100\n",
+            // Snapshots: none or more than one
+            "<N_iter> 1000\n",
+            "<N_iter> 1000\n<N_save> 100\n<N_snap> 11\n",
+            "<time_step> 1e-12\n<N_iter> 1000\n<N_save> 100\n<t_save> 1e-10\n",
+            // Invalid values
+            "<N_iter> -1000\n<N_save> 100\n",
+            "<N_iter> 1000\n<N_save> -100\n",
+            "<time_step> 1e-12\n<t_end> -1e-9\n<N_save> 100\n",
+            "<time_step> 1e-12\n<N_iter> 1000\n<t_save> -1e-10\n",
+            "<time_step> 1e-12\n<N_iter> 1000\n<t_save> 9.99e-13\n",       // shorter than dt
+            "<time_step> 1e-12\n<t_end> 1e-2\n<N_save> 100\n",             // 1e10 iterations
+            "<N_iter> 1000\n<N_snap> 1\n",
+            // Rounding up to whole intervals exceeds the range of int
+            "<N_iter> 2147483001\n<N_save> 1000\n" }) {
+        Pipeline p;
+        CHECK(run_schedule_setup(p, tags) == Status::error);
+    }
+
+    // ------------------------------------------------------------------ //
+    // Run schedule with the auto-calculated timestep: the run covers at
+    // least <t_end>, extended by less than one <N_snap> interval.
+    // ------------------------------------------------------------------ //
+
+    {
+        Pipeline p;
+        CHECK(run_schedule_setup(p, "<t_end> 1e-9\n<N_snap> 101\n") == Status::ok);
+
+        const SimulationConfig& cfg = p.getConfig();
+        const double t_run = cfg.N_iter * cfg.timestep;
+        CHECK(cfg.tau_min > 0.0);
+        CHECK(cfg.N_iter % 100 == 0);
+        CHECK(cfg.N_iter / cfg.output.N_save == 100);
+        CHECK(t_run >= 1e-9 * (1.0 - 1e-9));
+        CHECK(t_run <  1e-9 + 100 * cfg.timestep);
+    }
+
+    // ------------------------------------------------------------------ //
+    // tau_min is also calculated when <time_step> is set explicitly
+    // ------------------------------------------------------------------ //
+
+    {
+        Pipeline pa, pb;
+        CHECK(run_schedule_setup(pa, "<N_iter> 1000\n<N_save> 100\n") == Status::ok);
+        CHECK(run_schedule_setup(pb, "<time_step> 1e-12\n<N_iter> 1000\n<N_save> 100\n") == Status::ok);
+        CHECK(pb.getConfig().tau_min > 0.0);
+        CHECK(pa.getConfig().tau_min == pb.getConfig().tau_min);
+        CHECK(pa.getConfig().timestep == 0.005 * pa.getConfig().tau_min);
     }
 
     // ------------------------------------------------------------------ //

@@ -276,8 +276,9 @@ inline void Simulator::allocate_snapshots() {
         return;
     }
 
-    // Calculate the final size of the snapshot vectors.
-    N_store_ = (size_t(config.N_iter - 1) / size_t(config.output.N_save)) + 1;
+    // Calculate the final size of the snapshot vectors. N_iter is a whole multiple of N_save (see resolve_run_schedule),
+    // so the snapshots cover the initial state at iteration 0 and every N_save iterations up to and including N_iter.
+    N_store_ = size_t(config.N_iter / config.output.N_save) + 1;
     const size_t N_store_mon = Nmon * N_store_;
 
     // Preallocate memory for the snapshot vectors
@@ -374,7 +375,14 @@ inline void Simulator::run() {
 
     Logger::header("SIMULATING");
     Logger::lineBreak();
-    
+
+    // Store the initial state at t = 0 as the first snapshot.
+    // FIXME: Energy evaluation and contact forming have not happened yet. The first snapshot has incomplete data. 
+    if (N_store_ > 0) {
+        save_snapshot(counter_save);
+        counter_save++;
+    }
+
     // The main simulation loop
     for (int iter = 0; iter < config.N_iter; iter++) {
         auto iter_start = std::chrono::high_resolution_clock::now();
@@ -455,8 +463,9 @@ inline void Simulator::run() {
         cudaDeviceSynchronize();
         CUDA_LAST_ERROR_CHECK();
 
-        // Store a snapshot if scheduled for this iteration
-        if (N_store_ > 0 && size_t(iter) % size_t(config.output.N_save) == 0) {
+        // Store a snapshot if scheduled. After the swap device_curr holds the state after iter + 1 completed iterations,
+        // i.e. at t = (iter + 1) * dt.
+        if (N_store_ > 0 && (size_t(iter) + 1) % size_t(config.output.N_save) == 0) {
             save_snapshot(counter_save);
             counter_save++;
         }
@@ -661,7 +670,8 @@ inline void Simulator::write_output() const {
     Logger::log("Writing energy diagnostics to disk.");
     
     if (!snap_pot_N_.empty()) {
-        // The potential energies are accumulated over all iterations and will need to be averaged
+        // The potential energies are accumulated over the N_save iterations since the previous snapshot and will need
+        // to be averaged. The initial snapshot accumulated nothing, its zero stays zero.
         const double inv = 1.0 / config.output.N_save;
         std::vector<double> avg_N(N_store_), avg_S(N_store_), avg_R(N_store_), avg_T(N_store_);
         for (size_t i = 0; i < N_store_; i++) {

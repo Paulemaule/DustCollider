@@ -51,7 +51,7 @@ Relative paths are resolved relative to the command files location.
 <ang_A>             0 0 0             # angular velocity [rad/s]
 <ang_B>             0 0 0
 
-# Run specification
+# Run specification (alternatives in physical time: see "Run length and snapshots" below)
 <N_iter>            1000000           # number of integration steps
 <N_save>            10000             # store a snapshot every N_save steps
 <time_step>         0                 # [s]; Recommended to be omitted, the code determines the optimal timestep based on the material properties.
@@ -73,6 +73,24 @@ Relative paths are resolved relative to the command files location.
 The material parameters are: The surface energy `gamma` [J/m²] ; Youngs modulus `E` [Pa] ; Poisson ratio `nu` ; the density `rho` [kg/m³] ; the critical rolling displacement `xi` [m] (see eg Wada et al. 2007) ; and the viscous damping timescale `tvis` [s].
 A material may also define five magnetic parameters (`tss`, `tsl`, `Msat`, `chi`, `Tc`), however they are currently unused.
 
+### Run length and snapshots
+
+The auto-calculated timestep depends on the materials and monomer sizes. The effects of several tags in the command file depend on the exact result of the timestep calculation.
+
+| Group | Tag | Meaning |
+|---|---|---|
+| run length | `<N_iter>` | number of integration steps |
+| | `<t_end>` | simulated time [s], converted to `ceil(t_end / dt)` steps |
+| snapshots | `<N_save>` | a snapshot every `N_save` steps (constant cadence in units of the contact timescale when dt is auto-calculated) |
+| | `<t_save>` | a snapshot every `t_save` seconds, converted to `ceil(t_save / dt)` steps (comparable across setups) |
+| | `<N_snap>` | the total number of snapshots, including the initial and the final state (constant output size) |
+
+Exactly one tag of each group is required.
+Snapshots are stored on a uniform grid: snapshot `k` is the state after `k * N_save` steps, i.e. at `t = k * N_save * dt`, and snapshot 0 is the initial state.
+The run is extended to a whole number of snapshot intervals, so the final state is always stored; the setup log warns when this happens.
+Integer values accept scientific notation (`<N_iter> 1e6`).
+The setup log reports the resolved timestep, `N_iter` and `N_save`, and the run time and snapshot cadence in seconds and in units of the smallest contact timescale `tau_N,min`.
+
 Aggregates are identified by the key after the underscore in `<path_X>`, `<pos_X>`, `<vel_X>` and `<ang_X>` (`A`, `B`, …), any number of aggregates should be supported.
 
 ## Aggregate file format
@@ -90,6 +108,10 @@ Written to `<path_results>/`:
 
 - `binary/` — raw `double`/`int` arrays of the stored snapshots (positions,
   velocities, forces, torques, angular velocities) plus per-mode potential and
-  dissipated energies and cluster IDs.
+  dissipated energies and cluster IDs. There are `N_iter / N_save + 1` snapshots,
+  snapshot `k` at `t = k * N_save * dt`. Potential energies are averaged and dissipated
+  energies summed over the `N_save` steps before each snapshot; both are zero for the
+  initial snapshot, as are its forces and torques, and no contacts are registered yet,
+  so every monomer is its own cluster.
 - `ovito/` — `t_*.dump` files for visualization in OVITO (https://www.ovito.org/)
   (vectors are rescaled for display).

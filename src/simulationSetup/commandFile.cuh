@@ -1,5 +1,7 @@
 #pragma once
 
+#include <climits>
+#include <cmath>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -490,9 +492,7 @@ private:
             int N_iter;
 
             // Attempt to convert value to integer
-            try {
-                N_iter = std::stoi(value);
-            } catch (...) {
+            if ( to_int(value, N_iter) != Status::ok ) {
                 Logger::error("Could not convert <N_iter> '{}' to integer.", value);
                 return Status::error;
             }
@@ -502,19 +502,51 @@ private:
             return Status::ok;
         }
 
+        if (tag == "t_end") {
+            try {
+                out_config.t_end = std::stod(value);
+            } catch (...) {
+                Logger::error("Could not convert <t_end> to double.");
+                return Status::error;
+            }
+            return Status::ok;
+        }
+
         if (tag == "N_save") {
             int N_save;
 
             // Attempt to convert value to integer
-            try {
-                N_save = std::stoi(value);
-            } catch (...) {
+            if ( to_int(value, N_save) != Status::ok ) {
                 Logger::error("Could not convert <N_save> '{}' to integer.", value);
                 return Status::error;
             }
 
             // Store results and return Ok status.
             out_config.output.N_save = N_save;
+            return Status::ok;
+        }
+
+        if (tag == "t_save") {
+            try {
+                out_config.output.t_save = std::stod(value);
+            } catch (...) {
+                Logger::error("Could not convert <t_save> to double.");
+                return Status::error;
+            }
+            return Status::ok;
+        }
+
+        if (tag == "N_snap") {
+            int N_snap;
+
+            // Attempt to convert value to integer
+            if ( to_int(value, N_snap) != Status::ok ) {
+                Logger::error("Could not convert <N_snap> '{}' to integer.", value);
+                return Status::error;
+            }
+
+            // Store results and return Ok status.
+            out_config.output.N_snap = N_snap;
             return Status::ok;
         }
 
@@ -629,9 +661,7 @@ private:
             }
             
             int mat_id;
-            try {
-                mat_id = std::stoi(id_str);
-            } catch (...) {
+            if ( to_int(id_str, mat_id) != Status::ok ) {
                 Logger::error("Could not convert material ID '{}' to integer.", id_str);
                 return Status::error;
             }
@@ -718,7 +748,7 @@ private:
 
         // Legacy tags that are still accepted so that old command files parse, but no longer have an effect.
         if ( tag == "time_start" || tag == "time_stop" ) {
-            Logger::warn("<{}> is ignored. The run duration is defined by <N_iter> and <time_step>.", tag);
+            Logger::warn("<{}> is a legacy tag and ignored. The run duration is defined by <N_iter> or <t_end>.", tag);
             return Status::ok;
         }
 
@@ -771,6 +801,55 @@ private:
             }
         }
 
+        return Status::ok;
+    }
+
+    /**
+     * @brief Convert a string to an integer value.
+     *
+     * Reads a string as a floating point number to allow for scientific notation.
+     * 
+     * @param[in] s
+     *     Input string to be interpreted as an integer value.
+     *
+     * @param[out] out
+     *     Integer variable that will receive the converted value on success.
+     *     Its value is unchanged if the function returns `Status::error`.
+     *
+     * @return Status::ok
+     *     If the input string is a valid integer.
+     *
+     * @return Status::error
+     *     If the input string is not a number, has trailing characters, is not a whole
+     *     number or lies outside the range of int.
+     */
+    Status to_int(const std::string& s, int& out) {
+        double      x;
+        std::size_t pos = 0;
+
+        try {
+            x = std::stod(s, &pos);
+        } catch (...) {
+            Logger::error("The string '{}' is not a number.", s);
+            return Status::error;
+        }
+
+        if ( pos != s.size() ) {
+            Logger::error("The string '{}' contains trailing characters after the number.", s);
+            return Status::error;
+        }
+
+        if ( !std::isfinite(x) || x != std::floor(x) ) {
+            Logger::error("The string '{}' is not a whole number.", s);
+            return Status::error;
+        }
+
+        if ( x < double(INT_MIN) || x > double(INT_MAX) ) {
+            Logger::error("The number '{}' lies outside the range of int.", s);
+            return Status::error;
+        }
+
+        out = int(x);
         return Status::ok;
     }
 

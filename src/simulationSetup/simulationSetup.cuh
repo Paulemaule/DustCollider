@@ -9,7 +9,12 @@
 #include "../physics/integrator_utils.cuh"
 #include "../utils/constant.cuh"
 
+#include <climits>
+#include <cmath>
+#include <cstdint>
 #include <filesystem>
+#include <format>
+#include <string>
 /**
  * TODO: Replace Macro based logging with dedicated Logging tool
  */
@@ -39,7 +44,8 @@ public:
      *  3) Read the aggregate files to extract monomer information.
      *  4) Build the initial system state.
      *  5) Calculate system parameters (timestep)
-     *  6) Run a sanity check on the simulation config.
+     *  6) Resolve the run length and snapshot schedule into iteration counts.
+     *  7) Run a sanity check on the simulation config.
      * 
      * @param argc
      * @param argv
@@ -90,6 +96,10 @@ public:
 
         // Calculate system parameters
         _s = calculate_system_properties();
+        if ( _s != Status::ok ) return _s;
+
+        // Convert the run length and snapshot schedule into iterations. Needs the timestep.
+        _s = resolve_run_schedule();
         if ( _s != Status::ok ) return _s;
 
         Logger::lineBreak();
@@ -167,7 +177,8 @@ private:
     /**
      * @brief Auto-calculates several system properties.
      *
-     * This includes the timestep.
+     * This includes the smallest dynamical timescale tau_min and, unless <time_step> was set, the timestep.
+     * tau_min is calculated in both cases, as the run schedule is reported in units of it.
      */
     Status calculate_system_properties() {
         Logger::log("Calculate simulation timestep.");
@@ -176,8 +187,6 @@ private:
         if ( skip_timestep ) {
             Logger::warn("<time_step> was set in command file. Timestep was set to {} s.", run_config.timestep);
         }
-
-        if ( skip_timestep ) return Status::ok;
 
         const size_t Nmon = run_config.initial_state.radii.size();
         double tau_min  = 1e200; // The smallest dynamical timescale of the system.
@@ -218,9 +227,134 @@ private:
             }
         }
 
+        // Without a monomer pair there is no contact timescale.
+        if ( Nmon >= 2 ) {
+            run_config.tau_min = tau_min;
+        } else {
+            Logger::warn("The timestep could not be calculated for a simulation with less then 2 monomers!");
+        }
+
         if ( !skip_timestep ) {
             run_config.timestep = 0.005 * tau_min;
         }
+
+        return Status::ok;
+    }
+
+    // TODO There is a structural conflict baked into SimulationConfig that becomes clearest here. SimulationConfig is meant to be a struct that is handed to the Simulation and containing only info relevant to the Simulation. Currently it also holds all the parameters set in the command file. It would make more sense to split the current struct into two structs one for each purpose (SimulationParameters and Input).
+    /**
+     * @brief Resolves the run length and the snapshot schedule into iteration counts.
+     *
+     * The run length is set by exactly one of <N_iter> or <t_end> [s].
+     * The snapshot schedule is set by exactly one of <N_save>, <t_save> [s] or <N_snap>. 
+     * This function converts any pairing of these tags into a valid run lenght and 
+     * snapshot schedule while taking the timestep of the simulation into account.
+     *
+     * Snapshots lie on a uniform grid of N_save iterations, starting with the initial state at t = 0.
+     * N_iter is rounded up to a whole number of snapshot intervals, so the final state is always stored.
+     * On return N_iter and N_save hold the resolved values, while t_end, t_save and N_snap keep the
+     * values from the command file. // TODO: See the comment on top of this funtion for why this is a bad idea.
+     */
+    Status resolve_run_schedule() {
+        Logger::log("Resolve run length and snapshot schedule.");
+
+        SimulationConfig& cfg = run_config;
+        const double      dt  = cfg.timestep;
+
+        // Exactly one tag of each group must be set. Like <time_step>, a tag counts as set if it is non-zero.
+        const int n_length = (cfg.N_iter != 0) + (cfg.t_end != 0.0);
+        if ( n_length == 0 ) {
+            Logger::error("The run length is not set. Use either <N_iter> or <t_end>.");
+            return Status::error;
+        }
+        if ( n_length > 1 ) {
+            Logger::error("<N_iter> and <t_end> are mutually exclusive, only one may be set.");
+            return Status::error;
+        }
+
+        const int n_snapshot = (cfg.output.N_save != 0) + (cfg.output.t_save != 0.0) + (cfg.output.N_snap != 0);
+        if ( n_snapshot == 0 ) {
+            Logger::error("The snapshot schedule is not set. Use one of <N_save>, <t_save> or <N_snap>.");
+            return Status::error;
+        }
+        if ( n_snapshot > 1 ) {
+            Logger::error("<N_save>, <t_save> and <N_snap> are mutually exclusive, but {} of them are set.", n_snapshot);
+            return Status::error;
+        }
+
+        // The minimum number of iterations the run has to cover. Extracted from <N_iter> of <t_end>, whichever is set.
+        int64_t N_min = 0;
+
+        if ( cfg.N_iter != 0 ) { // When the number of iterations is explicitly set
+            if ( cfg.N_iter < 1 ) {
+                Logger::error("<N_iter> = {} must be > 0.", cfg.N_iter);
+                return Status::error;
+            }
+            N_min = cfg.N_iter;
+        } else { // When the number of iterations is via the lenght of the simulation
+            if ( !is_finite(cfg.t_end) || cfg.t_end <= 0.0 ) {
+                Logger::error("<t_end> = {} s must be > 0.", cfg.t_end);
+                return Status::error;
+            }
+            const double x = ceil_tol(cfg.t_end / dt);
+            if ( !(x >= 1.0 && x <= double(INT_MAX)) ) {
+                Logger::error("<t_end> = {:.4e} s corresponds to {:.4e} iterations of dt = {:.4e} s, but must be between 1 and {} iterations.",
+                              cfg.t_end, x, dt, INT_MAX);
+                return Status::error;
+            }
+            N_min = int64_t(x);
+        }
+
+        // The number of iterations between two snapshots and the number of snapshot intervals.
+        int64_t G = 0;
+        int64_t I = 0;
+
+        if ( cfg.output.N_save != 0 ) { // If the number of iterations between snapshots is set
+            if ( cfg.output.N_save < 1 ) {
+                Logger::error("<N_save> = {} must be > 0.", cfg.output.N_save);
+                return Status::error;
+            }
+            G = cfg.output.N_save;
+            I = ceil_div(N_min, G);
+        } else if ( cfg.output.t_save != 0.0 ) { // If the time interval between snapshots is set
+            if ( !is_finite(cfg.output.t_save) || cfg.output.t_save <= 0.0 ) {
+                Logger::error("<t_save> = {} s must be > 0.", cfg.output.t_save);
+                return Status::error;
+            }
+            // Calculate the number of interations based on the timestep and time interval between snapshots
+            const double ratio = cfg.output.t_save / dt;
+            const double x     = ceil_tol(ratio); // Round up with tolerance
+            if ( !(ratio * (1.0 + 1e-9) >= 1.0 && x <= double(INT_MAX)) ) {
+                Logger::error("<t_save> = {:.4e} s corresponds to {:.4e} iterations of dt = {:.4e} s, but must be between 1 and {} iterations.",
+                              cfg.output.t_save, ratio, dt, INT_MAX);
+                return Status::error;
+            }
+            G = int64_t(x);
+            I = ceil_div(N_min, G);
+        } else { // If the number of snapshots is set
+            if ( cfg.output.N_snap < 2 ) {
+                Logger::error("<N_snap> = {} must be >= 2, as the initial and the final state are always stored.", cfg.output.N_snap);
+                return Status::error;
+            }
+            I = cfg.output.N_snap - 1;
+            G = ceil_div(N_min, I);
+        }
+        
+        const int64_t N_iter = G * I;
+        if ( N_iter > INT_MAX ) {
+            Logger::error("The run needs {} iterations ({} snapshot intervals of {} iterations), more than the maximum of {}.",
+                          N_iter, I, G, INT_MAX);
+            return Status::error;
+        }
+
+        // Extend the runtime to allow for the last snapshot to be stored
+        if ( N_iter > N_min ) {
+            Logger::warn("The run was extended from {} to {} iterations (+{:.4e} s) to end on a snapshot.",
+                         N_min, N_iter, double(N_iter - N_min) * dt);
+        }
+
+        cfg.N_iter        = int(N_iter);
+        cfg.output.N_save = int(G);
 
         return Status::ok;
     }
@@ -275,6 +409,16 @@ private:
         return is_finite(v.x) && is_finite(v.y) && is_finite(v.z);
     }
 
+    // Integer division rounding up, for a >= 0 and b > 0.
+    static inline int64_t ceil_div(int64_t a, int64_t b) {
+        return (a + b - 1) / b;
+    }
+
+    // Rounds a time in units of dt up to whole iterations with tolerance to avoid issues from flop noise.
+    static inline double ceil_tol(double x) {
+        return std::ceil(x * (1.0 - 1e-9));
+    }
+
     static inline bool needs_output(const SimulationConfig& c) {
         return c.output.ovito   || c.output.position || c.output.velocity ||
                c.output.angular || c.output.force    || c.output.torque   ||
@@ -310,20 +454,7 @@ private:
     Status check_simulation_config(const SimulationConfig& cfg) {
         Logger::log("Validating simulation config.");
 
-        if (cfg.N_iter <= 0) {
-            Logger::error("<N_iter> = {} must be > 0.", cfg.N_iter);
-            return Status::error;
-        }
-
-        if (cfg.output.N_save <= 0) {
-            Logger::error("<N_save> = {} must be > 0.", cfg.output.N_save);
-            return Status::error;
-        }
-
-        if (cfg.output.N_save > cfg.N_iter) {
-            Logger::warn("<N_save> = {} is larger than <N_iter> = {}. No intermediate outputs will be written.",
-                                cfg.output.N_save, cfg.N_iter);
-        }
+        // N_iter and N_save are validated in resolve_run_schedule(), which runs before the config is printed.
 
         if (cfg.aggregates.empty()) {
             Logger::error("No aggregates defined in command file.");
@@ -406,14 +537,31 @@ private:
         Logger::header("SIMULATION CONFIG");
         Logger::lineBreak();
 
-        Logger::print("   N_iter:   {}", cfg.N_iter);
-        Logger::print("   Nmon:     {}", cfg.initial_state.positions.size());
-        Logger::print("   timestep: {:.4e} s", cfg.timestep);
-        Logger::print("   T_dust:   {:.2g} K", cfg.T_dust);
+        // Expresses a time in units of the smallest contact timescale, if it is available.
+        auto in_tau = [&](double t) -> std::string {
+            return (cfg.tau_min > 0.0) ? std::format(" = {:.4g} tau_{{dyn,min}}", t / cfg.tau_min) : std::string();
+        };
+
+        const double t_run = double(cfg.N_iter) * cfg.timestep;
+
+        Logger::print("   Nmon:      {}", cfg.initial_state.positions.size());
+        Logger::print("   timestep:  {:.4e} s{}", cfg.timestep, in_tau(cfg.timestep));
+        if (cfg.tau_min > 0.0) {
+            Logger::print("   tau_{{N,min}}: {:.4e} s", cfg.tau_min) 
+        } else {
+            Logger::print("   tau_{{N,min}}: n/a (fewer than two monomers)");
+        }
+        if (cfg.t_end != 0.0) {
+            Logger::print("   N_iter:    {} (from <t_end> = {:.4e} s)", cfg.N_iter, cfg.t_end);
+        } else {
+            Logger::print("   N_iter:    {} (from <N_iter>)", cfg.N_iter);
+        }
+        Logger::print("      =>      simulated time {:.4e} s{}", t_run, in_tau(t_run));
+        Logger::print("   T_dust:    {:.2g} K", cfg.T_dust);
         if (cfg.T_dust == -1.0) {
             Logger::print("      T_dust:   disabled");
         }
-        Logger::print("   B_ext:    ({:.3e}, {:.3e}, {:.3e}) T",
+        Logger::print("   B_ext:     ({:.3e}, {:.3e}, {:.3e}) T",
                cfg.B_ext.x, cfg.B_ext.y, cfg.B_ext.z);
 
         Logger::lineBreak();
@@ -483,9 +631,19 @@ private:
         // Output
         Logger::print("Simulation Output");
         Logger::lineBreak();
-        Logger::print("   Path:     {}", cfg.output.path.c_str());
-        Logger::print("   N_save:   {}", cfg.output.N_save);
-        Logger::print("      =>     {} snapshots will be saved", cfg.N_iter / cfg.output.N_save);
+        const double t_save = double(cfg.output.N_save) * cfg.timestep;
+
+        Logger::print("   Path:      {}", cfg.output.path.c_str());
+        if (cfg.output.N_snap != 0) {
+            Logger::print("   N_save:    {} (from <N_snap> = {})", cfg.output.N_save, cfg.output.N_snap);
+        } else if (cfg.output.t_save != 0.0) {
+            Logger::print("   N_save:    {} (from <t_save> = {:.4e} s)", cfg.output.N_save, cfg.output.t_save);
+        } else {
+            Logger::print("   N_save:    {} (from <N_save>)", cfg.output.N_save);
+        }
+        Logger::print("      =>      a snapshot every {:.4e} s{}", t_save, in_tau(t_save));
+        Logger::print("      =>      {} snapshots from t = 0 to {:.4e} s will be saved",
+            cfg.N_iter / cfg.output.N_save + 1, t_run);
         Logger::print("   ovito={:<3}  pos={:<3}  vel={:<3}  ang={:<3}  force={:<3}  torque={:<3}  energy={:<3}",
             cfg.output.ovito    ? "yes" : "no",
             cfg.output.position ? "yes" : "no",

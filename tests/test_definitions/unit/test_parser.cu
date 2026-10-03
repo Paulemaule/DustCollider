@@ -430,6 +430,84 @@ void test_parser() {
     }
 
     // ------------------------------------------------------------------ //
+    // Run length and snapshot tags in physical units (issue Z): <t_end>,
+    // <t_save> and <N_snap> are only stored here, the conversion into
+    // iterations happens in the pipeline once the timestep is known.
+    // ------------------------------------------------------------------ //
+
+    {
+        write_tmp("<t_end> 1.5e-9\n"
+                  "<t_save> 2.5e-11\n"
+                  "<N_snap> 51\n");
+        CommandFile cf(TMP_FILE);
+        SimulationConfig cfg;
+        CHECK(cf.parse(cfg) == Status::ok);
+        CHECK_APPROX(cfg.t_end,         1.5e-9,  1e-22);
+        CHECK_APPROX(cfg.output.t_save, 2.5e-11, 1e-24);
+        CHECK(cfg.output.N_snap == 51);
+        CHECK(cfg.N_iter == 0);
+        CHECK(cfg.output.N_save == 0);
+    }
+    {
+        write_tmp("<t_end> abc\n");
+        CommandFile cf(TMP_FILE);
+        SimulationConfig cfg;
+        CHECK(cf.parse(cfg) == Status::error);
+    }
+    {
+        write_tmp("<t_save> abc\n");
+        CommandFile cf(TMP_FILE);
+        SimulationConfig cfg;
+        CHECK(cf.parse(cfg) == Status::error);
+    }
+    {
+        write_tmp("<N_snap> abc\n");
+        CommandFile cf(TMP_FILE);
+        SimulationConfig cfg;
+        CHECK(cf.parse(cfg) == Status::error);
+    }
+
+    // ------------------------------------------------------------------ //
+    // Integer tags accept scientific notation (issue R). std::stoi used to
+    // read '1e6' as 1 without any error.
+    // ------------------------------------------------------------------ //
+
+    {
+        write_tmp("<N_iter> 1e6\n"
+                  "<N_save> 1.5e3\n"
+                  "<N_snap> 1e2\n"
+                  "<material id=\"2e0\"> \"steel\" 0.05 1e11 0.3 8000.0 1e-9 1e-8\n");
+        CommandFile cf(TMP_FILE);
+        SimulationConfig cfg;
+        CHECK(cf.parse(cfg) == Status::ok);
+        CHECK(cfg.N_iter == 1000000);
+        CHECK(cfg.output.N_save == 1500);
+        CHECK(cfg.output.N_snap == 100);
+        CHECK(cfg.materials.size() == 2);
+        CHECK(cfg.materials[1].name == "steel");
+    }
+
+    // ------------------------------------------------------------------ //
+    // Integer tags reject values that are not whole numbers, have trailing
+    // characters or overflow int, instead of silently truncating them.
+    // ------------------------------------------------------------------ //
+
+    for (const char* content : {
+            "<N_iter> 1.5\n",
+            "<N_iter> 100 200\n",
+            "<N_iter> 3e9\n",
+            "<N_iter> -3e9\n",
+            "<N_iter> inf\n",
+            "<N_save> 10abc\n",
+            "<N_snap> 2.5\n",
+            "<material id=\"1.5\"> \"steel\" 0.05 1e11 0.3 8000.0 1e-9 1e-8\n" }) {
+        write_tmp(content);
+        CommandFile cf(TMP_FILE);
+        SimulationConfig cfg;
+        CHECK(cf.parse(cfg) == Status::error);
+    }
+
+    // ------------------------------------------------------------------ //
     // Cleanup
     // ------------------------------------------------------------------ //
 

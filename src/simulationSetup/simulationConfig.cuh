@@ -62,6 +62,8 @@ struct MaterialEntry {
  *
  * @param path      Path to the output directory.
  * @param N_save    Interval (in iterations) at which data is written to disk.
+ * @param t_save    Snapshot interval [s] from <t_save>; 0 means not set.
+ * @param N_snap    Total number of snapshots (including t = 0) from <N_snap>; 0 means not set.
  * @param ovito     Write trajectory output in OVITO-compatible format.
  * @param position  Store monomer positions to disk.
  * @param velocity  Store monomer velocities to disk.
@@ -73,6 +75,8 @@ struct MaterialEntry {
 struct OutputConfig {
     std::string  path{};
     int          N_save   = 0;
+    double       t_save   = 0.0;
+    int          N_snap   = 0;
     bool         ovito    = false;
     bool         position = false;
     bool         velocity = false;
@@ -111,8 +115,11 @@ struct InitialState {
  * @param aggregates      Initial conditions for each aggregate, keyed by name.
  * @param materials       Material parameters indexed by (command-file id - 1).
  * @param output          Output path and save flags.
- * @param N_iter          Total number of simulation iterations.
+ * @param N_iter          Total number of simulation iterations. Holds the <N_iter> tag value until the run
+ *                        schedule is resolved, the derived iteration count afterwards. // TODO: Separate the command file logic fully from the simulation setup logic. The command file should only return the absolute raw input parameters, no derived quantities as is the case now...
+ * @param t_end           Minimum simulated time [s] from <t_end>; 0 means not set.
  * @param timestep        Simulation timestep [s]; 0 means auto-calculate from material properties.
+ * @param tau_min         Smallest normal contact timescale tau_N over all monomer pairs [s]; 0 if not available.
  * @param B_ext           External magnetic field [T].
  * @param T_dust          Dust temperature [K]; -1 disables temperature corrections.
  * @param initial_state   Per-monomer initial state assembled from aggregate files.
@@ -123,7 +130,9 @@ struct SimulationConfig {
     InitialState                    initial_state;
     OutputConfig                    output;
     int                             N_iter    = 0;
+    double                          t_end     = 0.0;
     double                          timestep  = 0.0;
+    double                          tau_min   = 0.0;
     double3                         B_ext     = {0.0, 0.0, 0.0};
     double                          T_dust    = 15.0;
 };
