@@ -547,7 +547,7 @@ private:
         Logger::print("   Nmon:      {}", cfg.initial_state.positions.size());
         Logger::print("   timestep:  {:.4e} s{}", cfg.timestep, in_tau(cfg.timestep));
         if (cfg.tau_min > 0.0) {
-            Logger::print("   tau_{{N,min}}: {:.4e} s", cfg.tau_min) 
+            Logger::print("   tau_{{N,min}}: {:.4e} s", cfg.tau_min);
         } else {
             Logger::print("   tau_{{N,min}}: n/a (fewer than two monomers)");
         }
