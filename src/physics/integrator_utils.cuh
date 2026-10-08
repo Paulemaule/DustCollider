@@ -315,12 +315,7 @@ __host__ __device__ double3 get_contact_displacement(const double3 pointer_i, co
  * @returns The sliding displacement.
  */
 __host__ __device__ double3 get_sliding_displacement(const double3 contact_displacement, const double3 normal) {
-    double3 res;
-    res.x = contact_displacement.x - vec_dot(contact_displacement, normal) * normal.x;
-    res.y = contact_displacement.y - vec_dot(contact_displacement, normal) * normal.y;
-    res.z = contact_displacement.z - vec_dot(contact_displacement, normal) * normal.z;
-
-    return res;
+    return vec_get_tangential(contact_displacement, normal);
 }
 
 /**

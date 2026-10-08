@@ -121,6 +121,27 @@ void test_vectors() {
     CHECK_APPROX(ret.z, vgn.z, 1e-15);
 
     // ------------------------------------------------------------------ //
+    // vec_get_tangential: removes the component along a unit vector,
+    // v - (v * n) n
+    // ------------------------------------------------------------------ //
+
+    double3 tn = vec_get_tangential({1.0, 2.0, 3.0}, {0.0, 0.0, 1.0});
+    CHECK_APPROX(tn.x, 1.0, 1e-15);
+    CHECK_APPROX(tn.y, 2.0, 1e-15);
+    CHECK_APPROX(tn.z, 0.0, 1e-15);
+
+    // Oblique unit vector: the result is perpendicular to n, and the removed part is parallel to n.
+    double3 n_obl = {0.6, 0.0, 0.8};
+    double3 v_obl = {1.5, -2.0, 0.7};
+    double3 t_obl = vec_get_tangential(v_obl, n_obl);
+    CHECK_APPROX(vec_dot(t_obl, n_obl), 0.0, 1e-15);
+    CHECK_APPROX(vec_length(vec_cross(vec_diff(v_obl, t_obl), n_obl)), 0.0, 1e-15);
+
+    // The sign of n does not matter.
+    double3 t_neg = vec_get_tangential(v_obl, {-0.6, 0.0, -0.8});
+    CHECK(t_neg.x == t_obl.x && t_neg.y == t_obl.y && t_neg.z == t_obl.z);
+
+    // ------------------------------------------------------------------ //
     // vec_set
     // ------------------------------------------------------------------ //
 

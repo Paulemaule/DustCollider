@@ -228,6 +228,25 @@ __host__ __device__ double3 vec_diff(const double3 u, const double3 v)
 }
 
 /**
+ * @brief Calculates the part of a vector that is perpendicular to a unit vector.
+ *
+ * @param v: The vector that is to be projected.
+ * @param n: The unit vector whose direction is removed from v.
+ * @return The tangential part v - (v * n) n.
+ */
+__host__ __device__ double3 vec_get_tangential(const double3 v, const double3 n)
+{
+    double v_n = vec_dot(v, n);
+
+    double3 res;
+    res.x = v.x - v_n * n.x;
+    res.y = v.y - v_n * n.y;
+    res.z = v.z - v_n * n.z;
+
+    return res;
+}
+
+/**
  * @brief Calculates the cross product of two vectors.
  * 
  * @param u: The first vector (the index finger in the right hand rule).
