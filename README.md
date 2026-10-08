@@ -107,11 +107,15 @@ Lines 5+ contain information on a single monomer `x y z _ radius _ mat_id` (posi
 Written to `<path_results>/`:
 
 - `binary/` — raw `double`/`int` arrays of the stored snapshots (positions,
-  velocities, forces, torques, angular velocities) plus per-mode potential and
-  dissipated energies and cluster IDs. There are `N_iter / N_save + 1` snapshots,
-  snapshot `k` at `t = k * N_save * dt`. Potential energies are averaged and dissipated
-  energies summed over the `N_save` steps before each snapshot; both are zero for the
-  initial snapshot, as are its forces and torques, and no contacts are registered yet,
-  so every monomer is its own cluster.
+  velocities, forces, torques, angular velocities) plus energies and cluster IDs.
+  There are `N_iter / N_save + 1` snapshots, snapshot `k` at `t = k * N_save * dt`.
+  Each energy file holds one `double` per snapshot, summed over all monomers:
+  - `sim_{normal,sliding,rolling,twisting}_pot.bin` — the potential energy stored in
+    the contacts, averaged over the `N_save` steps before the snapshot.
+  - `sim_normal_damp.bin` — viscous damping of the normal motion.
+  - `sim_{sliding,rolling,twisting}_slip.bin` — energy dissipated through inelastic motion beyond critical tangential displacements.
+  - `sim_{normal,sliding,rolling,twisting}_break.bin` — when a contact breaks all stored potential energy is dissipated.
+  - `sim_normal_form.bin` — when contacts are formed, energy is dissipated.
+
 - `ovito/` — `t_*.dump` files for visualization in OVITO (https://www.ovito.org/)
   (vectors are rescaled for display).

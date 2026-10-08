@@ -672,11 +672,16 @@ inline void Simulator::write_output() const {
         write_double("sim_rolling_pot.bin",  series([&](const EnergyRecord& e) { return e.rolling_pot  * inv; }));
         write_double("sim_twisting_pot.bin", series([&](const EnergyRecord& e) { return e.twisting_pot * inv; }));
 
-        // The dissipated energy per degree of freedom, summed over its sources.
-        write_double("sim_normal_diss.bin",   series([](const EnergyRecord& e) { return e.normal_damp + e.normal_break + e.normal_form; }));
-        write_double("sim_sliding_diss.bin",  series([](const EnergyRecord& e) { return e.sliding_slip  + e.sliding_break;  }));
-        write_double("sim_rolling_diss.bin",  series([](const EnergyRecord& e) { return e.rolling_slip  + e.rolling_break;  }));
-        write_double("sim_twisting_diss.bin", series([](const EnergyRecord& e) { return e.twisting_slip + e.twisting_break; }));
+        // The dissipated energies are stored per dof and dissipation channel. Acumulated over N_save iterations since the previous snapshot.
+        write_double("sim_normal_damp.bin",    series([](const EnergyRecord& e) { return e.normal_damp;    }));
+        write_double("sim_sliding_slip.bin",   series([](const EnergyRecord& e) { return e.sliding_slip;   }));
+        write_double("sim_rolling_slip.bin",   series([](const EnergyRecord& e) { return e.rolling_slip;   }));
+        write_double("sim_twisting_slip.bin",  series([](const EnergyRecord& e) { return e.twisting_slip;  }));
+        write_double("sim_normal_break.bin",   series([](const EnergyRecord& e) { return e.normal_break;   }));
+        write_double("sim_sliding_break.bin",  series([](const EnergyRecord& e) { return e.sliding_break;  }));
+        write_double("sim_rolling_break.bin",  series([](const EnergyRecord& e) { return e.rolling_break;  }));
+        write_double("sim_twisting_break.bin", series([](const EnergyRecord& e) { return e.twisting_break; }));
+        write_double("sim_normal_form.bin",    series([](const EnergyRecord& e) { return e.normal_form;    }));
     }
 
     Logger::lineBreak();
