@@ -423,6 +423,112 @@ __global__ void evaluate(
 }
 
 /**
+ * @brief Applies the inelastic sliding and rolling corrections to the contact pointer of monomer i.
+ *
+ * The tangential parts t_i, t_j of the two contact pointers (relative to the contact normal n) determine
+ * the sliding displacement and the tangential part of the rolling displacement:
+ *      zeta = r_i * t_i - r_j * t_j
+ *      xi   = R * (t_i + t_j)
+ * This linear map has the determinant r_i * r_j != 0, so the pointers can be rebuilt exactly from the
+ * displacements:
+ *      t_i = xi / r_i + zeta / (r_i + r_j)
+ *      t_j = xi / r_j - zeta / (r_i + r_j)
+ * Every displacement that exceeds its critical value is scaled back onto it, the other one is left
+ * untouched, and the tangential part of pointer i is rebuilt from the result. The normal component then
+ * restores the unit length. Sliding and rolling stay decoupled for any r_i, r_j and no renormalization
+ * factor is needed. The (j,i) thread sees -n, -zeta and the same xi, so it rebuilds t_j with the same expression.
+ *
+ * The rolling check uses the tangential part of R * (n_i + n_j), because that is the quantity that is clamped.
+ * After a clamp the full vector is longer by a second order term, so checking it would register a small
+ * inelastic rolling motion in every following step.
+ *
+ * @param pointer_i: The contact pointer of monomer i in the lab frame. Overwritten with the corrected pointer if a correction is applied.
+ * @param pointer_j: The contact pointer of monomer j in the lab frame.
+ * @param n: The contact normal (x_i - x_j) / |x_i - x_j|.
+ * @param r_i: The radius of monomer i.
+ * @param r_j: The radius of monomer j.
+ * @param delta_S_crit: The critical sliding displacement of the monomer pair.
+ * @param delta_R_crit: The critical rolling displacement of the monomer pair.
+ * @param excess_S: Set to the length by which the sliding displacement exceeds its critical value, 0 if it does not.
+ * @param excess_R: Set to the length by which the rolling displacement exceeds its critical value, 0 if it does not.
+ * @returns Whether a correction was applied to pointer_i.
+ */
+__host__ __device__ bool correct_contact_pointer(
+    double3&                    pointer_i,
+    const double3               pointer_j,
+    const double3               n,
+    const double                r_i,
+    const double                r_j,
+    const double                delta_S_crit,
+    const double                delta_R_crit,
+    double&                     excess_S,
+    double&                     excess_R
+) {
+    double R = get_R(r_i, r_j);
+
+    // The tangential parts of the contact pointers.
+    double3 t_i = vec_get_tangential(pointer_i, n);
+    double3 t_j = vec_get_tangential(pointer_j, n);
+
+    double3 sliding_displacement;           // The displacement in the sliding-dof of the contact.
+    sliding_displacement.x = r_i * t_i.x - r_j * t_j.x;
+    sliding_displacement.y = r_i * t_i.y - r_j * t_j.y;
+    sliding_displacement.z = r_i * t_i.z - r_j * t_j.z;
+
+    double3 rolling_displacement;           // The tangential part of the displacement in the rolling-dof of the contact.
+    rolling_displacement.x = R * (t_i.x + t_j.x);
+    rolling_displacement.y = R * (t_i.y + t_j.y);
+    rolling_displacement.z = R * (t_i.z + t_j.z);
+
+    double sliding_displacement_abs = vec_length(sliding_displacement);
+    double rolling_displacement_abs = vec_length(rolling_displacement);
+
+    bool corrected = false;
+    excess_S = 0.;
+    excess_R = 0.;
+
+    if (sliding_displacement_abs > delta_S_crit) {
+        // Inelastic sliding motion: scale the sliding displacement back onto its critical value.
+        double scale = delta_S_crit / sliding_displacement_abs;
+        sliding_displacement.x *= scale;
+        sliding_displacement.y *= scale;
+        sliding_displacement.z *= scale;
+
+        excess_S = sliding_displacement_abs - delta_S_crit;
+        corrected = true;
+    }
+
+    if (rolling_displacement_abs > delta_R_crit) {
+        // Inelastic rolling motion: scale the rolling displacement back onto its critical value.
+        double scale = delta_R_crit / rolling_displacement_abs;
+        rolling_displacement.x *= scale;
+        rolling_displacement.y *= scale;
+        rolling_displacement.z *= scale;
+
+        excess_R = rolling_displacement_abs - delta_R_crit;
+        corrected = true;
+    }
+
+    if (!corrected) return false;
+
+    // Rebuild the tangential part of pointer i from the corrected displacements.
+    double3 t_i_new;
+    t_i_new.x = rolling_displacement.x / r_i + sliding_displacement.x / (r_i + r_j);
+    t_i_new.y = rolling_displacement.y / r_i + sliding_displacement.y / (r_i + r_j);
+    t_i_new.z = rolling_displacement.z / r_i + sliding_displacement.z / (r_i + r_j);
+
+    // Restore the unit length with the normal component, on the same side of the contact plane as before.
+    // |t_i_new| is of order |xi| / r_i << 1, so the argument of the square root does not become negative in practice.
+    double normal_component = copysign(sqrt(fmax(0., 1. - vec_length_sq(t_i_new))), vec_dot(pointer_i, n));
+
+    pointer_i.x = normal_component * n.x + t_i_new.x;
+    pointer_i.y = normal_component * n.y + t_i_new.y;
+    pointer_i.z = normal_component * n.z + t_i_new.z;
+
+    return true;
+}
+
+/**
  * @brief Checks for inelastic motion and updates the contact pointers accordingly.
  * 
  * This function checks for critical displacements in all degrees of freedom.
@@ -570,69 +676,20 @@ __global__ void updatePointers(
             // rotation_next, twisting_next do not need to be updated here, as they are allready being updated in the pointer_corrector
         }
 
-        // FIXME: This is not perfect. The correction to rolling, can, if inelastic sliding also occurs, be inaccurate because rolling displacement has been calculated with an inaccurate pointer.
-        double sliding_displacement_abs = vec_length(sliding_displacement);
-        double rolling_displacement_abs = vec_length(rolling_displacement);
+        // Inelastic sliding and rolling motion. The displacements are clamped to their critical values and the
+        // pointer is rebuilt from them, see correct_contact_pointer. Shifting both pointers along the excess
+        // instead couples sliding and rolling when r_i != r_j and leaks the spring energy (see CLAUDE.md (AC)).
+        double excess_S;                        // The length by which the sliding displacement exceeds its critical value.
+        double excess_R;                        // The length by which the rolling displacement exceeds its critical value.
 
-        if (sliding_displacement_abs > delta_S_crit) {
-            // Inelastic sliding motion.
-            double3 correction;
-            correction.x = sliding_displacement.x * (1. - delta_S_crit / sliding_displacement_abs);
-            correction.y = sliding_displacement.y * (1. - delta_S_crit / sliding_displacement_abs);
-            correction.z = sliding_displacement.z * (1. - delta_S_crit / sliding_displacement_abs);
-
-            // FIXME: Ensure that the calculation of the angle theta_1 (wada07) is correct.
-            double correction_factor = vec_dot(pointer_i, correction) / vec_length(correction);
-            correction_factor = 1. / (1. - correction_factor * correction_factor);
-            correction_factor = correction_factor / (2. * r_i);
-
-            // Calculate the corrected pointer
-            pointer_i.x -= correction.x * correction_factor;
-            pointer_i.y -= correction.y * correction_factor;
-            pointer_i.z -= correction.z * correction_factor;
-
-            // Re-normalize the pointer.
-            vec_normalize(pointer_i);
-            
-            // Track dissipated energy.
-            atomicAdd(&inelastic_counter->x, 0.5 * k_s * delta_S_crit * (sliding_displacement_abs - delta_S_crit));
-        }
-
-        if (rolling_displacement_abs > delta_R_crit) {
-            // Inelastic rolling motion.
-            double3 correction;
-            correction.x = rolling_displacement.x * (1. - delta_R_crit / rolling_displacement_abs);
-            correction.y = rolling_displacement.y * (1. - delta_R_crit / rolling_displacement_abs);
-            correction.z = rolling_displacement.z * (1. - delta_R_crit / rolling_displacement_abs);
-
-            double correction_factor = vec_dot(pointer_i, correction) / vec_length(correction);
-            correction_factor = 1. / (1. - correction_factor * correction_factor);
-            // The correction factor for rolling should scale with R not r_i (see sliding).
-            // The reason is that the rolling displacement itself scales with R in the case of 
-            // rolling while it scales with r_i in sliding.
-            // To apply a correction to the pointers via the displacement the inverse of that
-            // should be applied, thus '* 1 / 2 * r_i' for sliding and '* 1 / 2 * R' for rolling.
-            // The additional factor 1/2 is due to the fact that half the total correction is
-            // applied to both pointers.
-            // This is not elaborated in Wada et al '07
-            correction_factor = correction_factor / (2. * R);
-            
-            // Calculate the corrected pointer
-            pointer_i.x -= correction.x * correction_factor;
-            pointer_i.y -= correction.y * correction_factor;
-            pointer_i.z -= correction.z * correction_factor;
- 
-            // Re-normalize the pointer.
-            vec_normalize(pointer_i);
-
-            // Track dissipated energy.
-            atomicAdd(&inelastic_counter->y, 0.5 * k_r * delta_R_crit * (rolling_displacement_abs - delta_R_crit));
-        }
-
-        // If there were any corrections, apply them to the contact pointer.
-        if (sliding_displacement_abs > delta_S_crit || rolling_displacement_abs > delta_R_crit) {
+        if (correct_contact_pointer(pointer_i, pointer_j, pointer_pos, r_i, r_j, delta_S_crit, delta_R_crit, excess_S, excess_R)) {
             // Corotate the corrected pointer to calculate the pointer in the monomer fixed system.
+            // Only done after a correction, the rotation round trip would otherwise add rounding errors.
             pointer_next[matrix_i] = quat_apply(rotation_i, pointer_i);
+
+            // Track dissipated energy.
+            if (excess_S > 0.) atomicAdd(&inelastic_counter->x, 0.5 * k_s * delta_S_crit * excess_S);
+            if (excess_R > 0.) atomicAdd(&inelastic_counter->y, 0.5 * k_r * delta_R_crit * excess_R);
         }
 
         if (twisting_displacement * twisting_displacement > delta_T_crit * delta_T_crit) {
