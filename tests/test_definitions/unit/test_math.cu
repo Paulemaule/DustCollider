@@ -314,4 +314,89 @@ void test_math() {
             CHECK_APPROX(residual, 0.0,  1e-9);
         }
     }
+
+    // ------------------------------------------------------------------ //
+    // get_G: reduced shear modulus  G_i * G_j / (G_i + G_j), symmetric
+    // ------------------------------------------------------------------ //
+
+    CHECK_APPROX(get_G(2.0, 2.0),  1.0,  1e-14);
+    CHECK_APPROX(get_G(2.0, 6.0),  1.5,  1e-14);
+    CHECK_APPROX(get_G(6.0, 2.0),  get_G(2.0, 6.0),  1e-14);
+
+    // ------------------------------------------------------------------ //
+    // get_F_c: critical force  3 * PI * gamma * R
+    // ------------------------------------------------------------------ //
+
+    CHECK_APPROX(get_F_c(1.0, 1.0),  3.0 * PI,  1e-14);
+    CHECK_APPROX(get_F_c(2.0, 0.5),  3.0 * PI,  1e-14);
+    CHECK_APPROX(get_F_c(0.1, 3.0),  0.9 * PI,  1e-14);
+
+    // ------------------------------------------------------------------ //
+    // get_k_s, get_k_r, get_k_t: sliding, rolling and twisting stiffness
+    //   k_s = 8 * G_s * a_0,  k_r = 4 * F_c / R,  k_t = 16 * G * a_0^3 / 3
+    // ------------------------------------------------------------------ //
+
+    CHECK_APPROX(get_k_s(2.0, 3.0),  48.0,  1e-14);
+    CHECK_APPROX(get_k_r(3.0, 2.0),   6.0,  1e-14);
+    CHECK_APPROX(get_k_t(3.0, 1.0),  16.0,  1e-14);
+    CHECK_APPROX(get_k_t(3.0, 2.0), 128.0,  1e-12);
+    // k_r = 4 * F_c / R = 12 * PI * gamma does not depend on the radius.
+    CHECK_APPROX(get_k_r(get_F_c(0.07, 1.0), 1.0),  get_k_r(get_F_c(0.07, 7.5), 7.5),  1e-14);
+
+    // ------------------------------------------------------------------ //
+    // Displacements: a contact along the x axis with the pointers tilted in
+    // the x-y plane, against the displacements worked out by hand. Lengths
+    // are compared in units of the radii.
+    // ------------------------------------------------------------------ //
+
+    {
+        const double r_i = 15e-9, r_j = 30e-9, R = get_R(r_i, r_j);
+        const double delta = 1e-10;                             // The compression of the contact.
+        const double alpha = 0.01, beta = -0.02;                // The tilts of the pointers.
+
+        const double3 x_i = { 0., 0., 0. };
+        const double3 x_j = { r_i + r_j - delta, 0., 0. };
+
+        // The unit vector from monomer j to monomer i.
+        const double3 n = vec_get_normal(x_i, x_j);
+
+        // Pointer i points towards monomer j (+x), pointer j towards monomer i (-x).
+        const double3 n_i = {  cos(alpha), sin(alpha), 0. };
+        const double3 n_j = { -cos(beta),  sin(beta),  0. };
+
+        // get_normal_displacement: r_i + r_j - |x_i - x_j|. Placing x_j loses digits of delta, ~1e-13 of it.
+        CHECK_APPROX(get_normal_displacement(x_i, x_j, r_i, r_j) / delta,  1.0,  1e-12);
+        CHECK_APPROX(get_normal_displacement(x_j, x_i, r_j, r_i) / delta,  1.0,  1e-12);
+
+        // get_contact_displacement: r_i n_i - r_j n_j + (r_i + r_j) n.
+        const double3 c = get_contact_displacement(n_i, n_j, n, r_i, r_j);
+        CHECK_APPROX(c.x / r_i, (r_i * cos(alpha) + r_j * cos(beta) - (r_i + r_j)) / r_i,  1e-15);
+        CHECK_APPROX(c.y / r_i, (r_i * sin(alpha) - r_j * sin(beta)) / r_i,                1e-15);
+        CHECK_APPROX(c.z / r_i,  0.0,  1e-15);
+
+        // get_sliding_displacement: the tangential part of the helper vector.
+        const double3 s = get_sliding_displacement(c, n);
+        CHECK_APPROX(s.x / r_i,  0.0,  1e-15);
+        CHECK_APPROX(s.y / r_i, (r_i * sin(alpha) - r_j * sin(beta)) / r_i,  1e-15);
+        CHECK_APPROX(s.z / r_i,  0.0,  1e-15);
+
+        // get_rolling_displacement: R (n_i + n_j), including its small normal part.
+        const double3 r = get_rolling_displacement(n_i, n_j, R);
+        CHECK_APPROX(r.x / R,  cos(alpha) - cos(beta),  1e-15);
+        CHECK_APPROX(r.y / R,  sin(alpha) + sin(beta),  1e-15);
+        CHECK_APPROX(r.z / R,  0.0,  1e-15);
+
+        // Swapping the monomers, as thread (j,i) does, flips the normal vector, the helper vector and sliding,
+        // and keeps the rolling displacement.
+        const double3 n_s = vec_get_normal(x_j, x_i);
+        const double3 c_s = get_contact_displacement(n_j, n_i, n_s, r_j, r_i);
+        const double3 s_s = get_sliding_displacement(c_s, n_s);
+        const double3 r_s = get_rolling_displacement(n_j, n_i, R);
+        CHECK_APPROX(n_s.x,       -n.x,        1e-15);
+        CHECK_APPROX(c_s.x / r_i, -c.x / r_i,  1e-15);
+        CHECK_APPROX(c_s.y / r_i, -c.y / r_i,  1e-15);
+        CHECK_APPROX(s_s.y / r_i, -s.y / r_i,  1e-15);
+        CHECK_APPROX(r_s.x / R,    r.x / R,    1e-15);
+        CHECK_APPROX(r_s.y / R,    r.y / R,    1e-15);
+    }
 }

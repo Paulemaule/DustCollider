@@ -304,7 +304,7 @@ __global__ void evaluate(
     double G_s = get_G_s(G_i, G_j, nu_i, nu_j);
 
     // The reduced shear modulus of the monomer pair.
-    double G = G_i * G_j / (G_i + G_j);
+    double G = get_G(G_i, G_j);
 
     // The surface energy of the monomer pair.
     double gamma = get_gamma(gamma_i, gamma_j);
@@ -313,10 +313,10 @@ __global__ void evaluate(
     double a_0 = get_a_0(gamma, R, E_s);
 
     // The force and torque strengths.
-    double F_c = 3. * PI * gamma * R;                   // The critical force at monomer separation.
-    double k_s = 8. * G_s * a_0;                        // The strength of the sliding force and torque.
-    double k_r = 4. * F_c / R;                          // The strength of the rolling torque.
-    double k_t = 16. * G * a_0 * a_0 * a_0 / 3.;        // The strength of the twisting torque.
+    double F_c = get_F_c(gamma, R);                     // The critical force at monomer separation.
+    double k_s = get_k_s(G_s, a_0);                     // The strength of the sliding force and torque.
+    double k_r = get_k_r(F_c, R);                       // The strength of the rolling torque.
+    double k_t = get_k_t(G, a_0);                       // The strength of the twisting torque.
 
     // The critical displacements.
     double delta_N_crit = get_delta_N_crit(a_0, R);
@@ -330,7 +330,7 @@ __global__ void evaluate(
         pointer_i = quat_apply_inverse(rotation_next[matrix_i], pointer_i);
         pointer_j = quat_apply_inverse(rotation_next[matrix_j], pointer_j);
 
-        // The pointer from the current position of monomer i to the current position of monomer j.
+        // The pointer from the current position of monomer j to the current position of monomer i.
         double3 pointer_pos = vec_get_normal(position_i, position_j);
 
         // Caculate the displacements
@@ -339,20 +339,14 @@ __global__ void evaluate(
         double3 rolling_displacement;           // The displacement in the rolling-dof of the contact.
         double twisting_displacement;           // The displacement in the twisting-dof of the contact, this is conceptually slightly different from Wada (2007). The twisting displacement here is only the integrated part of equation (24).
 
-        normal_displacement = r_i + r_j - vec_dist_len(position_i, position_j);
+        normal_displacement = get_normal_displacement(position_i, position_j, r_i, r_j);
         
         double3 contact_displacement;           // A helper variable in the displacement calculation (zeta_0 in Wada07).
-        contact_displacement.x = r_i * pointer_i.x - r_j * pointer_j.x + (r_i + r_j) * pointer_pos.x;
-        contact_displacement.y = r_i * pointer_i.y - r_j * pointer_j.y + (r_i + r_j) * pointer_pos.y;
-        contact_displacement.z = r_i * pointer_i.z - r_j * pointer_j.z + (r_i + r_j) * pointer_pos.z;
+        contact_displacement = get_contact_displacement(pointer_i, pointer_j, pointer_pos, r_i, r_j);
 
-        sliding_displacement.x = contact_displacement.x - vec_dot(contact_displacement, pointer_pos) * pointer_pos.x;
-        sliding_displacement.y = contact_displacement.y - vec_dot(contact_displacement, pointer_pos) * pointer_pos.y;
-        sliding_displacement.z = contact_displacement.z - vec_dot(contact_displacement, pointer_pos) * pointer_pos.z;
+        sliding_displacement = get_sliding_displacement(contact_displacement, pointer_pos);
 
-        rolling_displacement.x = R * (pointer_i.x + pointer_j.x);
-        rolling_displacement.y = R * (pointer_i.y + pointer_j.y);
-        rolling_displacement.z = R * (pointer_i.z + pointer_j.z);
+        rolling_displacement = get_rolling_displacement(pointer_i, pointer_j, R);
 
         twisting_displacement = twisting_next[matrix_i];
 
@@ -504,7 +498,7 @@ __global__ void updatePointers(
     double G_s = get_G_s(G_i, G_j, nu_i, nu_j);
 
     // The reduced shear modulus of the monomer pair.
-    double G = G_i * G_j / (G_i + G_j);
+    double G = get_G(G_i, G_j);
 
     // The surface energy of the monomer pair.
     double gamma = get_gamma(gamma_i, gamma_j);
@@ -513,10 +507,10 @@ __global__ void updatePointers(
     double a_0 = get_a_0(gamma, R, E_s);
 
     // The force and torque strengths.
-    double F_c = 3. * PI * gamma * R;                           // The critical force at monomer separation.
-    double k_s = 8. * G_s * a_0;                                // The strength of the sliding force and torque.
-    double k_r = 4. * F_c / R;                                  // The strength of the rolling torque.
-    double k_t = 16. * G * a_0 * a_0 * a_0 / 3.;                // The strength of the twisting torque.
+    double F_c = get_F_c(gamma, R);                             // The critical force at monomer separation.
+    double k_s = get_k_s(G_s, a_0);                             // The strength of the sliding force and torque.
+    double k_r = get_k_r(F_c, R);                               // The strength of the rolling torque.
+    double k_t = get_k_t(G, a_0);                               // The strength of the twisting torque.
 
     // The critical displacements.
     double delta_N_crit = get_delta_N_crit(a_0, R);             // The critical normal displacement of the monomer pair.
@@ -540,20 +534,14 @@ __global__ void updatePointers(
         double3 rolling_displacement;           // The displacement in the rolling-dof of the contact.
         double twisting_displacement;           // The displacement in the twisting-dof of the contact.
 
-        normal_displacement = r_i + r_j - vec_dist_len(position_i, position_j);
+        normal_displacement = get_normal_displacement(position_i, position_j, r_i, r_j);
         
         double3 contact_displacement;           // A helper variable in the displacement calculation.
-        contact_displacement.x = r_i * pointer_i.x - r_j * pointer_j.x + (r_i + r_j) * pointer_pos.x;
-        contact_displacement.y = r_i * pointer_i.y - r_j * pointer_j.y + (r_i + r_j) * pointer_pos.y;
-        contact_displacement.z = r_i * pointer_i.z - r_j * pointer_j.z + (r_i + r_j) * pointer_pos.z;
+        contact_displacement = get_contact_displacement(pointer_i, pointer_j, pointer_pos, r_i, r_j);
 
-        sliding_displacement.x = contact_displacement.x - vec_dot(contact_displacement, pointer_pos) * pointer_pos.x;
-        sliding_displacement.y = contact_displacement.y - vec_dot(contact_displacement, pointer_pos) * pointer_pos.y;
-        sliding_displacement.z = contact_displacement.z - vec_dot(contact_displacement, pointer_pos) * pointer_pos.z;
+        sliding_displacement = get_sliding_displacement(contact_displacement, pointer_pos);
 
-        rolling_displacement.x = R * (pointer_i.x + pointer_j.x);
-        rolling_displacement.y = R * (pointer_i.y + pointer_j.y);
-        rolling_displacement.z = R * (pointer_i.z + pointer_j.z);
+        rolling_displacement = get_rolling_displacement(pointer_i, pointer_j, R);
 
         twisting_displacement = twisting_next[matrix_i];
 
@@ -654,7 +642,7 @@ __global__ void updatePointers(
         }
     } else {
         double normal_displacement;             // The displacement in the normal-dof of the contact.
-        normal_displacement = r_i + r_j - vec_dist_len(position_i, position_j);
+        normal_displacement = get_normal_displacement(position_i, position_j, r_i, r_j);
 
         // Check if the monomer pair is currently making contact
         if (normal_displacement >= 0.) {

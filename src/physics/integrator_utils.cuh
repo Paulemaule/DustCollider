@@ -7,9 +7,8 @@
 
 #include <stack>
 
-// PI is used by get_a_0 and get_delta_S_crit below. Included here so this header is self-contained
-// rather than relying on whoever includes it having pulled in constant.cuh first.
 #include "utils/constant.cuh"
+#include "utils/vector.cuh"
 
 /**
  * @brief A macro that calculates the monomer pair indices from the threadID.
@@ -126,6 +125,19 @@ __host__ __device__ double get_G_s(const double G_i, const double G_j, const dou
 }
 
 /**
+ * @brief Calculates the reduced shear modulus of two monomers.
+ *
+ * G = G_i * G_j / (G_i + G_j)
+ *
+ * @param G_i: Shear modulus of monomer i.
+ * @param G_j: Shear modulus of monomer j.
+ * @returns The reduced shear modulus.
+ */
+__host__ __device__ double get_G(const double G_i, const double G_j) {
+    return G_i * G_j / (G_i + G_j);
+}
+
+/**
  * @brief Calculates the combined surface energy of two monomers.
  * 
  * @param gamma_i: The surface energy of monomer i.
@@ -172,6 +184,50 @@ __host__ __device__ double get_delta_S_crit(const double nu_i, const double nu_j
 }
 
 /**
+ * @brief Calculates the critical force at the separation of two monomers.
+ *
+ * @param gamma: The combined surface energy of the two monomers.
+ * @param R: The reduced radius of the two monomers.
+ * @returns The critical force.
+ */
+__host__ __device__ double get_F_c(const double gamma, const double R) {
+    return 3. * PI * gamma * R;
+}
+
+/**
+ * @brief Calculates the strength of the sliding force and torque between two monomers.
+ *
+ * @param G_s: The combined shear modulus of the two monomers.
+ * @param a_0: The equilibrium contact surface radius of the two monomers.
+ * @returns The strength of the sliding interaction.
+ */
+__host__ __device__ double get_k_s(const double G_s, const double a_0) {
+    return 8. * G_s * a_0;
+}
+
+/**
+ * @brief Calculates the strength of the rolling torque between two monomers.
+ *
+ * @param F_c: The critical force at the separation of the two monomers.
+ * @param R: The reduced radius of the two monomers.
+ * @returns The strength of the rolling interaction.
+ */
+__host__ __device__ double get_k_r(const double F_c, const double R) {
+    return 4. * F_c / R;
+}
+
+/**
+ * @brief Calculates the strength of the twisting torque between two monomers.
+ *
+ * @param G: The reduced shear modulus of the two monomers.
+ * @param a_0: The equilibrium contact surface radius of the two monomers.
+ * @returns The strength of the twisting interaction.
+ */
+__host__ __device__ double get_k_t(const double G, const double a_0) {
+    return 16. * G * a_0 * a_0 * a_0 / 3.;
+}
+
+/**
  * @brief Calculates the normal potential between two monomers.
  * 
  * @param F_c: The normal force at separation of the two monomers.
@@ -215,6 +271,75 @@ __host__ __device__ double get_U_R(const double k_r, const double3 rolling_displ
  */
 __host__ __device__ double get_U_T(const double k_t, const double twisting_displacement) {
     return  0.5 * k_t * twisting_displacement * twisting_displacement;
+}
+
+/**
+ * @brief Calculates the normal displacement (the compression) of two monomers.
+ *
+ * @param position_i: The position of monomer i.
+ * @param position_j: The position of monomer j.
+ * @param r_i: The radius of monomer i.
+ * @param r_j: The radius of monomer j.
+ * @returns The normal displacement, positive when the monomers overlap.
+ */
+__host__ __device__ double get_normal_displacement(const double3 position_i, const double3 position_j, const double r_i, const double r_j) {
+    return r_i + r_j - vec_dist_len(position_i, position_j);
+}
+
+/**
+ * @brief Calculates the helper vector of the sliding displacement of two monomers (see Wada et al. 2007).
+ *
+ * zeta_0 = r_i * n_i - r_j * n_j + (r_i + r_j) * n
+ *
+ * @param pointer_i: The contact pointer of monomer i in the lab frame, pointing from its center to the contact.
+ * @param pointer_j: The contact pointer of monomer j in the lab frame, pointing from its center to the contact.
+ * @param normal: The unit vector from monomer j to monomer i, (x_i - x_j) / |x_i - x_j|.
+ * @param r_i: The radius of monomer i.
+ * @param r_j: The radius of monomer j.
+ * @returns The helper vector zeta_0.
+ */
+__host__ __device__ double3 get_contact_displacement(const double3 pointer_i, const double3 pointer_j, const double3 normal, const double r_i, const double r_j) {
+    double3 res;
+    res.x = r_i * pointer_i.x - r_j * pointer_j.x + (r_i + r_j) * normal.x;
+    res.y = r_i * pointer_i.y - r_j * pointer_j.y + (r_i + r_j) * normal.y;
+    res.z = r_i * pointer_i.z - r_j * pointer_j.z + (r_i + r_j) * normal.z;
+
+    return res;
+}
+
+/**
+ * @brief Calculates the sliding displacement of two monomers, the tangential part of zeta_0.
+ *
+ * @param contact_displacement: The helper vector zeta_0, see get_contact_displacement.
+ * @param normal: The unit vector from monomer j to monomer i, (x_i - x_j) / |x_i - x_j|.
+ * @returns The sliding displacement.
+ */
+__host__ __device__ double3 get_sliding_displacement(const double3 contact_displacement, const double3 normal) {
+    double3 res;
+    res.x = contact_displacement.x - vec_dot(contact_displacement, normal) * normal.x;
+    res.y = contact_displacement.y - vec_dot(contact_displacement, normal) * normal.y;
+    res.z = contact_displacement.z - vec_dot(contact_displacement, normal) * normal.z;
+
+    return res;
+}
+
+/**
+ * @brief Calculates the rolling displacement of two monomers.
+ *
+ * xi = R * (n_i + n_j)
+ *
+ * @param pointer_i: The contact pointer of monomer i in the lab frame, pointing from its center to the contact.
+ * @param pointer_j: The contact pointer of monomer j in the lab frame, pointing from its center to the contact.
+ * @param R: The reduced radius of the two monomers.
+ * @returns The rolling displacement.
+ */
+__host__ __device__ double3 get_rolling_displacement(const double3 pointer_i, const double3 pointer_j, const double R) {
+    double3 res;
+    res.x = R * (pointer_i.x + pointer_j.x);
+    res.y = R * (pointer_i.y + pointer_j.y);
+    res.z = R * (pointer_i.z + pointer_j.z);
+
+    return res;
 }
 
 /**
