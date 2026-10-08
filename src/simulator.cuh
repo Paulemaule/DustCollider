@@ -20,6 +20,7 @@
 #include "physics/state.cuh"
 #include "physics/materials.cuh"
 #include "physics/integrator.cuh"
+#include "physics/energy.cuh"
 
 #include "simulationSetup/simulationConfig.cuh"
 
@@ -43,9 +44,8 @@ class Simulator {
     HostMaterials         host_materials;   // The material properties of the monomers in host memory.
     DeviceMaterials       device_materials; // The material properties of the monomers in device memory.
 
-    // RAII buffers for the energy accumulators
-    DeviceBuffer<double4> device_potential; // Tracker for the potential energies in device memory.
-    DeviceBuffer<double4> device_inelastic; // Accumulator for the energy loss in device memory.
+    DeviceEnergy          device_energy;    // The per monomer energy trackers in device memory.
+    HostEnergy            host_energy;      // The per monomer energy trackers in host memory.
 
     // Storage for the system state snapshots
     size_t N_store_ = 0;                    // TODO
@@ -57,9 +57,8 @@ class Simulator {
     std::optional<std::vector<double3>> snap_torque_;
     std::optional<std::vector<double3>> snap_omega_;
 
-    // Energy / dissipation — always stored when N_store_ > 0
-    std::vector<double> snap_pot_N_, snap_pot_S_, snap_pot_R_, snap_pot_T_;
-    std::vector<double> snap_dis_N_, snap_dis_S_, snap_dis_R_, snap_dis_T_;
+    // Energy diagnostic snapshots
+    std::vector<EnergyRecord> snap_energy_;
 
     // Cluster IDs — always stored when N_store_ > 0
     std::vector<int> snap_cluster_;
@@ -81,8 +80,8 @@ public:
         , device_next(Nmon)
         , host_materials(Nmon)
         , device_materials(Nmon)
-        , device_potential(1)
-        , device_inelastic(1)
+        , device_energy(Nmon)
+        , host_energy(Nmon)
     {
         init_state();
         init_mat();
@@ -226,9 +225,8 @@ inline void Simulator::init_state() {
     host_state.push_to(device_curr, Nmon);
     host_state.push_to(device_next, Nmon);
 
-    // Initialize the energy trackes
-    CHECK_CUDA(cudaMemset(device_potential.data(), 0, sizeof(double4)));
-    CHECK_CUDA(cudaMemset(device_inelastic.data(), 0, sizeof(double4)));
+    // Initialize the energy trackers
+    device_energy.zero();
 }
 
 /**
@@ -289,10 +287,7 @@ inline void Simulator::allocate_snapshots() {
     if (config.output.angular)  snap_omega_.emplace(N_store_mon,  double3{});
 
     // Preallocate and initialize memory for the energy trackers.
-    snap_pot_N_.assign(N_store_, 0.0); snap_pot_S_.assign(N_store_, 0.0);
-    snap_pot_R_.assign(N_store_, 0.0); snap_pot_T_.assign(N_store_, 0.0);
-    snap_dis_N_.assign(N_store_, 0.0); snap_dis_S_.assign(N_store_, 0.0);
-    snap_dis_R_.assign(N_store_, 0.0); snap_dis_T_.assign(N_store_, 0.0);
+    snap_energy_.assign(N_store_, EnergyRecord{});
 
     // Preallocate and initialize memory for the cluster membership.
     snap_cluster_.assign(N_store_mon, -1);
@@ -306,7 +301,7 @@ inline void Simulator::allocate_snapshots() {
     if (snap_omega_)  n_vec3++;
 
     const size_t bytes = n_vec3 * N_store_mon * sizeof(double3)  // kinematic snapshots
-                       + 8 * N_store_ * sizeof(double)           // energy trackers
+                       + N_store_ * sizeof(EnergyRecord)         // energy diagnostic snapshots
                        + N_store_mon * sizeof(int);              // cluster membership
 
     Logger::log("Allocated {} snapshot slots ({} monomers each) using {} of host memory.",
@@ -338,22 +333,10 @@ inline void Simulator::save_snapshot(size_t snap_idx) {
     if (snap_torque_) std::copy(hv.torque,   hv.torque   + Nmon, snap_torque_->data() + base);
     if (snap_omega_)  std::copy(hv.omega,    hv.omega    + Nmon, snap_omega_->data()  + base);
 
-    // Copy the energy diagnostics from device memory into the storage structs
-    double4 pot{};
-    CHECK_CUDA(cudaMemcpy(&pot, device_potential.data(), sizeof(double4), cudaMemcpyDeviceToHost));
-    snap_pot_N_[snap_idx] = pot.w;
-    snap_pot_S_[snap_idx] = pot.x;
-    snap_pot_R_[snap_idx] = pot.y;
-    snap_pot_T_[snap_idx] = pot.z;
-    CHECK_CUDA(cudaMemset(device_potential.data(), 0, sizeof(double4)));
-
-    double4 dis{};
-    CHECK_CUDA(cudaMemcpy(&dis, device_inelastic.data(), sizeof(double4), cudaMemcpyDeviceToHost));
-    snap_dis_N_[snap_idx] = dis.w;
-    snap_dis_S_[snap_idx] = dis.x;
-    snap_dis_R_[snap_idx] = dis.y;
-    snap_dis_T_[snap_idx] = dis.z;
-    CHECK_CUDA(cudaMemset(device_inelastic.data(), 0, sizeof(double4)));
+    // Pull the energy trackers from the device, sum the individual monomer contributions, store them and reset the tracker
+    host_energy.pull_from(device_energy, Nmon);
+    snap_energy_[snap_idx] = host_energy.totals(Nmon);
+    device_energy.zero();
 
     // Calculate monomer cluster membership and store it into a storage struct
     findMonomerClusters((int)Nmon, hv.contact_pointer, snap_cluster_.data() + base);
@@ -391,6 +374,7 @@ inline void Simulator::run() {
         DeviceStateView     curr = device_curr.view();      // View over the current (t) system state in device memory.
         DeviceStateView     next = device_next.view();      // View over the next (t+dt) system state in device memory.
         DeviceMaterialsView mat = device_materials.view();  // View over the material properties of the monomers in device memory.
+        DeviceEnergyView    en = device_energy.view();      // View over the energy trackers in device memory.
 
         // The PREDICTION steps
         predictor<<<nBlocks_single, BLOCK_SIZE>>>(
@@ -414,7 +398,8 @@ inline void Simulator::run() {
             next.position, curr.contact_pointer,
             next.contact_rotation, next.contact_twist, curr.contact_compression,
             next.force, next.torque,
-            device_potential.data(), device_inelastic.data(),
+            en.normal_pot, en.sliding_pot, en.rolling_pot, en.twisting_pot,
+            en.normal_damp,
             mat.mass, mat.radius, mat.youngs_modulus, mat.poisson_number,
             mat.surface_energy, mat.crit_rolling_disp, mat.damping_timescale,
             config.timestep, (int)Nmon
@@ -443,7 +428,9 @@ inline void Simulator::run() {
             curr.contact_rotation, curr.contact_compression,
             next.contact_pointer, next.contact_rotation,
             next.contact_twist, next.contact_compression,
-            device_inelastic.data(),
+            en.sliding_slip, en.rolling_slip, en.twisting_slip,
+            en.normal_break, en.sliding_break, en.rolling_break, en.twisting_break,
+            en.normal_form,
             mat.radius, mat.youngs_modulus, mat.poisson_number,
             mat.surface_energy, mat.crit_rolling_disp,
             (int)Nmon
@@ -669,27 +656,27 @@ inline void Simulator::write_output() const {
     // Write the energy diagnostics
     Logger::log("Writing energy diagnostics to disk.");
     
-    if (!snap_pot_N_.empty()) {
+    if (!snap_energy_.empty()) {
+        // Helper function that evaluates a quantity of the energy records for every snapshot.
+        auto series = [&](auto quantity) {
+            std::vector<double> res(N_store_);
+            for (size_t k = 0; k < N_store_; k++) res[k] = quantity(snap_energy_[k]);
+            return res;
+        };
+
         // The potential energies are accumulated over the N_save iterations since the previous snapshot and will need
         // to be averaged. The initial snapshot accumulated nothing, its zero stays zero.
         const double inv = 1.0 / config.output.N_save;
-        std::vector<double> avg_N(N_store_), avg_S(N_store_), avg_R(N_store_), avg_T(N_store_);
-        for (size_t i = 0; i < N_store_; i++) {
-            avg_N[i] = snap_pot_N_[i] * inv;
-            avg_S[i] = snap_pot_S_[i] * inv;
-            avg_R[i] = snap_pot_R_[i] * inv;
-            avg_T[i] = snap_pot_T_[i] * inv;
-        }
+        write_double("sim_normal_pot.bin",   series([&](const EnergyRecord& e) { return e.normal_pot   * inv; }));
+        write_double("sim_sliding_pot.bin",  series([&](const EnergyRecord& e) { return e.sliding_pot  * inv; }));
+        write_double("sim_rolling_pot.bin",  series([&](const EnergyRecord& e) { return e.rolling_pot  * inv; }));
+        write_double("sim_twisting_pot.bin", series([&](const EnergyRecord& e) { return e.twisting_pot * inv; }));
 
-        write_double("sim_normal_pot.bin",   avg_N);
-        write_double("sim_sliding_pot.bin",  avg_S);
-        write_double("sim_rolling_pot.bin",  avg_R);
-        write_double("sim_twisting_pot.bin", avg_T);
-
-        write_double("sim_normal_diss.bin",   snap_dis_N_);
-        write_double("sim_sliding_diss.bin",  snap_dis_S_);
-        write_double("sim_rolling_diss.bin",  snap_dis_R_);
-        write_double("sim_twisting_diss.bin", snap_dis_T_);
+        // The dissipated energy per degree of freedom, summed over its sources.
+        write_double("sim_normal_diss.bin",   series([](const EnergyRecord& e) { return e.normal_damp + e.normal_break + e.normal_form; }));
+        write_double("sim_sliding_diss.bin",  series([](const EnergyRecord& e) { return e.sliding_slip  + e.sliding_break;  }));
+        write_double("sim_rolling_diss.bin",  series([](const EnergyRecord& e) { return e.rolling_slip  + e.rolling_break;  }));
+        write_double("sim_twisting_diss.bin", series([](const EnergyRecord& e) { return e.twisting_slip + e.twisting_break; }));
     }
 
     Logger::lineBreak();

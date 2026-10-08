@@ -235,8 +235,11 @@ __global__ void evaluate(
 
     double3*                    force_next,
     double3*                    torque_next,
-    double4*                    potential_energy,
-    double4*                    inelastic_counter,
+    double*                     normal_pot,
+    double*                     sliding_pot,
+    double*                     rolling_pot,
+    double*                     twisting_pot,
+    double*                     normal_damp,
 
     const double*               mass,
     const double*               radius,
@@ -411,14 +414,13 @@ __global__ void evaluate(
         atomicAdd(&torque_next[i].y, torque.y);
         atomicAdd(&torque_next[i].z, torque.z);
 
-        // Add energy dissipation.
-        atomicAdd(&inelastic_counter->w, 0.5 * damping_force * (normal_displacement - compression_old[matrix_i]));
+        // Track the energy diagnostics. The damping dissipation in normal direction and the potential energies of the 4 dofs. Each thread stores half the total contribution, because two threads contribute to each entry.
+        atomicAdd(&normal_damp[i], 0.5 * damping_force * (normal_displacement - compression_old[matrix_i]));
 
-        // Add the potential energies.
-        atomicAdd(&potential_energy->w, 0.5 * get_U_N(F_c, delta_N_crit, a, a_0));
-        atomicAdd(&potential_energy->x, 0.5 * get_U_S(k_s, sliding_displacement));
-        atomicAdd(&potential_energy->y, 0.5 * get_U_R(k_r, rolling_displacement));
-        atomicAdd(&potential_energy->z, 0.5 * get_U_T(k_t, twisting_displacement));
+        atomicAdd(&normal_pot[i],   0.5 * get_U_N(F_c, delta_N_crit, a, a_0));
+        atomicAdd(&sliding_pot[i],  0.5 * get_U_S(k_s, sliding_displacement));
+        atomicAdd(&rolling_pot[i],  0.5 * get_U_R(k_r, rolling_displacement));
+        atomicAdd(&twisting_pot[i], 0.5 * get_U_T(k_t, twisting_displacement));
     }
 }
 
@@ -438,7 +440,14 @@ __global__ void updatePointers(
     double4*                    rotation_next,
     double*                     twisting_next,
     double*                     compression_next,
-    double4*                    inelastic_counter,
+    double*                     sliding_slip,
+    double*                     rolling_slip,
+    double*                     twisting_slip,
+    double*                     normal_break,
+    double*                     sliding_break,
+    double*                     rolling_break,
+    double*                     twisting_break,
+    double*                     normal_form,
 
     const double*               radius,
     const double*               youngs_modulus,
@@ -556,11 +565,11 @@ __global__ void updatePointers(
             twisting_next[matrix_i]     = 0.;
             compression_next[matrix_i]  = 0.;
 
-            // All potential energy stored in the connection is lost.
-            atomicAdd(&inelastic_counter->w, 0.5 * get_U_N(F_c, delta_N_crit, get_contact_radius(normal_displacement, a_0, R), a_0));
-            atomicAdd(&inelastic_counter->x, 0.5 * get_U_S(k_s, sliding_displacement));
-            atomicAdd(&inelastic_counter->y, 0.5 * get_U_R(k_r, rolling_displacement));
-            atomicAdd(&inelastic_counter->z, 0.5 * get_U_T(k_t, twisting_displacement));
+            // All potential energy stored in the connection is lost. Each thread stores half the total contribution, because two threads contribute to each entry.
+            atomicAdd(&normal_break[i],   0.5 * get_U_N(F_c, delta_N_crit, get_contact_radius(normal_displacement, a_0, R), a_0));
+            atomicAdd(&sliding_break[i],  0.5 * get_U_S(k_s, sliding_displacement));
+            atomicAdd(&rolling_break[i],  0.5 * get_U_R(k_r, rolling_displacement));
+            atomicAdd(&twisting_break[i], 0.5 * get_U_T(k_t, twisting_displacement));
 
             return; 
         } else {
@@ -595,7 +604,7 @@ __global__ void updatePointers(
             vec_normalize(pointer_i);
             
             // Track dissipated energy.
-            atomicAdd(&inelastic_counter->x, 0.5 * k_s * delta_S_crit * (sliding_displacement_abs - delta_S_crit));
+            atomicAdd(&sliding_slip[i], 0.5 * k_s * delta_S_crit * (sliding_displacement_abs - delta_S_crit));
         }
 
         if (rolling_displacement_abs > delta_R_crit) {
@@ -626,7 +635,7 @@ __global__ void updatePointers(
             vec_normalize(pointer_i);
 
             // Track dissipated energy.
-            atomicAdd(&inelastic_counter->y, 0.5 * k_r * delta_R_crit * (rolling_displacement_abs - delta_R_crit));
+            atomicAdd(&rolling_slip[i], 0.5 * k_r * delta_R_crit * (rolling_displacement_abs - delta_R_crit));
         }
 
         // If there were any corrections, apply them to the contact pointer.
@@ -641,7 +650,7 @@ __global__ void updatePointers(
             twisting_next[matrix_i] = sign * delta_T_crit;
             
             // Track dissipated energy.
-            atomicAdd(&inelastic_counter->z, 0.5 * k_t * delta_T_crit * (fabs(twisting_displacement) - delta_T_crit));
+            atomicAdd(&twisting_slip[i], 0.5 * k_t * delta_T_crit * (fabs(twisting_displacement) - delta_T_crit));
         }
     } else {
         double normal_displacement;             // The displacement in the normal-dof of the contact.
@@ -655,7 +664,8 @@ __global__ void updatePointers(
             twisting_next[matrix_i] = 0.;
             compression_next[matrix_i] = normal_displacement;
 
-            atomicAdd(&inelastic_counter->w, - 0.5 * get_U_N(F_c, delta_N_crit, get_contact_radius(normal_displacement, a_0, R), a_0));
+            // On contact, energy is dissipated 'instantaneously' (Wada et al '07), the lost energy needs to be tracked. Each thread stores half the total contribution, because two threads contribute to each entry.
+            atomicAdd(&normal_form[i], - 0.5 * get_U_N(F_c, delta_N_crit, get_contact_radius(normal_displacement, a_0, R), a_0));
         } else {
             pointer_next[matrix_i] = { 0., 0., 0. };
             rotation_next[matrix_i] = { 0., 0., 0., 0. };
