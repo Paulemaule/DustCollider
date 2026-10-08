@@ -10,7 +10,7 @@
  *  - *_damp:  Energy dissipated through the viscous damping of the normal motion.
  *  - *_slip:  When a contact exceeds its critical displacement in tangential motion, the contact moves inelastically, dissipating energy.
  *  - *_break: Contact breaking, all energy stored in the contact (in all four dofs) is lost.
- *  - *_form:  When a contact forms energy is dissipated 'instantaneously.
+ *  - *_form:  When a contact forms the potential jumps from 0 to U_N(delta) < 0. This is booked here.
  */
 
 #pragma once

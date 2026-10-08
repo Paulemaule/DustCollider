@@ -640,7 +640,7 @@ __global__ void updatePointers(
             twisting_next[matrix_i] = 0.;
             compression_next[matrix_i] = normal_displacement;
 
-            // On contact, energy is dissipated 'instantaneously' (Wada et al '07), the lost energy needs to be tracked. Each thread stores half the total contribution, because two threads contribute to each entry.
+            // On contact, the potential jumps from 0 to U_N(delta) < 0, this needs to be remembered for proper energy accounting. Each thread stores half the total contribution, because two threads contribute to each entry.
             atomicAdd(&normal_form[i], - 0.5 * get_U_N(F_c, delta_N_crit, get_contact_radius(normal_displacement, a_0, R), a_0));
         } else {
             pointer_next[matrix_i] = { 0., 0., 0. };

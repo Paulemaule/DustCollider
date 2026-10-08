@@ -697,6 +697,8 @@ inline void Simulator::write_output() const {
         write_double("sim_sliding_break.bin",  series([](const EnergyRecord& e) { return e.sliding_break;  }));
         write_double("sim_rolling_break.bin",  series([](const EnergyRecord& e) { return e.rolling_break;  }));
         write_double("sim_twisting_break.bin", series([](const EnergyRecord& e) { return e.twisting_break; }));
+
+        // Normal potential bookkeeping
         write_double("sim_normal_form.bin",    series([](const EnergyRecord& e) { return e.normal_form;    }));
     }
 
