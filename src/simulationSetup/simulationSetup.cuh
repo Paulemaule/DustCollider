@@ -421,8 +421,7 @@ private:
 
     static inline bool needs_output(const SimulationConfig& c) {
         return c.output.ovito   || c.output.position || c.output.velocity ||
-               c.output.angular || c.output.force    || c.output.torque   ||
-               c.output.energy;
+               c.output.angular || c.output.force    || c.output.torque;
     }
 
     static inline Status check_aggregate_config(const AggregateConfig& a) {
@@ -644,14 +643,13 @@ private:
         Logger::print("      =>      a snapshot every {:.4e} s{}", t_save, in_tau(t_save));
         Logger::print("      =>      {} snapshots from t = 0 to {:.4e} s will be saved",
             cfg.N_iter / cfg.output.N_save + 1, t_run);
-        Logger::print("   ovito={:<3}  pos={:<3}  vel={:<3}  ang={:<3}  force={:<3}  torque={:<3}  energy={:<3}",
+        Logger::print("   ovito={:<3}  pos={:<3}  vel={:<3}  ang={:<3}  force={:<3}  torque={:<3}",
             cfg.output.ovito    ? "yes" : "no",
             cfg.output.position ? "yes" : "no",
             cfg.output.velocity ? "yes" : "no",
             cfg.output.angular  ? "yes" : "no",
             cfg.output.force    ? "yes" : "no",
-            cfg.output.torque   ? "yes" : "no",
-            cfg.output.energy   ? "yes" : "no");
+            cfg.output.torque   ? "yes" : "no");
 
         Logger::lineBreak();
     }

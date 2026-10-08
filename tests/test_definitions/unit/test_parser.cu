@@ -117,13 +117,13 @@ void test_parser() {
     {
         write_tmp("<save_pos> 1\n"
                   "<save_vel> 0\n"
-                  "<save_energy> true\n");
+                  "<save_ovito> true\n");
         CommandFile cf(TMP_FILE);
         SimulationConfig cfg;
         CHECK(cf.parse(cfg) == Status::ok);
         CHECK( cfg.output.position);
         CHECK(!cfg.output.velocity);
-        CHECK( cfg.output.energy);
+        CHECK( cfg.output.ovito);
     }
 
     // ------------------------------------------------------------------ //
@@ -227,7 +227,7 @@ void test_parser() {
 
     // ------------------------------------------------------------------ //
     // Remaining boolean save flags: save_ovito, save_force, save_torque,
-    // save_omega (save_pos/save_vel/save_energy are covered above)
+    // save_omega (save_pos/save_vel are covered above)
     // ------------------------------------------------------------------ //
 
     {
@@ -292,6 +292,7 @@ void test_parser() {
         write_tmp("<time_start> 0.0\n"
                   "<time_stop> 1.0e-4\n"
                   "<save_cluster> 1\n"
+                  "<save_energy> 1\n"
                   "<save_mag> 0\n");
         CommandFile cf(TMP_FILE);
         SimulationConfig cfg;

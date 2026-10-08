@@ -70,7 +70,6 @@ struct MaterialEntry {
  * @param angular   Store monomer angular velocities to disk.
  * @param force     Store monomer forces to disk.
  * @param torque    Store monomer torques to disk.
- * @param energy    Store potential and dissipated energy to disk.
  */
 struct OutputConfig {
     std::string  path{};
@@ -83,7 +82,6 @@ struct OutputConfig {
     bool         angular  = false;
     bool         force    = false;
     bool         torque   = false;
-    bool         energy   = false;
 };
 
 /**

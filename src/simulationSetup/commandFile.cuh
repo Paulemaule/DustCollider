@@ -628,19 +628,6 @@ private:
             return Status::ok;
         }
 
-        if (tag == "save_energy") {
-            bool save;
-
-            Status _s = to_bool(value, save);
-            if ( _s != Status::ok ) {
-                return _s;
-            }
-            
-            // Store results and return Ok status.
-            out_config.output.energy = save;
-            return Status::ok;
-        }
-
         // Material parameter parsing.
         // Command file format: <material id="N">  "name"  gamma E nu rho xi tvis [tss tsl Msat chi Tc]
         // After sanitize_line the tag becomes "material id = " and the value has the name first,
@@ -754,6 +741,11 @@ private:
 
         if ( tag == "save_cluster" ) {
             Logger::warn("<save_cluster> is ignored. Cluster IDs are always saved.");
+            return Status::ok;
+        }
+
+        if ( tag == "save_energy" ) {
+            Logger::warn("<save_energy> is ignored. The energy trackers are always saved.");
             return Status::ok;
         }
 
