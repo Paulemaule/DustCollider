@@ -313,12 +313,31 @@ inline void Simulator::allocate_snapshots() {
  * 
  * Pulls the system state from device memory and writes them into the corresponding
  * snap_* buffers starting at the position snap_idx * Nmon.
- * Also records the energy accumulators 
+ * Also evaluates the contact potentials of the stored state, records the energy trackers
  * and calculates and stores the monomer aggregate memberships.
  * 
  * @param snap_idx 0 based index of the snapshot to write.
  */
 inline void Simulator::save_snapshot(size_t snap_idx) {
+    // Evaluate the potential energies of the contacts in the stored state.
+    {
+        const int nBlocks_pair = int((Nmon * Nmon + BLOCK_SIZE - 1) / BLOCK_SIZE);
+
+        DeviceStateView     curr = device_curr.view();
+        DeviceMaterialsView mat  = device_materials.view();
+        DeviceEnergyView    en   = device_energy.view();
+
+        contact_potentials<<<nBlocks_pair, BLOCK_SIZE>>>(
+            curr.position, curr.contact_pointer, curr.contact_rotation, curr.contact_twist,
+            en.normal_pot, en.sliding_pot, en.rolling_pot, en.twisting_pot,
+            mat.radius, mat.youngs_modulus, mat.poisson_number, mat.surface_energy,
+            (int)Nmon
+        );
+
+        cudaDeviceSynchronize();
+        CUDA_LAST_ERROR_CHECK();
+    }
+
     // Pull the system state from device memory
     host_state.pull_from(device_curr, Nmon);
     HostStateView hv = host_state.view();
@@ -398,7 +417,6 @@ inline void Simulator::run() {
             next.position, curr.contact_pointer,
             next.contact_rotation, next.contact_twist, curr.contact_compression,
             next.force, next.torque,
-            en.normal_pot, en.sliding_pot, en.rolling_pot, en.twisting_pot,
             en.normal_damp,
             mat.mass, mat.radius, mat.youngs_modulus, mat.poisson_number,
             mat.surface_energy, mat.crit_rolling_disp, mat.damping_timescale,
@@ -664,13 +682,11 @@ inline void Simulator::write_output() const {
             return res;
         };
 
-        // The potential energies are accumulated over the N_save iterations since the previous snapshot and will need
-        // to be averaged. The initial snapshot accumulated nothing, its zero stays zero.
-        const double inv = 1.0 / config.output.N_save;
-        write_double("sim_normal_pot.bin",   series([&](const EnergyRecord& e) { return e.normal_pot   * inv; }));
-        write_double("sim_sliding_pot.bin",  series([&](const EnergyRecord& e) { return e.sliding_pot  * inv; }));
-        write_double("sim_rolling_pot.bin",  series([&](const EnergyRecord& e) { return e.rolling_pot  * inv; }));
-        write_double("sim_twisting_pot.bin", series([&](const EnergyRecord& e) { return e.twisting_pot * inv; }));
+        // The potential energies of the contacts at the time of each snapshot.
+        write_double("sim_normal_pot.bin",   series([](const EnergyRecord& e) { return e.normal_pot;   }));
+        write_double("sim_sliding_pot.bin",  series([](const EnergyRecord& e) { return e.sliding_pot;  }));
+        write_double("sim_rolling_pot.bin",  series([](const EnergyRecord& e) { return e.rolling_pot;  }));
+        write_double("sim_twisting_pot.bin", series([](const EnergyRecord& e) { return e.twisting_pot; }));
 
         // The dissipated energies are stored per dof and dissipation channel. Acumulated over N_save iterations since the previous snapshot.
         write_double("sim_normal_damp.bin",    series([](const EnergyRecord& e) { return e.normal_damp;    }));

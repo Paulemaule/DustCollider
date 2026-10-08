@@ -13,6 +13,9 @@
  *
  * Every case runs with the contact pointers stored unrotated and rotated by 0.7 rad, the kernels have to undo
  * the rotation.
+ *
+ * The potentials are not booked by evaluate but by contact_potentials, which runs on the stored state at every
+ * snapshot.
  */
 
 #include <cmath>
@@ -297,11 +300,22 @@ struct EnDevice {
             nv.position, cv.contact_pointer,
             nv.contact_rotation, nv.contact_twist, cv.contact_compression,
             nv.force, nv.torque,
-            ev.normal_pot, ev.sliding_pot, ev.rolling_pot, ev.twisting_pot,
             ev.normal_damp,
             mv.mass, mv.radius, mv.youngs_modulus, mv.poisson_number,
             mv.surface_energy, mv.crit_rolling_disp, mv.damping_timescale,
             EN_DT, EN_NMON
+        );
+    }
+
+    void run_contact_potentials() {
+        DeviceStateView     cv = curr.view();
+        DeviceMaterialsView mv = materials.view();
+        DeviceEnergyView    ev = energy.view();
+        contact_potentials<<<1, EN_NMON * EN_NMON>>>(
+            cv.position, cv.contact_pointer, cv.contact_rotation, cv.contact_twist,
+            ev.normal_pot, ev.sliding_pot, ev.rolling_pot, ev.twisting_pot,
+            mv.radius, mv.youngs_modulus, mv.poisson_number, mv.surface_energy,
+            EN_NMON
         );
     }
 };
@@ -403,7 +417,7 @@ static void en_test_update_pointers(const double4 q) {
 }
 
 /**
- * evaluate: the damping work, the potentials, and the force of the contact.
+ * evaluate: the damping work and the force of the contact. It books no potentials.
  */
 static void en_test_evaluate(const double4 q) {
     // A compressed contact, compressed further since the last step, with the pointers on the contact axis.
@@ -422,7 +436,6 @@ static void en_test_evaluate(const double4 q) {
 
         EnergyRecord expected = {};
         expected.normal_damp = 0.5 * damping * step;
-        expected.normal_pot  = 0.5 * get_U_N(p.F_c, p.delta_N_crit, a, p.a_0);
 
         EnDevice dev(s, q);
         dev.run_evaluate();
@@ -442,7 +455,8 @@ static void en_test_evaluate(const double4 q) {
         CHECK(vec_length({ F_0.x + F_1.x, F_0.y + F_1.y, F_0.z + F_1.z }) < 1e-12 * fabs(F_N));
     }
 
-    // A contact at equilibrium compression with sliding, rolling and twisting displacements and no normal motion.
+    // A contact at equilibrium compression with sliding, rolling and twisting displacements and no normal motion:
+    // nothing is booked.
     {
         const char* label = "evaluate, displaced contact";
         EnPair   p = en_pair(15e-9, 30e-9);
@@ -453,10 +467,6 @@ static void en_test_evaluate(const double4 q) {
         s.compression_old = normal;
 
         EnergyRecord expected = {};
-        expected.normal_pot   = 0.5 * get_U_N(p.F_c, p.delta_N_crit, get_contact_radius(normal, p.a_0, p.R), p.a_0);
-        expected.sliding_pot  = 0.5 * get_U_S(p.k_s, sliding);
-        expected.rolling_pot  = 0.5 * get_U_R(p.k_r, rolling);
-        expected.twisting_pot = 0.5 * get_U_T(p.k_t, s.twist);
 
         EnDevice dev(s, q);
         dev.run_evaluate();
@@ -467,6 +477,63 @@ static void en_test_evaluate(const double4 q) {
         double3 F_0 = out.view().force[0];
         double3 F_1 = out.view().force[1];
         CHECK(vec_length({ F_0.x + F_1.x, F_0.y + F_1.y, F_0.z + F_1.z }) < 1e-10 * vec_length(F_0));
+    }
+}
+
+/**
+ * contact_potentials: the potentials of the stored state.
+ */
+static void en_test_contact_potentials(const double4 q) {
+    // A contact with displacements in all four degrees of freedom.
+    {
+        const char* label = "contact_potentials, displaced contact";
+        EnPair   p = en_pair(15e-9, 30e-9);
+        EnSystem s = en_make_system(15e-9, 30e-9, 2. * p.delta_N_0, true, 0.5, 0.7, 0.3);
+
+        double normal; double3 sliding, rolling;
+        en_displacements(s, normal, sliding, rolling);
+
+        EnergyRecord expected = {};
+        expected.normal_pot   = 0.5 * get_U_N(p.F_c, p.delta_N_crit, get_contact_radius(normal, p.a_0, p.R), p.a_0);
+        expected.sliding_pot  = 0.5 * get_U_S(p.k_s, sliding);
+        expected.rolling_pot  = 0.5 * get_U_R(p.k_r, rolling);
+        expected.twisting_pot = 0.5 * get_U_T(p.k_t, s.twist);
+
+        EnDevice dev(s, q);
+        dev.run_contact_potentials();
+        dev.check_energy(expected, p.F_c * p.delta_N_crit, label);
+    }
+
+    // A contact stretched close to breaking, where the normal potential is large and positive.
+    {
+        const char* label = "contact_potentials, stretched contact";
+        EnPair   p = en_pair(20e-9, 20e-9);
+        EnSystem s = en_make_system(20e-9, 20e-9, -0.9 * p.delta_N_crit, true, 0.2, 0.2, 0.);
+
+        double normal; double3 sliding, rolling;
+        en_displacements(s, normal, sliding, rolling);
+
+        EnergyRecord expected = {};
+        expected.normal_pot  = 0.5 * get_U_N(p.F_c, p.delta_N_crit, get_contact_radius(normal, p.a_0, p.R), p.a_0);
+        expected.sliding_pot = 0.5 * get_U_S(p.k_s, sliding);
+        expected.rolling_pot = 0.5 * get_U_R(p.k_r, rolling);
+
+        EnDevice dev(s, q);
+        dev.run_contact_potentials();
+        dev.check_energy(expected, p.F_c * p.delta_N_crit, label);
+    }
+
+    // Overlapping monomers without a registered contact store no potential energy.
+    {
+        const char* label = "contact_potentials, no contact";
+        EnPair   p = en_pair(15e-9, 30e-9);
+        EnSystem s = en_make_system(15e-9, 30e-9, p.delta_N_0, false, 0., 0., 0.);
+
+        EnergyRecord expected = {};
+
+        EnDevice dev(s, q);
+        dev.run_contact_potentials();
+        dev.check_energy(expected, p.F_c * p.delta_N_crit, label);
     }
 }
 
@@ -481,4 +548,7 @@ void test_energy() {
 
     en_test_evaluate(identity);
     en_test_evaluate(rotation);
+
+    en_test_contact_potentials(identity);
+    en_test_contact_potentials(rotation);
 }

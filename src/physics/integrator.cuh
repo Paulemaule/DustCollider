@@ -235,10 +235,6 @@ __global__ void evaluate(
 
     double3*                    force_next,
     double3*                    torque_next,
-    double*                     normal_pot,
-    double*                     sliding_pot,
-    double*                     rolling_pot,
-    double*                     twisting_pot,
     double*                     normal_damp,
 
     const double*               mass,
@@ -317,9 +313,6 @@ __global__ void evaluate(
     double k_s = get_k_s(G_s, a_0);                     // The strength of the sliding force and torque.
     double k_r = get_k_r(F_c, R);                       // The strength of the rolling torque.
     double k_t = get_k_t(G, a_0);                       // The strength of the twisting torque.
-
-    // The critical displacements.
-    double delta_N_crit = get_delta_N_crit(a_0, R);
 
     // The viscous damping timescale of the pair.
     double t_vis = 0.5 * (viscous_damping_timescale[i] + viscous_damping_timescale[j]);
@@ -408,13 +401,8 @@ __global__ void evaluate(
         atomicAdd(&torque_next[i].y, torque.y);
         atomicAdd(&torque_next[i].z, torque.z);
 
-        // Track the energy diagnostics. The damping dissipation in normal direction and the potential energies of the 4 dofs. Each thread stores half the total contribution, because two threads contribute to each entry.
+        // Track the energy diagnostics. The damping dissipation in normal direction. Each thread stores half the total contribution, because two threads contribute to each entry.
         atomicAdd(&normal_damp[i], 0.5 * damping_force * (normal_displacement - compression_old[matrix_i]));
-
-        atomicAdd(&normal_pot[i],   0.5 * get_U_N(F_c, delta_N_crit, a, a_0));
-        atomicAdd(&sliding_pot[i],  0.5 * get_U_S(k_s, sliding_displacement));
-        atomicAdd(&rolling_pot[i],  0.5 * get_U_R(k_r, rolling_displacement));
-        atomicAdd(&twisting_pot[i], 0.5 * get_U_T(k_t, twisting_displacement));
     }
 }
 
@@ -661,4 +649,115 @@ __global__ void updatePointers(
             compression_next[matrix_i] = normal_displacement;
         }
     }
+}
+
+/**
+ * @brief Calculates the potential energies stored in the contacts of a system state.
+ * 
+ * This function calculates the potential energy of each dof for each monomer pair.
+ */
+__global__ void contact_potentials(
+    const double3*              position,
+    const double3*              pointer,
+    const double4*              rotation,
+    const double*               twisting,
+
+    double*                     normal_pot,
+    double*                     sliding_pot,
+    double*                     rolling_pot,
+    double*                     twisting_pot,
+
+    const double*               radius,
+    const double*               youngs_modulus,
+    const double*               poisson_number,
+    const double*               surface_energy,
+    const int                   Nmon
+) {
+    // Retrieve the ID of the current thread
+    int threadID = blockDim.x * blockIdx.x + threadIdx.x; // The ID of the current thread.
+
+    // Terminate threads that do not correspond to a monomer pair.
+    if (threadID >= (Nmon * Nmon)) return;
+
+    // Index of the monomer in the arrays.
+    int i, j;
+    // Index of the monomer in the pair matrices.
+    int matrix_i, matrix_j;
+
+    CALC_MONOMER_INDICES(threadID, i, j, matrix_i, matrix_j, Nmon);
+
+    double3 pointer_i = pointer[matrix_i];          // The contact pointer, pointing from the center of monomer i to the contact location with monomer j.
+    double3 pointer_j = pointer[matrix_j];          // The contact pointer, pointing from the center of monomer j to the contact location with monomer i.
+
+    // Only monomers in contact store potential energy. The pair i-i is always marked as unconnected.
+    if (vec_length_sq(pointer_i) == 0. || vec_length_sq(pointer_j) == 0.) return;
+
+    // DETERMINE PAIR PROPERTIES
+    double r_i = radius[i];                         // The radius of monomer i.
+    double r_j = radius[j];                         // The radius of monomer j.
+
+    double E_i = youngs_modulus[i];                 // Youngs modulus of monomer i.
+    double E_j = youngs_modulus[j];                 // Youngs modulus of monomer j.
+
+    double nu_i = poisson_number[i];                // Poisson number of monomer i.
+    double nu_j = poisson_number[j];                // Poisson number of monomer j.
+
+    double gamma_i = surface_energy[i];             // The surface energy of monomer i.
+    double gamma_j = surface_energy[j];             // The surface energy of monomer j.
+
+    double3 position_i = position[i];               // The position of monomer i.
+    double3 position_j = position[j];               // The position of monomer j.
+
+    double G_i = get_G_i(E_i, nu_i);                // The shear modulus of monomer i.
+    double G_j = get_G_i(E_j, nu_j);                // The shear modulus of monomer j.
+
+    // The reduced radius of the monomer pair.
+    double R = get_R(r_i, r_j);
+
+    // The combined Youngs modulus of the monomer pair.
+    double E_s = get_E_s(E_i, E_j, nu_i, nu_j);
+
+    // The combined shear modulus of the monomer pair.
+    double G_s = get_G_s(G_i, G_j, nu_i, nu_j);
+
+    // The reduced shear modulus of the monomer pair.
+    double G = get_G(G_i, G_j);
+
+    // The surface energy of the monomer pair.
+    double gamma = get_gamma(gamma_i, gamma_j);
+
+    // The equilibrium contact radius of the monomer pair.
+    double a_0 = get_a_0(gamma, R, E_s);
+
+    // The strengths of the interactions.
+    double F_c = get_F_c(gamma, R);                 // The critical force at monomer separation.
+    double k_s = get_k_s(G_s, a_0);                 // The strength of the sliding force and torque.
+    double k_r = get_k_r(F_c, R);                   // The strength of the rolling torque.
+    double k_t = get_k_t(G, a_0);                   // The strength of the twisting torque.
+
+    // The critical normal displacement.
+    double delta_N_crit = get_delta_N_crit(a_0, R);
+
+    // Corotate the contact pointers.
+    pointer_i = quat_apply_inverse(rotation[matrix_i], pointer_i);
+    pointer_j = quat_apply_inverse(rotation[matrix_j], pointer_j);
+
+    // The pointer from the current position of monomer j to the current position of monomer i.
+    double3 pointer_pos = vec_get_normal(position_i, position_j);
+
+    // Calculate the displacements
+    double  normal_displacement   = get_normal_displacement(position_i, position_j, r_i, r_j);               // The displacement in the normal-dof of the contact.
+    double3 contact_displacement  = get_contact_displacement(pointer_i, pointer_j, pointer_pos, r_i, r_j);   // A helper variable in the displacement calculation.
+    double3 sliding_displacement  = get_sliding_displacement(contact_displacement, pointer_pos);             // The displacement in the sliding-dof of the contact.
+    double3 rolling_displacement  = get_rolling_displacement(pointer_i, pointer_j, R);                       // The displacement in the rolling-dof of the contact.
+    double  twisting_displacement = twisting[matrix_i];                                                      // The displacement in the twisting-dof of the contact.
+
+    // The contact surface radius.
+    double a = get_contact_radius(normal_displacement, a_0, R);
+
+    // The potential energies. Each entry i contains half of all potential energy contributions to monomer i from all connected monomers. The sum over all is the total potential energy.
+    atomicAdd(&normal_pot[i],   0.5 * get_U_N(F_c, delta_N_crit, a, a_0));
+    atomicAdd(&sliding_pot[i],  0.5 * get_U_S(k_s, sliding_displacement));
+    atomicAdd(&rolling_pot[i],  0.5 * get_U_R(k_r, rolling_displacement));
+    atomicAdd(&twisting_pot[i], 0.5 * get_U_T(k_t, twisting_displacement));
 }

@@ -111,7 +111,7 @@ Written to `<path_results>/`:
   There are `N_iter / N_save + 1` snapshots, snapshot `k` at `t = k * N_save * dt`.
   Each energy file holds one `double` per snapshot, summed over all monomers:
   - `sim_{normal,sliding,rolling,twisting}_pot.bin` — the potential energy stored in
-    the contacts, averaged over the `N_save` steps before the snapshot.
+    the contacts at the time of the snapshot.
   - `sim_normal_damp.bin` — viscous damping of the normal motion.
   - `sim_{sliding,rolling,twisting}_slip.bin` — energy dissipated through inelastic motion beyond critical tangential displacements.
   - `sim_{normal,sliding,rolling,twisting}_break.bin` — when a contact breaks all stored potential energy is dissipated.

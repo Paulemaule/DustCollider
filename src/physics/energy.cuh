@@ -6,7 +6,7 @@
  * its partner thread (j,i) adds the other half into the slot of j. The host sums the slots over the monomers when a snapshot is saved and then resets them.
  *
  * The trackers are:
- *  - *_pot:   The potential energies stored in the contacts.
+ *  - *_pot:   The potential energies stored in the contacts, evaluated on the stored state at every snapshot.
  *  - *_damp:  Energy dissipated through the viscous damping of the normal motion.
  *  - *_slip:  When a contact exceeds its critical displacement in tangential motion, the contact moves inelastically, dissipating energy.
  *  - *_break: Contact breaking, all energy stored in the contact (in all four dofs) is lost.
