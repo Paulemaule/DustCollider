@@ -8,7 +8,8 @@
  *
  * Adding a new test module
  * ------------------------
- * 1. Create tests/test_definitions/unit/test_<module>.cu with a void test_<module>() function.
+ * 1. Create tests/test_definitions/unit/test_<module>.cu (or kernel/ for tests that launch a kernel)
+ *    with a void test_<module>() function.
  * 2. Add  #include "test_definitions/unit/test_<module>.cu"  below.
  * 3. Add  RUN_SUITE("<module>", test_<module>);  in main().
  */
@@ -23,6 +24,7 @@
 #include "test_definitions/unit/test_aggregate.cu"
 #include "test_definitions/unit/test_pipeline.cu"
 #include "test_definitions/unit/test_buffer.cu"
+#include "test_definitions/kernel/test_energy.cu"
 
 int main() {
     // --- RUN_SUITE calls go here ---
@@ -33,6 +35,7 @@ int main() {
     RUN_SUITE("aggregate file I/O",   test_aggregate);
     RUN_SUITE("pipeline setup",       test_pipeline);
     RUN_SUITE("GPU memory wrappers",  test_buffer);
+    RUN_SUITE("energy channels",      test_energy);
 
     return testkit::summary();
 }

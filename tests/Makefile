@@ -34,7 +34,7 @@ BUILD_DIR     = ../build/tests
 # All test_*.cu files are included into test_main.cu (single-TU build),
 # so only test_main.cu needs to appear on the compiler command line.
 UNIT_ENTRY  = test_main.cu
-UNIT_DEPS   = $(wildcard test_definitions/unit/test_*.cu) framework/testkit.h
+UNIT_DEPS   = $(wildcard test_definitions/unit/test_*.cu) $(wildcard test_definitions/kernel/test_*.cu) framework/testkit.h
 UNIT_TARGET = $(BUILD_DIR)/test_unit
 
 ## TARGETS
