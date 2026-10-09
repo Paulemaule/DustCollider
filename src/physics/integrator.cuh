@@ -227,11 +227,11 @@ __global__ void corrector(
  * in the form used by Seizinger, Krijt and Kley (2013).
  */
 __global__ void evaluate(
+    const double3*              position_curr,
     const double3*              position_next,
     const double3*              pointer_curr,
     const double4*              rotation_next,
     const double*               twisting_next,
-    const double*               compression_old,
 
     double3*                    force_next,
     double3*                    torque_next,
@@ -328,11 +328,14 @@ __global__ void evaluate(
 
         // Caculate the displacements
         double normal_displacement;             // The displacement in the normal-dof of the contact.
+        double normal_displacement_old;         // The displacement in the normal-dof of the contact at the previous timestep.
         double3 sliding_displacement;           // The displacement in the sliding-dof of the contact.
         double3 rolling_displacement;           // The displacement in the rolling-dof of the contact.
         double twisting_displacement;           // The displacement in the twisting-dof of the contact, this is conceptually slightly different from Wada (2007). The twisting displacement here is only the integrated part of equation (24).
 
         normal_displacement = get_normal_displacement(position_i, position_j, r_i, r_j);
+
+        normal_displacement_old = get_normal_displacement(position_curr[i], position_curr[j], r_i, r_j);
         
         double3 contact_displacement;           // A helper variable in the displacement calculation (zeta_0 in Wada07).
         contact_displacement = get_contact_displacement(pointer_i, pointer_j, pointer_pos, r_i, r_j);
@@ -357,7 +360,7 @@ __global__ void evaluate(
         // This would lead to symmetry breaking of the forces between to monomer in contact
         // This form is used as a comprimise instead.
         double vis_damping_strength = 2.0 * t_vis / (nu_i * nu_j) * E_s;
-        double delta_N_dot = (normal_displacement - compression_old[matrix_i]) / timestep;
+        double delta_N_dot = (normal_displacement - normal_displacement_old) / timestep;
         double damping_force = vis_damping_strength * a * delta_N_dot;
 
         force.x += damping_force * pointer_pos.x;
@@ -402,7 +405,7 @@ __global__ void evaluate(
         atomicAdd(&torque_next[i].z, torque.z);
 
         // Track the energy diagnostics. The damping dissipation in normal direction. Each thread stores half the total contribution, because two threads contribute to each entry.
-        atomicAdd(&normal_damp[i], 0.5 * damping_force * (normal_displacement - compression_old[matrix_i]));
+        atomicAdd(&normal_damp[i], 0.5 * damping_force * (normal_displacement - normal_displacement_old));
     }
 }
 
@@ -416,12 +419,10 @@ __global__ void updatePointers(
     const double3*              position_next,
     const double3*              pointer_curr,
     const double4*              rotation_curr, // FIXME: Check if this leads to problems. Conceptually rotation_next should be used as it is the current contact rotation, but this would lead to memory races.
-    const double*               compression_curr, // TODO: This is never used in this function
 
     double3*                    pointer_next,
     double4*                    rotation_next,
     double*                     twisting_next,
-    double*                     compression_next,
     double*                     sliding_slip,
     double*                     rolling_slip,
     double*                     twisting_slip,
@@ -539,7 +540,6 @@ __global__ void updatePointers(
             pointer_next[matrix_i]      = { 0., 0., 0. };
             rotation_next[matrix_i]     = { 0., 0., 0., 0. };
             twisting_next[matrix_i]     = 0.;
-            compression_next[matrix_i]  = 0.;
 
             // All potential energy stored in the connection is lost. Each thread stores half the total contribution, because two threads contribute to each entry.
             atomicAdd(&normal_break[i],   0.5 * get_U_N(F_c, delta_N_crit, get_contact_radius(normal_displacement, a_0, R), a_0));
@@ -551,7 +551,6 @@ __global__ void updatePointers(
         } else {
             // The monomers stay in contact
             pointer_next[matrix_i] = pointer_curr[matrix_i];
-            compression_next[matrix_i] = normal_displacement;
             // rotation_next, twisting_next do not need to be updated here, as they are allready being updated in the pointer_corrector
         }
 
@@ -638,7 +637,6 @@ __global__ void updatePointers(
             pointer_next[matrix_i] = vec_get_normal(position_j, position_i);
             rotation_next[matrix_i] = { 0., 0., 0., 1. };
             twisting_next[matrix_i] = 0.;
-            compression_next[matrix_i] = normal_displacement;
 
             // On contact, the potential jumps from 0 to U_N(delta) < 0, this needs to be remembered for proper energy accounting. Each thread stores half the total contribution, because two threads contribute to each entry.
             atomicAdd(&normal_form[i], - 0.5 * get_U_N(F_c, delta_N_crit, get_contact_radius(normal_displacement, a_0, R), a_0));
@@ -646,7 +644,6 @@ __global__ void updatePointers(
             pointer_next[matrix_i] = { 0., 0., 0. };
             rotation_next[matrix_i] = { 0., 0., 0., 0. };
             twisting_next[matrix_i] = 0.;
-            compression_next[matrix_i] = normal_displacement;
         }
     }
 }

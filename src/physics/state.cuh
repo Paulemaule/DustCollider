@@ -14,7 +14,6 @@ struct DeviceStateView {
     double3*    omega;                         // Array - Nmon * sizeof(<T>)
     double3*    force;                         // Array - Nmon * sizeof(<T>)
     double3*    torque;                        // Array - Nmon * sizeof(<T>)
-    double*     contact_compression;           // Matrix - Nmon * Nmon * sizeof(<T>)
     double*     contact_twist;                 // Matrix - Nmon * Nmon * sizeof(<T>)
     double3*    contact_pointer;               // Matrix - Nmon * Nmon * sizeof(<T>)
     double3*    contact_normal;                // Matrix - Nmon * Nmon * sizeof(<T>)
@@ -33,7 +32,6 @@ class DeviceState {
     DeviceBuffer<double3> omega;
     DeviceBuffer<double3> force;
     DeviceBuffer<double3> torque;
-    DeviceBuffer<double>  contact_compression;
     DeviceBuffer<double>  contact_twist;
     DeviceBuffer<double3> contact_pointer;
     DeviceBuffer<double3> contact_normal;
@@ -47,7 +45,7 @@ public:
     explicit DeviceState(size_t Nmon) 
         : position(Nmon),            velocity(Nmon),           omega(Nmon)
         , force(Nmon),               torque(Nmon)
-        , contact_compression(Nmon * Nmon), contact_twist(Nmon * Nmon)
+        , contact_twist(Nmon * Nmon)
         , contact_pointer(Nmon * Nmon),     contact_normal(Nmon * Nmon)
         , contact_rotation(Nmon * Nmon)
     {}
@@ -57,7 +55,7 @@ public:
         return {
             position.data(),            velocity.data(),          omega.data(),
             force.data(),               torque.data(),
-            contact_compression.data(), contact_twist.data(),
+            contact_twist.data(),
             contact_pointer.data(),     contact_normal.data(),
             contact_rotation.data()
         };
@@ -75,7 +73,6 @@ struct HostStateView {
     double3*    omega;                         // Array - Nmon * sizeof(<T>)
     double3*    force;                         // Array - Nmon * sizeof(<T>)
     double3*    torque;                        // Array - Nmon * sizeof(<T>)
-    double*     contact_compression;           // Matrix - Nmon * Nmon * sizeof(<T>)
     double*     contact_twist;                 // Matrix - Nmon * Nmon * sizeof(<T>)
     double3*    contact_pointer;               // Matrix - Nmon * Nmon * sizeof(<T>)
     double3*    contact_normal;                // Matrix - Nmon * Nmon * sizeof(<T>)
@@ -94,7 +91,6 @@ class HostState {
     HostBuffer<double3> omega;
     HostBuffer<double3> force;
     HostBuffer<double3> torque;
-    HostBuffer<double>  contact_compression;
     HostBuffer<double>  contact_twist;
     HostBuffer<double3> contact_pointer;
     HostBuffer<double3> contact_normal;
@@ -104,7 +100,7 @@ public:
     explicit HostState(size_t Nmon)
         : position(Nmon),            velocity(Nmon),           omega(Nmon)
         , force(Nmon),               torque(Nmon)
-        , contact_compression(Nmon * Nmon), contact_twist(Nmon * Nmon)
+        , contact_twist(Nmon * Nmon)
         , contact_pointer(Nmon * Nmon),     contact_normal(Nmon * Nmon)
         , contact_rotation(Nmon * Nmon)
     {}
@@ -114,7 +110,7 @@ public:
         return {
             position.data(),            velocity.data(),          omega.data(),
             force.data(),               torque.data(),
-            contact_compression.data(), contact_twist.data(),
+            contact_twist.data(),
             contact_pointer.data(),     contact_normal.data(),
             contact_rotation.data()
         };
@@ -133,7 +129,6 @@ public:
         CHECK_CUDA(cudaMemcpy(dv.omega,               omega.data(),               Nmon        * sizeof(double3), cudaMemcpyHostToDevice));
         CHECK_CUDA(cudaMemcpy(dv.force,               force.data(),               Nmon        * sizeof(double3), cudaMemcpyHostToDevice));
         CHECK_CUDA(cudaMemcpy(dv.torque,              torque.data(),              Nmon        * sizeof(double3), cudaMemcpyHostToDevice));
-        CHECK_CUDA(cudaMemcpy(dv.contact_compression, contact_compression.data(), Nmon * Nmon * sizeof(double),  cudaMemcpyHostToDevice));
         CHECK_CUDA(cudaMemcpy(dv.contact_twist,       contact_twist.data(),       Nmon * Nmon * sizeof(double),  cudaMemcpyHostToDevice));
         CHECK_CUDA(cudaMemcpy(dv.contact_pointer,     contact_pointer.data(),     Nmon * Nmon * sizeof(double3), cudaMemcpyHostToDevice));
         CHECK_CUDA(cudaMemcpy(dv.contact_normal,      contact_normal.data(),      Nmon * Nmon * sizeof(double3), cudaMemcpyHostToDevice));
@@ -153,7 +148,6 @@ public:
         CHECK_CUDA(cudaMemcpy(omega.data(),               dv.omega,               Nmon        * sizeof(double3), cudaMemcpyDeviceToHost));
         CHECK_CUDA(cudaMemcpy(force.data(),               dv.force,               Nmon        * sizeof(double3), cudaMemcpyDeviceToHost));
         CHECK_CUDA(cudaMemcpy(torque.data(),              dv.torque,              Nmon        * sizeof(double3), cudaMemcpyDeviceToHost));
-        CHECK_CUDA(cudaMemcpy(contact_compression.data(), dv.contact_compression, Nmon * Nmon * sizeof(double),  cudaMemcpyDeviceToHost));
         CHECK_CUDA(cudaMemcpy(contact_twist.data(),       dv.contact_twist,       Nmon * Nmon * sizeof(double),  cudaMemcpyDeviceToHost));
         CHECK_CUDA(cudaMemcpy(contact_pointer.data(),     dv.contact_pointer,     Nmon * Nmon * sizeof(double3), cudaMemcpyDeviceToHost));
         CHECK_CUDA(cudaMemcpy(contact_normal.data(),      dv.contact_normal,      Nmon * Nmon * sizeof(double3), cudaMemcpyDeviceToHost));

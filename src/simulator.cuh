@@ -215,7 +215,6 @@ inline void Simulator::init_state() {
     // Initialize the host state with the proper values.
     std::fill(hv.force,               hv.force   + Nmon,              double3{});
     std::fill(hv.torque,              hv.torque  + Nmon,              double3{});
-    std::fill(hv.contact_compression, hv.contact_compression + Nmon * Nmon, -1.0);
     std::fill(hv.contact_twist,       hv.contact_twist       + Nmon * Nmon,  0.0);
     std::fill(hv.contact_pointer,     hv.contact_pointer     + Nmon * Nmon, double3{});
     std::fill(hv.contact_normal,      hv.contact_normal      + Nmon * Nmon, double3{});
@@ -414,8 +413,8 @@ inline void Simulator::run() {
 
         // The EVALUATION step
         evaluate<<<nBlocks_pair, BLOCK_SIZE>>>(
-            next.position, curr.contact_pointer,
-            next.contact_rotation, next.contact_twist, curr.contact_compression,
+            curr.position, next.position, curr.contact_pointer,
+            next.contact_rotation, next.contact_twist,
             next.force, next.torque,
             en.normal_damp,
             mat.mass, mat.radius, mat.youngs_modulus, mat.poisson_number,
@@ -443,9 +442,9 @@ inline void Simulator::run() {
         // FIXME: Incorrect order — updatePointers should run before evaluate (see main.cu)
         updatePointers<<<nBlocks_pair, BLOCK_SIZE>>>(
             next.position, curr.contact_pointer,
-            curr.contact_rotation, curr.contact_compression,
+            curr.contact_rotation,
             next.contact_pointer, next.contact_rotation,
-            next.contact_twist, next.contact_compression,
+            next.contact_twist,
             en.sliding_slip, en.rolling_slip, en.twisting_slip,
             en.normal_break, en.sliding_break, en.rolling_break, en.twisting_break,
             en.normal_form,

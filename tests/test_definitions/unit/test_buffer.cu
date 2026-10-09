@@ -161,7 +161,6 @@ void test_buffer() {
             v.torque[i]   = {double(i) + 5.0, 0.0, 0.0};
         }
         for (size_t i = 0; i < Nmon * Nmon; i++) {
-            v.contact_compression[i] = double(i) * 0.5;
             v.contact_twist[i]       = double(i) * 0.25;
             v.contact_pointer[i]     = {double(i), 0.0, 0.0};
             v.contact_normal[i]      = {0.0, double(i), 0.0};
@@ -185,7 +184,6 @@ void test_buffer() {
             CHECK_APPROX(v2.torque[i].x,   v.torque[i].x,   1e-14);
         }
         for (size_t i = 0; i < Nmon * Nmon; i++) {
-            CHECK_APPROX(v2.contact_compression[i], v.contact_compression[i], 1e-14);
             CHECK_APPROX(v2.contact_twist[i],       v.contact_twist[i],       1e-14);
             CHECK_APPROX(v2.contact_pointer[i].x,   v.contact_pointer[i].x,   1e-14);
             CHECK_APPROX(v2.contact_normal[i].y,    v.contact_normal[i].y,    1e-14);

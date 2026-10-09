@@ -93,15 +93,16 @@ static TmPair tm_pair(const double r0, const double r1) {
 struct TmSystem {
     double  r[2];               // The monomer radii.
     double3 x[2];               // The monomer positions.
+    double3 x_old[2];           // The monomer positions at the previous timestep.
     double3 n[2];               // The contact pointers of monomer 0 and 1 in the lab frame, zero without a contact.
     double  twist;              // The twisting displacement of the contact.
-    double  compression_old;    // The normal displacement stored in the contact (evaluate's previous value).
 };
 
 /**
  * Builds two monomers whose normal displacement is delta, along an axis that is not aligned with the coordinate
  * axes. With contact = true the pointers give sliding, rolling and twisting displacements of f_S, f_R and f_T times
- * their critical values; the sliding and rolling displacements are 60 degrees apart.
+ * their critical values; the sliding and rolling displacements are 60 degrees apart. The positions at the previous
+ * timestep are the same, so the monomers have no relative motion.
  */
 static TmSystem tm_make_system(const double r0, const double r1, const double delta, const bool contact,
                                const double f_S, const double f_R, const double f_T) {
@@ -122,8 +123,10 @@ static TmSystem tm_make_system(const double r0, const double r1, const double de
     s.x[0] = { 1e-7, -2e-8, 5e-8 };
     s.x[1] = { s.x[0].x + d * axis.x, s.x[0].y + d * axis.y, s.x[0].z + d * axis.z };
 
-    s.twist           = contact ? f_T * p.delta_T_crit : 0.;
-    s.compression_old = delta;
+    s.x_old[0] = s.x[0];
+    s.x_old[1] = s.x[1];
+
+    s.twist = contact ? f_T * p.delta_T_crit : 0.;
 
     if (!contact) {
         s.n[0] = { 0., 0., 0. };
@@ -189,7 +192,8 @@ static void tm_check_tracker(const double* booked, const double expected, const 
 
 /**
  * The system in device memory. Both state buffers hold the same state, because the kernels read the contact
- * rotation and twist from the 'next' buffer. The stored pointers are rotated by q and the contact rotation is q.
+ * rotation and twist from the 'next' buffer. Only the positions differ: 'next' holds the positions x and 'curr' the
+ * positions x_old of the previous timestep. The stored pointers are rotated by q and the contact rotation is q.
  */
 struct TmDevice {
     DeviceMaterials      materials;
@@ -226,7 +230,6 @@ struct TmDevice {
             hs.torque[k]   = { 0., 0., 0. };
         }
         for (int k = 0; k < TM_NMON * TM_NMON; k++) {
-            hs.contact_compression[k] = -1.;
             hs.contact_twist[k]       = 0.;
             hs.contact_pointer[k]     = { 0., 0., 0. };
             hs.contact_normal[k]      = { 0., 0., 0. };
@@ -239,11 +242,11 @@ struct TmDevice {
             hs.contact_rotation[TM_SLOT_10]    = q;
             hs.contact_twist[TM_SLOT_01]       = s.twist;
             hs.contact_twist[TM_SLOT_10]       = s.twist;
-            hs.contact_compression[TM_SLOT_01] = s.compression_old;
-            hs.contact_compression[TM_SLOT_10] = s.compression_old;
         }
-        host_state.push_to(curr, TM_NMON);
         host_state.push_to(next, TM_NMON);
+        for (int k = 0; k < TM_NMON; k++)
+            hs.position[k] = s.x_old[k];
+        host_state.push_to(curr, TM_NMON);
 
         energy.zero();
     }
@@ -281,10 +284,10 @@ struct TmDevice {
         DeviceMaterialsView mv = materials.view();
         DeviceEnergyView    ev = energy.view();
         updatePointers<<<1, TM_NMON * TM_NMON>>>(
-            cv.position, cv.contact_pointer,
-            cv.contact_rotation, cv.contact_compression,
+            nv.position, cv.contact_pointer,
+            cv.contact_rotation,
             nv.contact_pointer, nv.contact_rotation,
-            nv.contact_twist, nv.contact_compression,
+            nv.contact_twist,
             ev.sliding_slip, ev.rolling_slip, ev.twisting_slip,
             ev.normal_break, ev.sliding_break, ev.rolling_break, ev.twisting_break,
             ev.normal_form,
@@ -300,8 +303,8 @@ struct TmDevice {
         DeviceMaterialsView mv = materials.view();
         DeviceEnergyView    ev = energy.view();
         evaluate<<<1, TM_NMON * TM_NMON>>>(
-            nv.position, cv.contact_pointer,
-            nv.contact_rotation, nv.contact_twist, cv.contact_compression,
+            cv.position, nv.position, cv.contact_pointer,
+            nv.contact_rotation, nv.contact_twist,
             nv.force, nv.torque,
             ev.normal_damp,
             mv.mass, mv.radius, mv.youngs_modulus, mv.poisson_number,
@@ -311,11 +314,11 @@ struct TmDevice {
     }
 
     void run_contact_potentials() {
-        DeviceStateView     cv = curr.view();
+        DeviceStateView     nv = next.view();
         DeviceMaterialsView mv = materials.view();
         DeviceEnergyView    ev = energy.view();
         contact_potentials<<<1, TM_NMON * TM_NMON>>>(
-            cv.position, cv.contact_pointer, cv.contact_rotation, cv.contact_twist,
+            nv.position, nv.contact_pointer, nv.contact_rotation, nv.contact_twist,
             ev.normal_pot, ev.sliding_pot, ev.rolling_pot, ev.twisting_pot,
             mv.radius, mv.youngs_modulus, mv.poisson_number, mv.surface_energy,
             TM_NMON

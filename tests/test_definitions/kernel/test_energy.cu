@@ -126,13 +126,20 @@ static void en_test_evaluate(const double4 q) {
         const char* label = "evaluate, damped normal motion";
         TmPair   p = tm_pair(15e-9, 30e-9);
         TmSystem s = tm_make_system(15e-9, 30e-9, 2. * p.delta_N_0, true, 0., 0., 0.);
-        s.compression_old = 2. * p.delta_N_0 - 0.01 * p.delta_N_0;
+
+        // The positions at the previous timestep, with a normal displacement smaller by 0.01 delta_N_0.
+        TmSystem s_old = tm_make_system(15e-9, 30e-9, 2. * p.delta_N_0 - 0.01 * p.delta_N_0, true, 0., 0., 0.);
+        s.x_old[0] = s_old.x[0];
+        s.x_old[1] = s_old.x[1];
 
         double normal; double3 sliding, rolling;
         tm_displacements(s, normal, sliding, rolling);
 
+        double normal_old; double3 sliding_old, rolling_old;
+        tm_displacements(s_old, normal_old, sliding_old, rolling_old);
+
         double a       = get_contact_radius(normal, p.a_0, p.R);
-        double step    = normal - s.compression_old;
+        double step    = normal - normal_old;
         double damping = 2. * TM_TVIS / (TM_NU * TM_NU) * p.E_s * a * step / TM_DT;
 
         EnergyRecord expected = {};
@@ -162,10 +169,6 @@ static void en_test_evaluate(const double4 q) {
         const char* label = "evaluate, displaced contact";
         TmPair   p = tm_pair(15e-9, 30e-9);
         TmSystem s = tm_make_system(15e-9, 30e-9, p.delta_N_0, true, 0.5, 0.7, 0.3);
-
-        double normal; double3 sliding, rolling;
-        tm_displacements(s, normal, sliding, rolling);
-        s.compression_old = normal;
 
         EnergyRecord expected = {};
 
