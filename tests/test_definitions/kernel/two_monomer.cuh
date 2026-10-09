@@ -303,7 +303,7 @@ struct TmDevice {
         DeviceMaterialsView mv = materials.view();
         DeviceEnergyView    ev = energy.view();
         evaluate<<<1, TM_NMON * TM_NMON>>>(
-            cv.position, nv.position, cv.contact_pointer,
+            cv.position, nv.position, nv.contact_pointer,
             nv.contact_rotation, nv.contact_twist,
             nv.force, nv.torque,
             ev.normal_damp,

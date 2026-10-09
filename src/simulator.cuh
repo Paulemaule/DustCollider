@@ -410,10 +410,27 @@ inline void Simulator::run() {
 
         cudaDeviceSynchronize(); // Likely has no effect as synchronize is implied.
         CUDA_LAST_ERROR_CHECK();
+        
+        // Update the pointers for contact formation and breaking as well as inelastic contact deformation.
+        updatePointers<<<nBlocks_pair, BLOCK_SIZE>>>(
+            next.position, curr.contact_pointer,
+            curr.contact_rotation,
+            next.contact_pointer, next.contact_rotation,
+            next.contact_twist,
+            en.sliding_slip, en.rolling_slip, en.twisting_slip,
+            en.normal_break, en.sliding_break, en.rolling_break, en.twisting_break,
+            en.normal_form,
+            mat.radius, mat.youngs_modulus, mat.poisson_number,
+            mat.surface_energy, mat.crit_rolling_disp,
+            (int)Nmon
+        );
+
+        cudaDeviceSynchronize();
+        CUDA_LAST_ERROR_CHECK();
 
         // The EVALUATION step
         evaluate<<<nBlocks_pair, BLOCK_SIZE>>>(
-            curr.position, next.position, curr.contact_pointer,
+            curr.position, next.position, next.contact_pointer,
             next.contact_rotation, next.contact_twist,
             next.force, next.torque,
             en.normal_damp,
@@ -433,24 +450,6 @@ inline void Simulator::run() {
             next.velocity, next.omega,
             mat.mass, mat.moment,
             config.timestep, (int)Nmon
-        );
-
-        cudaDeviceSynchronize();
-        CUDA_LAST_ERROR_CHECK();
-
-        // Update the contact information based on the new positions.
-        // FIXME: Incorrect order — updatePointers should run before evaluate (see main.cu)
-        updatePointers<<<nBlocks_pair, BLOCK_SIZE>>>(
-            next.position, curr.contact_pointer,
-            curr.contact_rotation,
-            next.contact_pointer, next.contact_rotation,
-            next.contact_twist,
-            en.sliding_slip, en.rolling_slip, en.twisting_slip,
-            en.normal_break, en.sliding_break, en.rolling_break, en.twisting_break,
-            en.normal_form,
-            mat.radius, mat.youngs_modulus, mat.poisson_number,
-            mat.surface_energy, mat.crit_rolling_disp,
-            (int)Nmon
         );
 
         cudaDeviceSynchronize();

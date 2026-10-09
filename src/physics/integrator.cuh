@@ -229,7 +229,7 @@ __global__ void corrector(
 __global__ void evaluate(
     const double3*              position_curr,
     const double3*              position_next,
-    const double3*              pointer_curr,
+    const double3*              pointer_next,
     const double4*              rotation_next,
     const double*               twisting_next,
 
@@ -281,8 +281,8 @@ __global__ void evaluate(
     double gamma_i = surface_energy[i];             // The surface energy of monomer i.
     double gamma_j = surface_energy[j];             // The surface energy of monomer j.
 
-    double3 pointer_i = pointer_curr[matrix_i];     // The contact pointer, pointing from the center of monomer i to the contact location with monomer j.
-    double3 pointer_j = pointer_curr[matrix_j];     // The contact pointer, pointing from the center of monomer j to the contact location with monomer i.
+    double3 pointer_i = pointer_next[matrix_i];     // The contact pointer, pointing from the center of monomer i to the contact location with monomer j.
+    double3 pointer_j = pointer_next[matrix_j];     // The contact pointer, pointing from the center of monomer j to the contact location with monomer i.
 
     double3 position_i = position_next[i];          // The position of monomer i.
     double3 position_j = position_next[j];          // The position of monomer j.
