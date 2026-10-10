@@ -213,14 +213,14 @@ inline void Simulator::init_state() {
     std::copy(is.omegas.begin(),     is.omegas.end(),     hv.omega);
 
     // Initialize the host state with the proper values.
-    std::fill(hv.force,               hv.force   + Nmon,              double3{});
-    std::fill(hv.torque,              hv.torque  + Nmon,              double3{});
-    std::fill(hv.contact_twist,       hv.contact_twist       + Nmon * Nmon,  0.0);
-    std::fill(hv.contact_pointer,     hv.contact_pointer     + Nmon * Nmon, double3{});
-    std::fill(hv.contact_normal,      hv.contact_normal      + Nmon * Nmon, double3{});
-    std::fill(hv.contact_rotation,    hv.contact_rotation    + Nmon * Nmon, double4{});
+    std::fill(hv.force              , hv.force                  + Nmon          , double3{});
+    std::fill(hv.torque             , hv.torque                 + Nmon          , double3{});
+    std::fill(hv.contact_twist      , hv.contact_twist          + Nmon * Nmon   , 0.0);
+    std::fill(hv.contact_pointer    , hv.contact_pointer        + Nmon * Nmon   , double3{});
+    std::fill(hv.contact_normal     , hv.contact_normal         + Nmon * Nmon   , double3{});
+    std::fill(hv.contact_rotation   , hv.contact_rotation       + Nmon * Nmon   , double4{});
 
-    // Push the initial system state to device memory.
+    // Push the initial system state to device memory, both the current and next state are initialized using the inital state.
     host_state.push_to(device_curr, Nmon);
     host_state.push_to(device_next, Nmon);
 
@@ -377,8 +377,49 @@ inline void Simulator::run() {
     Logger::header("SIMULATING");
     Logger::lineBreak();
 
+    // Register the contacts of the initial state and evaluate its forces and torques.
+    // Both state buffers hold the initial state. The contacts, forces and torques are written into device_next, which
+    // then becomes the current state. Its positions serve as the previous positions too, so there is no damping.
+    {
+        DeviceStateView     curr = device_curr.view();
+        DeviceStateView     next = device_next.view();
+        DeviceMaterialsView mat  = device_materials.view();
+        DeviceEnergyView    en   = device_energy.view();
+
+        updatePointers<<<nBlocks_pair, BLOCK_SIZE>>>(
+            next.position, curr.contact_pointer,
+            next.contact_pointer, next.contact_rotation,
+            next.contact_twist,
+            en.sliding_slip, en.rolling_slip, en.twisting_slip,
+            en.normal_break, en.sliding_break, en.rolling_break, en.twisting_break,
+            en.normal_form,
+            mat.radius, mat.youngs_modulus, mat.poisson_number,
+            mat.surface_energy, mat.crit_rolling_disp,
+            (int)Nmon
+        );
+
+        cudaDeviceSynchronize();
+        CUDA_LAST_ERROR_CHECK();
+
+        evaluate<<<nBlocks_pair, BLOCK_SIZE>>>(
+            curr.position, next.position, next.contact_pointer,
+            next.contact_rotation, next.contact_twist,
+            next.force, next.torque,
+            en.normal_damp,
+            mat.mass, mat.radius, mat.youngs_modulus, mat.poisson_number,
+            mat.surface_energy, mat.crit_rolling_disp, mat.damping_timescale,
+            config.timestep, (int)Nmon
+        );
+
+        cudaDeviceSynchronize();
+        CUDA_LAST_ERROR_CHECK();
+    }
+    std::swap(device_curr, device_next);
+
+    // The binding energy of the initial contacts, booked as their formation, is not dissipation.
+    device_energy.zero();
+
     // Store the initial state at t = 0 as the first snapshot.
-    // FIXME: Energy evaluation and contact forming have not happened yet. The first snapshot has incomplete data. 
     if (N_store_ > 0) {
         save_snapshot(counter_save);
         counter_save++;
