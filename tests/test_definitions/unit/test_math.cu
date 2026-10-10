@@ -399,4 +399,81 @@ void test_math() {
         CHECK_APPROX(r_s.x / R,    r.x / R,    1e-15);
         CHECK_APPROX(r_s.y / R,    r.y / R,    1e-15);
     }
+
+    // ------------------------------------------------------------------ //
+    // get_excess_displacement: a contact-scale displacement of length
+    // 5 * 2^-35 m (~1.5e-10 m), whose length is exact in floating point.
+    // ------------------------------------------------------------------ //
+
+    {
+        const double3 d = { ldexp(3., -35), ldexp(-4., -35), 0. };
+
+        // Below and at the critical value the excess is exactly zero.
+        const double3 e_below = get_excess_displacement(d, ldexp(6., -35));
+        const double3 e_at    = get_excess_displacement(d, ldexp(5., -35));
+        CHECK(e_below.x == 0. && e_below.y == 0. && e_below.z == 0.);
+        CHECK(e_at.x == 0. && e_at.y == 0. && e_at.z == 0.);
+
+        // Above it the excess is parallel to d, with the length |d| - delta_crit = 3 * 2^-35.
+        const double3 e = get_excess_displacement(d, ldexp(2., -35));
+        CHECK_APPROX(e.x / d.x,  0.6,  1e-15);
+        CHECK_APPROX(e.y / d.y,  0.6,  1e-15);
+        CHECK(e.z == 0.);
+        CHECK_APPROX(vec_length(e) / ldexp(3., -35),  1.0,  1e-15);
+    }
+
+    // ------------------------------------------------------------------ //
+    // get_corrected_pointer: both pointers of a contact are corrected with
+    // the arguments of thread (i,j) and of thread (j,i). The excess must be
+    // removed from its own displacement, and the other displacement must
+    // stay unchanged.
+    // ------------------------------------------------------------------ //
+
+    {
+        const double r_i = 15e-9, r_j = 30e-9, R = get_R(r_i, r_j);
+
+        const double3 x_i = { 0., 0., 0. };
+        const double3 x_j = { r_i + r_j - 1e-10, 0., 0. };
+
+        // The unit vector from monomer j to monomer i, as thread (i,j) and thread (j,i) see it.
+        const double3 n    = vec_get_normal(x_i, x_j);
+        const double3 n_ji = vec_get_normal(x_j, x_i);
+
+        // Pointer i points towards monomer j (+x), pointer j towards monomer i (-x), both tilted out of the axis.
+        double3 n_i = {  1.,  0.01,  0.004 };
+        double3 n_j = { -1., -0.02,  0.003 };
+        vec_normalize(n_i);
+        vec_normalize(n_j);
+
+        const double3 sliding = get_sliding_displacement(get_contact_displacement(n_i, n_j, n, r_i, r_j), n);
+        const double3 rolling = vec_get_tangential(get_rolling_displacement(n_i, n_j, R), n);
+
+        // Corrects both pointers for the given excesses and checks the displacements of the corrected pair.
+        auto check_correction = [&](const double3 sliding_excess, const double3 rolling_excess) {
+            const double3 sliding_excess_ji = { -sliding_excess.x, -sliding_excess.y, -sliding_excess.z };
+            const double3 c_i = get_corrected_pointer(n_i, n,    sliding_excess,    rolling_excess, r_i, r_j);
+            const double3 c_j = get_corrected_pointer(n_j, n_ji, sliding_excess_ji, rolling_excess, r_j, r_i);
+
+            const double3 sliding_c = get_sliding_displacement(get_contact_displacement(c_i, c_j, n, r_i, r_j), n);
+            const double3 rolling_c = vec_get_tangential(get_rolling_displacement(c_i, c_j, R), n);
+
+            // The displacements are compared in units of their size; rounding leaves ~1e-14 of it.
+            const double3 sliding_miss = vec_diff(sliding_c, vec_diff(sliding, sliding_excess));
+            const double3 rolling_miss = vec_diff(rolling_c, vec_diff(rolling, rolling_excess));
+            CHECK(vec_length(sliding_miss) < 1e-12 * vec_length(sliding));
+            CHECK(vec_length(rolling_miss) < 1e-12 * vec_length(rolling));
+
+            // The corrected pointers are unit vectors on their side of the contact plane.
+            CHECK_APPROX(vec_length(c_i),  1.0,  1e-15);
+            CHECK_APPROX(vec_length(c_j),  1.0,  1e-15);
+            CHECK(vec_dot(c_i, n) < 0. && vec_dot(c_j, n) > 0.);
+        };
+
+        const double3 zero = { 0., 0., 0. };
+        const double3 sliding_excess = { 0.3 * sliding.x, 0.3 * sliding.y, 0.3 * sliding.z };
+        const double3 rolling_excess = { 0.3 * rolling.x, 0.3 * rolling.y, 0.3 * rolling.z };
+        check_correction(sliding_excess, zero);             // Sliding only.
+        check_correction(zero,           rolling_excess);   // Rolling only.
+        check_correction(sliding_excess, rolling_excess);   // Both.
+    }
 }

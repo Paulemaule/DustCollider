@@ -70,19 +70,18 @@ static void en_test_update_pointers(const double4 q) {
         CHECK(vec_length_sq(out.view().contact_pointer[TM_SLOT_01]) != 0. && vec_length_sq(out.view().contact_pointer[TM_SLOT_10]) != 0.);
     }
 
-    // Inelastic motion in all three degrees of freedom. Equal radii, for which the old pointer correction is
-    // accurate (see CLAUDE.md (AC)). The booking does not depend on it.
+    // Inelastic motion in all three degrees of freedom. The rolling displacement is limited in the contact plane.
     {
         const char* label = "updatePointers, inelastic motion";
-        TmPair   p = tm_pair(20e-9, 20e-9);
-        TmSystem s = tm_make_system(20e-9, 20e-9, p.delta_N_0, true, 2., 2., 2.);
+        TmPair   p = tm_pair(15e-9, 30e-9);
+        TmSystem s = tm_make_system(15e-9, 30e-9, p.delta_N_0, true, 2., 2., 2.);
 
         double normal; double3 sliding, rolling;
         tm_displacements(s, normal, sliding, rolling);
 
         EnergyRecord expected = {};
         expected.sliding_slip  = 0.5 * p.k_s * p.delta_S_crit * (vec_length(sliding) - p.delta_S_crit);
-        expected.rolling_slip  = 0.5 * p.k_r * p.delta_R_crit * (vec_length(rolling) - p.delta_R_crit);
+        expected.rolling_slip  = 0.5 * p.k_r * p.delta_R_crit * (vec_length(tm_tangential(s, rolling)) - p.delta_R_crit);
         expected.twisting_slip = 0.5 * p.k_t * p.delta_T_crit * (fabs(s.twist)     - p.delta_T_crit);
 
         TmDevice dev(s, q);

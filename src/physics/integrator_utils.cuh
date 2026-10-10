@@ -338,6 +338,64 @@ __host__ __device__ double3 get_rolling_displacement(const double3 pointer_i, co
 }
 
 /**
+ * @brief Calculates the part of a displacement that exceeds its critical value.
+ *
+ * excess = d * (1 - delta_crit / |d|) for |d| > delta_crit, else zero
+ *
+ * @param displacement: The displacement d of a degree of freedom.
+ * @param delta_crit: The critical displacement of that degree of freedom.
+ * @returns The excess displacement, parallel to d with the length |d| - delta_crit, or the zero vector.
+ */
+__host__ __device__ double3 get_excess_displacement(const double3 displacement, const double delta_crit) {
+    double length = vec_length(displacement);
+
+    double3 res = { 0., 0., 0. };
+    if (length > delta_crit) {
+        double scale = 1. - delta_crit / length;
+        res.x = displacement.x * scale;
+        res.y = displacement.y * scale;
+        res.z = displacement.z * scale;
+    }
+
+    return res;
+}
+
+/**
+ * @brief Corrects the contact pointer of monomer i for inelastic sliding and rolling.
+ *
+ * The sliding displacement depends only on the tangential parts t_i and t_j of the pointers, r_i t_i - r_j t_j, and
+ * so does the tangential part of the rolling displacement, R (t_i + t_j). The tangential part of the pointer is
+ * shifted by
+ *      t_i -> t_i - sliding_excess / (r_i + r_j) - rolling_excess / r_i.
+ * Thread (j,i) sees the reversed normal and sliding excess and the same rolling excess. The two shifts together
+ * remove each excess from its own displacement and leave the other displacement unchanged.
+ * The normal part of the pointer is then set so that the pointer is a unit vector on its side of the contact plane.
+ *
+ * @param pointer: The contact pointer of monomer i in the lab frame, pointing from its center to the contact.
+ * @param normal: The unit vector from monomer j to monomer i, (x_i - x_j) / |x_i - x_j|.
+ * @param sliding_excess: The excess sliding displacement, see get_excess_displacement.
+ * @param rolling_excess: The excess of the tangential part of the rolling displacement, see get_excess_displacement.
+ * @param r_i: The radius of monomer i.
+ * @param r_j: The radius of monomer j.
+ * @returns The corrected contact pointer of monomer i.
+ */
+__host__ __device__ double3 get_corrected_pointer(const double3 pointer, const double3 normal, const double3 sliding_excess, const double3 rolling_excess, const double r_i, const double r_j) {
+    double3 tangential = vec_get_tangential(pointer, normal);
+    tangential.x -= sliding_excess.x / (r_i + r_j) + rolling_excess.x / r_i;
+    tangential.y -= sliding_excess.y / (r_i + r_j) + rolling_excess.y / r_i;
+    tangential.z -= sliding_excess.z / (r_i + r_j) + rolling_excess.z / r_i;
+
+    double normal_part = copysign(sqrt(fmax(0., 1. - vec_length_sq(tangential))), vec_dot(pointer, normal));
+
+    double3 res;
+    res.x = normal_part * normal.x + tangential.x;
+    res.y = normal_part * normal.y + tangential.y;
+    res.z = normal_part * normal.z + tangential.z;
+
+    return res;
+}
+
+/**
  * @brief Assigns a cluster ID to all monomers reachable from `seed` via the contact graph.
  *
  * Uses an iterative DFS to avoid stack overflow on large or deeply connected aggregates.

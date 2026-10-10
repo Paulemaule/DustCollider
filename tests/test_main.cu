@@ -25,6 +25,7 @@
 #include "test_definitions/unit/test_pipeline.cu"
 #include "test_definitions/unit/test_buffer.cu"
 #include "test_definitions/kernel/test_energy.cu"
+#include "test_definitions/kernel/test_update_pointers.cu"
 
 int main() {
     // --- RUN_SUITE calls go here ---
@@ -36,6 +37,7 @@ int main() {
     RUN_SUITE("pipeline setup",       test_pipeline);
     RUN_SUITE("GPU memory wrappers",  test_buffer);
     RUN_SUITE("energy channels",      test_energy);
+    RUN_SUITE("pointer correction",   test_update_pointers);
 
     return testkit::summary();
 }

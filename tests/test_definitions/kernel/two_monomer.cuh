@@ -6,7 +6,9 @@
  *  - TmPair / tm_pair:            the constants of the monomer pair, from the same helpers the kernels use.
  *  - TmSystem / tm_make_system:   two monomers with a prescribed normal, sliding, rolling and twisting displacement.
  *  - tm_displacements:            the displacements of thread (0,1), written out independently of the kernels.
- *  - TmDevice:                    the system in device memory, the kernel launches and the energy tracker checks.
+ *  - tm_tangential:               the part of a vector in the contact plane, e.g. of the rolling displacement.
+ *  - TmDevice:                    the system in device memory, the kernel launches, the launch check and the energy
+ *                                 tracker checks.
  *  - TM_IDENTITY / TM_ROTATION:   the contact rotations every case runs with. The stored pointers are rotated by
  *                                 them, so the kernels have to undo the rotation.
  *  - TM_ROTATION_CURR:            the contact rotation of the 'curr' buffer, which no kernel may corotate with.
@@ -180,6 +182,19 @@ static void tm_displacements(const TmSystem& s, double& normal, double3& sliding
 }
 
 /**
+ * The part of a vector in the contact plane of the system, perpendicular to the axis between the monomers.
+ * Written out independently of the kernels.
+ */
+static double3 tm_tangential(const TmSystem& s, const double3 v) {
+    double3 diff = vec_diff(s.x[0], s.x[1]);
+    double  dist = vec_length(diff);
+    double3 n    = { diff.x / dist, diff.y / dist, diff.z / dist };
+
+    double v_n = v.x * n.x + v.y * n.y + v.z * n.z;
+    return { v.x - v_n * n.x, v.y - v_n * n.y, v.z - v_n * n.z };
+}
+
+/**
  * Checks that both monomer slots of an energy tracker hold the expected energy per monomer.
  * The comparison has an absolute floor of 1e-12 * energy_scale, for the trackers that are expected to be empty
  * but receive rounding residues (e.g. the sliding potential of a contact without sliding).
@@ -261,13 +276,18 @@ struct TmDevice {
         energy.zero();
     }
 
-    /** Checks the kernel launch, then that every energy tracker holds the expected energy per monomer. */
-    void check_energy(const EnergyRecord& expected, const double energy_scale, const char* label) {
+    /** Checks that the last kernel launch succeeded and waits for it to finish. */
+    void check_launch(const char* label) {
         cudaError_t launch_error = cudaGetLastError();
         cudaError_t sync_error   = cudaDeviceSynchronize();
         if (launch_error != cudaSuccess || sync_error != cudaSuccess)
             printf("    %s: kernel failed: %s / %s\n", label, cudaGetErrorString(launch_error), cudaGetErrorString(sync_error));
         CHECK(launch_error == cudaSuccess && sync_error == cudaSuccess);
+    }
+
+    /** Checks the kernel launch, then that every energy tracker holds the expected energy per monomer. */
+    void check_energy(const EnergyRecord& expected, const double energy_scale, const char* label) {
+        check_launch(label);
 
         HostEnergy host_energy(TM_NMON);
         host_energy.pull_from(energy, TM_NMON);
