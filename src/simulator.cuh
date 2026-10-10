@@ -414,7 +414,6 @@ inline void Simulator::run() {
         // Update the pointers for contact formation and breaking as well as inelastic contact deformation.
         updatePointers<<<nBlocks_pair, BLOCK_SIZE>>>(
             next.position, curr.contact_pointer,
-            curr.contact_rotation,
             next.contact_pointer, next.contact_rotation,
             next.contact_twist,
             en.sliding_slip, en.rolling_slip, en.twisting_slip,

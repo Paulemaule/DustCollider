@@ -418,7 +418,6 @@ __global__ void evaluate(
 __global__ void updatePointers(
     const double3*              position_next,
     const double3*              pointer_curr,
-    const double4*              rotation_curr, // FIXME: Check if this leads to problems. Conceptually rotation_next should be used as it is the current contact rotation, but this would lead to memory races.
 
     double3*                    pointer_next,
     double4*                    rotation_next,
@@ -510,8 +509,8 @@ __global__ void updatePointers(
 
     if (vec_length_sq(pointer_i) != 0. && vec_length_sq(pointer_j) != 0.) {
         // Corotate the contact pointers.
-        double4 rotation_i = rotation_curr[matrix_i];
-        double4 rotation_j = rotation_curr[matrix_j];
+        double4 rotation_i = rotation_next[matrix_i];    
+        double4 rotation_j = rotation_next[matrix_j];
         pointer_i = quat_apply_inverse(rotation_i, pointer_i);
         pointer_j = quat_apply_inverse(rotation_j, pointer_j);
 
@@ -538,7 +537,9 @@ __global__ void updatePointers(
         if (- normal_displacement > delta_N_crit) {
             // The monomers loose contact
             pointer_next[matrix_i]      = { 0., 0., 0. };
-            rotation_next[matrix_i]     = { 0., 0., 0., 0. };
+            // The contact rotation is not reset here, because thread (j,i) reads rotation_next[matrix_i] in this kernel.
+            // HACK: This relies on contacts being detected from the pointers alone. Every kernel that uses the rotation checks the pointers first, and the no-contact branch overwrites the leftover rotation in the next step (with zero, or with the identity if the contact re-forms).
+            //rotation_next[matrix_i]     = { 0., 0., 0., 0. };
             twisting_next[matrix_i]     = 0.;
 
             // All potential energy stored in the connection is lost. Each thread stores half the total contribution, because two threads contribute to each entry.

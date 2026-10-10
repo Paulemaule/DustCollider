@@ -9,6 +9,7 @@
  *  - TmDevice:                    the system in device memory, the kernel launches and the energy tracker checks.
  *  - TM_IDENTITY / TM_ROTATION:   the contact rotations every case runs with. The stored pointers are rotated by
  *                                 them, so the kernels have to undo the rotation.
+ *  - TM_ROTATION_CURR:            the contact rotation of the 'curr' buffer, which no kernel may corotate with.
  *
  * Thread (0,1) works on the pair matrix slot 0 + 1 * Nmon, thread (1,0) on the slot 1 + 0 * Nmon.
  *
@@ -50,6 +51,9 @@ static const int TM_SLOT_10 = 1;
 // The contact rotations: the identity, and a rotation by 0.7 rad around the axis (1, 2, 2) / 3.
 static const double4 TM_IDENTITY = { 0., 0., 0., 1. };
 static const double4 TM_ROTATION = { sin(0.35) / 3., 2. * sin(0.35) / 3., 2. * sin(0.35) / 3., cos(0.35) };
+
+// The contact rotation of the 'curr' buffer: a rotation by 1.1 rad around the axis (2, -1, 2) / 3.
+static const double4 TM_ROTATION_CURR = { 2. * sin(0.55) / 3., - sin(0.55) / 3., 2. * sin(0.55) / 3., cos(0.55) };
 
 /**
  * The constants of a pair of forsterite monomers.
@@ -191,9 +195,11 @@ static void tm_check_tracker(const double* booked, const double expected, const 
 }
 
 /**
- * The system in device memory. Both state buffers hold the same state, because the kernels read the contact
- * rotation and twist from the 'next' buffer. Only the positions differ: 'next' holds the positions x and 'curr' the
- * positions x_old of the previous timestep. The stored pointers are rotated by q and the contact rotation is q.
+ * The system in device memory. Both state buffers hold the same state, except for two fields:
+ *  - the positions: 'next' holds the positions x and 'curr' the positions x_old of the previous timestep;
+ *  - the contact rotation: it is q in 'next' and TM_ROTATION_CURR in 'curr'. The kernels corotate with the 'next'
+ *    buffer, so a kernel that reads the wrong one fails.
+ * The stored pointers are rotated by q.
  */
 struct TmDevice {
     DeviceMaterials      materials;
@@ -246,6 +252,10 @@ struct TmDevice {
         host_state.push_to(next, TM_NMON);
         for (int k = 0; k < TM_NMON; k++)
             hs.position[k] = s.x_old[k];
+        if (vec_length_sq(s.n[0]) != 0.) {
+            hs.contact_rotation[TM_SLOT_01] = TM_ROTATION_CURR;
+            hs.contact_rotation[TM_SLOT_10] = TM_ROTATION_CURR;
+        }
         host_state.push_to(curr, TM_NMON);
 
         energy.zero();
@@ -285,7 +295,6 @@ struct TmDevice {
         DeviceEnergyView    ev = energy.view();
         updatePointers<<<1, TM_NMON * TM_NMON>>>(
             nv.position, cv.contact_pointer,
-            cv.contact_rotation,
             nv.contact_pointer, nv.contact_rotation,
             nv.contact_twist,
             ev.sliding_slip, ev.rolling_slip, ev.twisting_slip,
