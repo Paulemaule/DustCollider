@@ -19,6 +19,7 @@
  * @param Nmon              Number of monomers of the aggregate.
  * @param external_radius   Outer radius about the file origin, max(|r_i| + a_i), from the aggregate file header [m].
  * @param effective_radius  Radius of a sphere with the total monomer volume, from the aggregate file header [m].
+ * @param mass              Total mass of the monomers [kg].
  * @param mass_centre       Mass centre in the coordinates of the aggregate file [m].
  */
 struct AggregateConfig {
@@ -31,6 +32,7 @@ struct AggregateConfig {
     size_t       Nmon             = 0;
     double       external_radius  = 0.0;
     double       effective_radius = 0.0;
+    double       mass             = 0.0;
     double3      mass_centre{};
 };
 

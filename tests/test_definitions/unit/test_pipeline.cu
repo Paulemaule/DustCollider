@@ -526,6 +526,7 @@ void test_pipeline() {
         CHECK_APPROX(A.effective_radius / 20.8e-9, 1.0,  1e-14);
 
         // One material, so the masses go with r^3: (1 * (-10) + 8 * 20) / 9 nm.
+        CHECK_APPROX(A.mass / (4.0 / 3.0 * PI * 2200.0 * (1e-24 + 8e-24)), 1.0,  1e-14);
         CHECK_APPROX(A.mass_centre.x / (150.0 / 9.0 * 1e-9), 1.0,  1e-14);
         CHECK(A.mass_centre.y == 0.0 && A.mass_centre.z == 0.0);
         CHECK(B.mass_centre.x == 0.0 && B.mass_centre.y == 0.0 && B.mass_centre.z == 0.0);
