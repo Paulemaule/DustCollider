@@ -177,19 +177,12 @@ private:
                 position.y = agg.monomers.positions[k].y + agg_cfg.position.y;
                 position.z = agg.monomers.positions[k].z + agg_cfg.position.z;
 
-                double3 vel_tang = vec_cross(agg_cfg.angular, agg.monomers.positions[k]);
-                double3 velocity;
-                velocity.x = agg_cfg.velocity.x + vel_tang.x;
-                velocity.y = agg_cfg.velocity.y + vel_tang.y;
-                velocity.z = agg_cfg.velocity.z + vel_tang.z;
-
                 double r   = agg.monomers.radii[k];
                 int    mid = agg.monomers.material_ids[k];
                 double rho = run_config.materials[mid].rho;
                 double m   = (4.0 / 3.0) * PI * rho * r * r * r;
 
                 run_config.initial_state.positions[i]    = position;
-                run_config.initial_state.velocities[i]   = velocity;
                 run_config.initial_state.omegas[i]       = agg_cfg.angular;
                 run_config.initial_state.radii[i]        = r;
                 run_config.initial_state.masses[i]       = m;
@@ -206,7 +199,18 @@ private:
 
             agg_cfg.mass = mass;
             if ( mass > 0.0 ) {
-                agg_cfg.mass_centre = { mass_position.x / mass, mass_position.y / mass, mass_position.z / mass };
+                agg_cfg.center_of_mass = { mass_position.x / mass, mass_position.y / mass, mass_position.z / mass };
+            }
+
+            // The aggregate moves with its velocity and spins with its angular velocity about its center of mass.
+            for ( size_t k = 0; k < (size_t)agg.header.Nmon; k++ ) {
+                double3 vel_tang = vec_cross(agg_cfg.angular, vec_diff(agg.monomers.positions[k], agg_cfg.center_of_mass));
+                double3 velocity;
+                velocity.x = agg_cfg.velocity.x + vel_tang.x;
+                velocity.y = agg_cfg.velocity.y + vel_tang.y;
+                velocity.z = agg_cfg.velocity.z + vel_tang.z;
+
+                run_config.initial_state.velocities[agg_cfg.first_monomer + k] = velocity;
             }
         }
 
@@ -639,20 +643,14 @@ private:
         Logger::print("Aggregate:");
         Logger::lineBreak();
 
-        // The mass centre of an aggregate and its velocity in the simulation frame. The spin about the file origin
-        // adds ang x r_cm to the velocity.
-        auto mass_centre_of = [](const AggregateConfig& a) {
-            return double3{ a.position.x + a.mass_centre.x, a.position.y + a.mass_centre.y, a.position.z + a.mass_centre.z };
-        };
-        auto velocity_of = [](const AggregateConfig& a) {
-            const double3 spin_velocity = vec_cross(a.angular, a.mass_centre);
-            return double3{ a.velocity.x + spin_velocity.x, a.velocity.y + spin_velocity.y, a.velocity.z + spin_velocity.z };
+        // The center of mass of an aggregate in the simulation frame. pos is the offset of the file origin, and the
+        // aggregate spins about its center of mass, so the center of mass moves with vel.
+        auto com_of = [](const AggregateConfig& a) {
+            return double3{ a.position.x + a.center_of_mass.x, a.position.y + a.center_of_mass.y, a.position.z + a.center_of_mass.z };
         };
 
         for (const AggregateConfig& a : cfg.aggregates) {
-            const double3 spin_velocity = vec_cross(a.angular, a.mass_centre);
-            const double3 com           = mass_centre_of(a);
-            const double3 com_velocity  = velocity_of(a);
+            const double3 com = com_of(a);
 
             Logger::print("   [{}] from {}", a.name.c_str(), a.path.c_str());
             if (a.Nmon > 0) {
@@ -662,30 +660,30 @@ private:
             }
             Logger::print("      a_ext:    {:.10g} m (outer radius about the file origin)", a.external_radius);
             Logger::print("      a_eff:    {:.10g} m (radius of a sphere with the total monomer volume)", a.effective_radius);
-            Logger::print("      pos:      ({}, {}, {}) m",
+            Logger::print("      pos:      ({}, {}, {}) m, offset of the file origin",
                    a.position.x, a.position.y, a.position.z);
-            Logger::print("      vel:      ({}, {}, {}) m/s",
+            Logger::print("      vel:      ({}, {}, {}) m/s, of the center of mass",
                    a.velocity.x, a.velocity.y, a.velocity.z);
-            Logger::print("      ang:      ({}, {}, {}) rad/s, about the file origin",
+            Logger::print("      ang:      ({}, {}, {}) rad/s, about the center of mass",
                    a.angular.x, a.angular.y, a.angular.z);
-            Logger::print("      mass centre in the file frame: ({:.4e}, {:.4e}, {:.4e}) m, |ang x r_cm| = {:.4e} m/s",
-                   a.mass_centre.x, a.mass_centre.y, a.mass_centre.z, vec_length(spin_velocity));
+            Logger::print("      center of mass in the file frame: ({:.4e}, {:.4e}, {:.4e}) m",
+                   a.center_of_mass.x, a.center_of_mass.y, a.center_of_mass.z);
             Logger::print("      mass:     {:.4e} kg", a.mass);
             Logger::print("      COM:      ({:.4e}, {:.4e}, {:.4e}) m, moving at ({:.4e}, {:.4e}, {:.4e}) m/s",
-                   com.x, com.y, com.z, com_velocity.x, com_velocity.y, com_velocity.z);
+                   com.x, com.y, com.z, a.velocity.x, a.velocity.y, a.velocity.z);
         }
 
-        // The collision of two aggregates, from the motion of their mass centres.
+        // The collision of two aggregates, from the motion of their centers of mass.
         if (cfg.aggregates.size() == 2) {
             const AggregateConfig& a = cfg.aggregates[0];
             const AggregateConfig& b = cfg.aggregates[1];
 
-            const double3 v_rel  = vec_diff(velocity_of(b), velocity_of(a));
-            const double3 d      = vec_diff(mass_centre_of(b), mass_centre_of(a));
+            const double3 v_rel  = vec_diff(b.velocity, a.velocity);
+            const double3 d      = vec_diff(com_of(b), com_of(a));
             const double  speed  = vec_length(v_rel);
             const double  mu     = a.mass * b.mass / (a.mass + b.mass);
 
-            Logger::print("   collision of [{}] and [{}], from the motion of their mass centres:", a.name, b.name);
+            Logger::print("   collision of [{}] and [{}], from the motion of their centers of mass:", a.name, b.name);
             Logger::print("      v_rel:    ({:.4e}, {:.4e}, {:.4e}) m/s = v_{} - v_{}, |v_rel| = {:.4e} m/s",
                    v_rel.x, v_rel.y, v_rel.z, b.name, a.name, speed);
             if (speed > 0.0) {

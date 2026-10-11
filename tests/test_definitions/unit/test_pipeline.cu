@@ -154,11 +154,10 @@ void test_pipeline() {
     }
 
     // ------------------------------------------------------------------ //
-    // Tangential velocity from aggregate angular velocity.
+    // The spin acts about the center of mass, not the file origin.
     //
-    // Monomer at local (d, 0, 0), aggregate angular ω = (0, 0, ω_z).
-    //   vel_tang = ω × r_local = (0*0 - ω_z*0, ω_z*d - 0*0, 0) = (0, ω_z*d, 0)
-    //   total velocity = agg_vel + vel_tang = (v_x, ω_z*d, 0)
+    // A single monomer at local (d, 0, 0) is its own center of mass, so the aggregate angular velocity ω = (0, 0, ω_z)
+    // gives it no velocity: it moves with the aggregate velocity alone and spins with ω.
     // ------------------------------------------------------------------ //
 
     {
@@ -186,9 +185,95 @@ void test_pipeline() {
         CHECK(p.run(2, argv) == Status::ok);
 
         const SimulationConfig& cfg = p.getConfig();
-        CHECK_APPROX(cfg.initial_state.velocities[0].x, 1.0,       1e-10);
-        CHECK_APPROX(cfg.initial_state.velocities[0].y, omega * d,  1e-10);
-        CHECK_APPROX(cfg.initial_state.velocities[0].z, 0.0,        1e-10);
+        CHECK_APPROX(cfg.aggregates[0].center_of_mass.x / d, 1.0, 1e-15);
+        CHECK_APPROX(cfg.initial_state.velocities[0].x, 1.0, 1e-15);
+        CHECK_APPROX(cfg.initial_state.velocities[0].y, 0.0, 1e-15);
+        CHECK_APPROX(cfg.initial_state.velocities[0].z, 0.0, 1e-15);
+        CHECK(cfg.initial_state.omegas[0].z == omega);
+    }
+
+    // ------------------------------------------------------------------ //
+    // Rigid motion of an aggregate whose center of mass is neither the file origin nor the centroid.
+    //
+    // Three monomers of two densities, off the file origin, with an angular velocity ω along all three axes.
+    // Each monomer moves with v + ω × (r_k - c), with c the center of mass in the file frame, so the center of mass
+    // moves with v. The positions are the file positions offset by pos.
+    // ------------------------------------------------------------------ //
+
+    {
+        const double x_nm[3][3] = { { -20.0,  5.0,  10.0 },
+                                    {  15.0, -8.0,   3.0 },
+                                    {   4.0, 25.0, -12.0 } };
+        const double r_nm[3]    = { 10.0, 20.0, 15.0 };
+        const double rho[3]     = { 2200.0, 5000.0, 2200.0 };
+        const double pos[3]     = { 1e-6, -2e-6, 5e-7 };
+        const double vel[3]     = { 1.5, -0.5, 2.0 };
+        const double w[3]       = { 3e7, -2e7, 5e7 };
+
+        write_file(PIPE_AGG, "3 80.0 30.0\n# m\n# m\n# m\n# m\n"
+                             "-20.0  5.0  10.0 0.0 10.0 0.0 1\n"
+                             " 15.0 -8.0   3.0 0.0 20.0 0.0 2\n"
+                             "  4.0 25.0 -12.0 0.0 15.0 0.0 1\n");
+
+        char cmd[1024];
+        snprintf(cmd, sizeof(cmd),
+            "<N_iter> 100\n"
+            "<N_save> 10\n"
+            "<path_A> \"%s\"\n"
+            "<pos_A> 1e-6 -2e-6 5e-7\n"
+            "<vel_A> 1.5 -0.5 2.0\n"
+            "<ang_A> 3e7 -2e7 5e7\n"
+            "<time_step> 1e-10\n"
+            "<material id=\"1\"> \"silica\" 0.03 5e10 0.17 2200.0 2e-10 1e-9\n"
+            "<material id=\"2\"> \"dense\"  0.03 5e10 0.17 5000.0 2e-10 1e-9\n",
+            PIPE_AGG);
+        write_file(PIPE_CMD, cmd);
+
+        Pipeline p;
+        const char* argv[] = {"test", PIPE_CMD};
+        CHECK(p.run(2, argv) == Status::ok);
+
+        const SimulationConfig& cfg = p.getConfig();
+        const InitialState&     is  = cfg.initial_state;
+
+        // The center of mass in the file frame.
+        double mass = 0.0;
+        double c[3] = { 0.0, 0.0, 0.0 };
+        for (int k = 0; k < 3; k++) {
+            const double r = r_nm[k] * 1e-9;
+            const double m = (4.0 / 3.0) * PI * rho[k] * r * r * r;
+            mass += m;
+            for (int j = 0; j < 3; j++) c[j] += m * x_nm[k][j] * 1e-9;
+        }
+        for (int j = 0; j < 3; j++) c[j] /= mass;
+
+        CHECK_APPROX(cfg.aggregates[0].center_of_mass.x / c[0], 1.0, 1e-13);
+        CHECK_APPROX(cfg.aggregates[0].center_of_mass.y / c[1], 1.0, 1e-13);
+        CHECK_APPROX(cfg.aggregates[0].center_of_mass.z / c[2], 1.0, 1e-13);
+
+        double momentum[3] = { 0.0, 0.0, 0.0 };
+        for (int k = 0; k < 3; k++) {
+            const double d[3] = { x_nm[k][0] * 1e-9 - c[0], x_nm[k][1] * 1e-9 - c[1], x_nm[k][2] * 1e-9 - c[2] };
+
+            CHECK_APPROX(is.velocities[k].x, vel[0] + w[1] * d[2] - w[2] * d[1], 1e-14);
+            CHECK_APPROX(is.velocities[k].y, vel[1] + w[2] * d[0] - w[0] * d[2], 1e-14);
+            CHECK_APPROX(is.velocities[k].z, vel[2] + w[0] * d[1] - w[1] * d[0], 1e-14);
+
+            CHECK_APPROX(is.positions[k].x / (pos[0] + x_nm[k][0] * 1e-9), 1.0, 1e-15);
+            CHECK_APPROX(is.positions[k].y / (pos[1] + x_nm[k][1] * 1e-9), 1.0, 1e-15);
+            CHECK_APPROX(is.positions[k].z / (pos[2] + x_nm[k][2] * 1e-9), 1.0, 1e-15);
+
+            CHECK(is.omegas[k].x == w[0] && is.omegas[k].y == w[1] && is.omegas[k].z == w[2]);
+
+            momentum[0] += is.masses[k] * is.velocities[k].x;
+            momentum[1] += is.masses[k] * is.velocities[k].y;
+            momentum[2] += is.masses[k] * is.velocities[k].z;
+        }
+
+        // The center of mass moves with the aggregate velocity.
+        CHECK_APPROX(momentum[0] / cfg.aggregates[0].mass, vel[0], 1e-14);
+        CHECK_APPROX(momentum[1] / cfg.aggregates[0].mass, vel[1], 1e-14);
+        CHECK_APPROX(momentum[2] / cfg.aggregates[0].mass, vel[2], 1e-14);
     }
 
     // ------------------------------------------------------------------ //
@@ -494,7 +579,7 @@ void test_pipeline() {
     }
 
     // ------------------------------------------------------------------ //
-    // Aggregate bookkeeping: the monomer range of each aggregate, the header radii and the mass centre in the file
+    // Aggregate bookkeeping: the monomer range of each aggregate, the header radii and the center of mass in the file
     // frame
     // ------------------------------------------------------------------ //
 
@@ -527,9 +612,9 @@ void test_pipeline() {
 
         // One material, so the masses go with r^3: (1 * (-10) + 8 * 20) / 9 nm.
         CHECK_APPROX(A.mass / (4.0 / 3.0 * PI * 2200.0 * (1e-24 + 8e-24)), 1.0,  1e-14);
-        CHECK_APPROX(A.mass_centre.x / (150.0 / 9.0 * 1e-9), 1.0,  1e-14);
-        CHECK(A.mass_centre.y == 0.0 && A.mass_centre.z == 0.0);
-        CHECK(B.mass_centre.x == 0.0 && B.mass_centre.y == 0.0 && B.mass_centre.z == 0.0);
+        CHECK_APPROX(A.center_of_mass.x / (150.0 / 9.0 * 1e-9), 1.0,  1e-14);
+        CHECK(A.center_of_mass.y == 0.0 && A.center_of_mass.z == 0.0);
+        CHECK(B.center_of_mass.x == 0.0 && B.center_of_mass.y == 0.0 && B.center_of_mass.z == 0.0);
     }
 
     // ------------------------------------------------------------------ //

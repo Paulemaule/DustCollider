@@ -12,15 +12,15 @@
  *
  * @param name      Key extracted from the command file tag, e.g. "A", "spin".
  * @param path      Path to the aggregate file.
- * @param position  Initial position offset [m].
- * @param velocity  Initial translational velocity [m/s].
- * @param angular   Initial angular velocity [rad/s].
+ * @param position  Offset of the origin of the aggregate file [m].
+ * @param velocity  Initial velocity of the center of mass [m/s].
+ * @param angular   Initial angular velocity about the center of mass [rad/s].
  * @param first_monomer     Index of the first monomer of the aggregate in the monomer arrays of the initial state.
  * @param Nmon              Number of monomers of the aggregate.
  * @param external_radius   Outer radius about the file origin, max(|r_i| + a_i), from the aggregate file header [m].
  * @param effective_radius  Radius of a sphere with the total monomer volume, from the aggregate file header [m].
  * @param mass              Total mass of the monomers [kg].
- * @param mass_centre       Mass centre in the coordinates of the aggregate file [m].
+ * @param center_of_mass    Center of mass in the coordinates of the aggregate file [m].
  */
 struct AggregateConfig {
     std::string  name;
@@ -33,7 +33,7 @@ struct AggregateConfig {
     double       external_radius  = 0.0;
     double       effective_radius = 0.0;
     double       mass             = 0.0;
-    double3      mass_centre{};
+    double3      center_of_mass{};
 };
 
 /**
