@@ -21,8 +21,9 @@ endif
 # Defines 'ARCH_FLAGS'
 include arch.mk
 
-# Git version: tag if on a tag, tag+offset+hash if between tags, bare hash if no tags
-VERSION_ID := $(shell git describe --tags --always 2>/dev/null)
+# Git version: tag if on a tag, tag+offset+hash if between tags, bare hash if no tags,
+# with the suffix -dirty if tracked files have uncommitted changes
+VERSION_ID := $(shell git describe --tags --always --dirty 2>/dev/null)
 
 # Directory structure
 SOURCE_DIR = ./src

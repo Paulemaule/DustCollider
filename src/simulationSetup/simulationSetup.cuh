@@ -68,6 +68,20 @@ public:
             return Status::error;
         #endif
 
+        // The host compiler that nvcc used for the host code.
+        #if defined(__clang__)
+            const std::string host_compiler = std::string("clang ") + __clang_version__;
+        #elif defined(__GNUC__)
+            const std::string host_compiler = std::string("GCC ") + __VERSION__;
+        #elif defined(_MSC_VER)
+            const std::string host_compiler = "MSVC " + std::to_string(_MSC_VER);
+        #else
+            const std::string host_compiler = "an unknown host compiler";
+        #endif
+
+        Logger::log("Compiled on {} {} with nvcc {}.{}.{} and {}.", __DATE__, __TIME__,
+            __CUDACC_VER_MAJOR__, __CUDACC_VER_MINOR__, __CUDACC_VER_BUILD__, host_compiler);
+
         Logger::log("Run started at {}.", current_time_string());
 
         Logger::lineBreak();
