@@ -177,13 +177,37 @@ inline void Simulator::log_device_info() const {
     cudaDeviceProp prop;
     CHECK_CUDA(cudaGetDeviceProperties(&prop, active_device_id));
 
+    // The clock rates [kHz].
+    int clock_rate = 0;
+    int memory_clock_rate = 0;
+    CHECK_CUDA(cudaDeviceGetAttribute(&clock_rate,        cudaDevAttrClockRate,       active_device_id));
+    CHECK_CUDA(cudaDeviceGetAttribute(&memory_clock_rate, cudaDevAttrMemoryClockRate, active_device_id));
+
+    // The CUDA runtime and driver versions, encoded as 1000 * major + 10 * minor.
+    int runtime_version = 0;
+    int driver_version  = 0;
+    CHECK_CUDA(cudaRuntimeGetVersion(&runtime_version));
+    CHECK_CUDA(cudaDriverGetVersion(&driver_version));
+
+    // The UUID in the form nvidia-smi prints it, GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.
+    std::string uuid = "GPU-";
+    for ( int b = 0; b < 16; b++ ) {
+        if ( b == 4 || b == 6 || b == 8 || b == 10 ) uuid += "-";
+        uuid += std::format("{:02x}", static_cast<unsigned char>(prop.uuid.bytes[b]));
+    }
+
     // Log device information
     Logger::print("Active device: {} of {}", active_device_id + 1, device_count);
     Logger::print("   Name:                  {}", prop.name);
+    Logger::print("   UUID:                  {}", uuid);
+    Logger::print("   PCI bus ID:            {:08x}:{:02x}:{:02x}.0", prop.pciDomainID, prop.pciBusID, prop.pciDeviceID);
     Logger::print("   Compute capability:    {}.{}", prop.major, prop.minor);
+    Logger::print("   Clock rate:            {} MHz (memory {} MHz)", clock_rate / 1000, memory_clock_rate / 1000);
     Logger::print("   Total global mem:      {} bytes", prop.totalGlobalMem);
     Logger::print("   Warp size:             {} threads", prop.warpSize);
     Logger::print("   Max threads / block:   {} threads", prop.maxThreadsPerBlock);
+    Logger::print("   CUDA runtime:          {}.{} (driver {}.{})",
+        runtime_version / 1000, (runtime_version % 1000) / 10, driver_version / 1000, (driver_version % 1000) / 10);
 
     // Print a log comparing the active devices compute capability against the 
     // available compute capabilites in the compiled fat binary.

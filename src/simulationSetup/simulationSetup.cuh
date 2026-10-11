@@ -84,6 +84,12 @@ public:
 
         Logger::log("Run started at {}.", current_time_string());
 
+        // The host, and the SLURM job and the visible GPUs if they are set.
+        std::string host = "Running on " + host_name();
+        if (const char* job = std::getenv("SLURM_JOB_ID"))          host += std::string(", SLURM job ") + job;
+        if (const char* gpus = std::getenv("CUDA_VISIBLE_DEVICES")) host += std::string(", CUDA_VISIBLE_DEVICES=") + gpus;
+        Logger::log("{}.", host);
+
         Logger::lineBreak();
 
         Logger::header("SETUP");

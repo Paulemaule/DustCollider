@@ -1,9 +1,14 @@
 #pragma once
 
+#include <cstdlib>
 #include <ctime>
 #include <iostream>
 #include <sstream>
 #include <string>
+
+#if !defined(_WIN32)
+    #include <unistd.h>     // gethostname
+#endif
 
 #include "config.cuh"   // VERBOSITY, referenced by the PRINT_LOG macro below
 
@@ -46,6 +51,20 @@ inline std::string current_time_string() {
     char buffer[20];
     std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", std::localtime(&now));
     return buffer;
+}
+
+/**
+ * @brief Returns the name of the host the program runs on, or "unknown" if it can not be determined.
+ */
+inline std::string host_name() {
+#if defined(_WIN32)
+    const char* name = std::getenv("COMPUTERNAME");
+    return name ? name : "unknown";
+#else
+    char buffer[256] = {};
+    if (gethostname(buffer, sizeof(buffer) - 1) != 0) return "unknown";
+    return buffer;
+#endif
 }
 
 /**
