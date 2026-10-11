@@ -177,7 +177,8 @@ private:
     /**
      * @brief Auto-calculates several system properties.
      *
-     * This includes the smallest dynamical timescale tau_min and, unless <time_step> was set, the timestep.
+     * This includes the characteristic contact scales of the monomer pairs (see PairScales), the smallest dynamical
+     * timescale tau_min and, unless <time_step> was set, the timestep.
      * tau_min is calculated in both cases, as the run schedule is reported in units of it.
      */
     Status calculate_system_properties() {
@@ -189,11 +190,10 @@ private:
             Logger::warn("<time_step> was set in command file. Timestep was set to {} s.", run_config.timestep);
         }
 
-        const size_t Nmon = run_config.initial_state.radii.size();
-        double tau_min  = 1e200; // The smallest dynamical timescale of the system.
-        double min_Fc_R = 1e200; // The smallest contact torque scale F_c * R_red [N*m].
+        const size_t Nmon   = run_config.initial_state.radii.size();
+        PairScales&  scales = run_config.pair_scales;
 
-        // Iterate over all monomer pairs to determine the systems extremal dynamical parameters
+        // Iterate over all monomer pairs to determine the extremes of the characteristic scales of the system.
         for ( size_t i = 0; i < Nmon; i++ ) {
             for ( size_t j = i + 1; j < Nmon; j++ ) {
                 // Find the materials of the two monomers
@@ -213,30 +213,59 @@ private:
                 double R            = get_R(r_i, r_j);
 
                 double Es           = get_E_s(mat_i.E, mat_j.E, mat_i.nu, mat_j.nu);
+                double G_i          = get_G_i(mat_i.E, mat_i.nu);
+                double G_j          = get_G_i(mat_j.E, mat_j.nu);
+                double G_s          = get_G_s(G_i, G_j, mat_i.nu, mat_j.nu);
+                double G            = get_G(G_i, G_j);
                 double gamma_ij     = get_gamma(mat_i.gamma, mat_j.gamma);
 
                 double a0           = get_a_0(gamma_ij, R, Es);
+                double delta_N_0    = get_delta_N_0(a0, R);
                 double delta_N_c    = get_delta_N_crit(a0, R);
-                double F_c          = 3.0 * PI * gamma_ij * R;
+                double delta_S_c    = get_delta_S_crit(mat_i.nu, mat_j.nu, a0);
+                double delta_R_c    = get_delta_R_crit(mat_i.xi, mat_j.xi);
+                double delta_T_c    = get_delta_T_crit();
+
+                double F_c          = get_F_c(gamma_ij, R);
+                double k_s          = get_k_s(G_s, a0);
+                double k_r          = get_k_r(F_c, R);
+                double k_t          = get_k_t(G, a0);
 
                 // The timescale(s) of the system
+                // TODO: Calculating the timestep only from the normal interaction only works if the normal direction actually dominates the other interactions. This is not necessarily given for all material parameters.
                 double tau_N        = sqrt(M * delta_N_c / F_c);
 
-                // TODO: Calculating the timestep only from the normal interaction only works if the normal direction actually dominates the other interactions. This is not necessarily given for all material parameters.
-                if ( tau_N < tau_min  ) tau_min  = tau_N;
-                if ( F_c * R < min_Fc_R ) min_Fc_R = F_c * R;
+                // The energy to separate a contact from its equilibrium, where the contact radius is a_0.
+                double E_break      = get_U_N(F_c, delta_N_c, get_contact_radius(-delta_N_c, a0, R), a0)
+                                    - get_U_N(F_c, delta_N_c, a0, a0);
+
+                // The work at the critical rolling force over the rolling distance (pi/2) * R.
+                double E_roll       = 0.5 * PI * R * k_r * delta_R_c;
+
+                scales.a_0.include(a0, i, j);
+                scales.delta_N_0.include(delta_N_0, i, j);
+                scales.delta_N_crit.include(delta_N_c, i, j);
+                scales.F_c.include(F_c, i, j);
+                scales.tau_N.include(tau_N, i, j);
+                scales.E_break.include(E_break, i, j);
+                scales.E_roll.include(E_roll, i, j);
+                scales.U_S_crit.include(get_U_S(k_s, double3{ delta_S_c, 0., 0. }), i, j);
+                scales.U_R_crit.include(get_U_R(k_r, double3{ delta_R_c, 0., 0. }), i, j);
+                scales.U_T_crit.include(get_U_T(k_t, delta_T_c), i, j);
+                scales.v_break.include(sqrt(2. * E_break / M), i, j);
+                scales.v_roll.include(sqrt(2. * E_roll / M), i, j);
             }
         }
 
         // Without a monomer pair there is no contact timescale.
         if ( Nmon >= 2 ) {
-            run_config.tau_min = tau_min;
+            run_config.tau_min = scales.tau_N.min;
         } else {
             Logger::warn("The timestep could not be calculated for a simulation with less then 2 monomers!");
         }
 
         if ( !skip_timestep ) {
-            run_config.timestep = 0.005 * tau_min;
+            run_config.timestep = 0.005 * scales.tau_N.min;
         }
 
         return Status::ok;
@@ -628,6 +657,45 @@ private:
 
             Logger::lineBreak();
         }
+
+        // Characteristic scales of the monomer pairs
+        Logger::print("Monomer pairs:");
+        Logger::lineBreak();
+
+        const size_t Nmon = cfg.initial_state.radii.size();
+        if (Nmon >= 2) {
+            // Prints one quantity with its extremes and the monomer pairs at which they occur.
+            auto print_extremes = [](const char* name, const char* unit, const Extremes& e) {
+                Logger::print("   {:<10} | {:<5} | {:>10.4e}  {:<12} | {:>10.4e}  {}",
+                    name, unit, e.min, std::format("({}, {})", e.min_i, e.min_j),
+                    e.max, std::format("({}, {})", e.max_i, e.max_j));
+            };
+
+            const PairScales& s = cfg.pair_scales;
+            Logger::print("   Extremes over all {} monomer pairs (i, j), with monomer indices from 0.", Nmon * (Nmon - 1) / 2);
+            Logger::lineBreak();
+            Logger::print("   {:<10} | {:<5} | {:<24} | {}", "quantity", "unit", "min  at pair", "max  at pair");
+            Logger::lineBreak();
+            print_extremes("a_0",       "m",   s.a_0);
+            print_extremes("delta_N_0", "m",   s.delta_N_0);
+            print_extremes("delta_N_c", "m",   s.delta_N_crit);
+            print_extremes("F_c",       "N",   s.F_c);
+            print_extremes("tau_N",     "s",   s.tau_N);
+            print_extremes("E_break",   "J",   s.E_break);
+            print_extremes("E_roll",    "J",   s.E_roll);
+            print_extremes("U_S,crit",  "J",   s.U_S_crit);
+            print_extremes("U_R,crit",  "J",   s.U_R_crit);
+            print_extremes("U_T,crit",  "J",   s.U_T_crit);
+            print_extremes("v_break",   "m/s", s.v_break);
+            print_extremes("v_roll",    "m/s", s.v_roll);
+            Logger::lineBreak();
+            Logger::print("   E_break = U_N(-delta_N_c) - U_N(delta_N_0), E_roll = (pi/2) R k_r xi_crit,");
+            Logger::print("   U_X,crit = potential at the critical displacement of X, v_X = sqrt(2 E_X / M) with the reduced mass M.");
+        } else {
+            Logger::print("   n/a (fewer than two monomers)");
+        }
+
+        Logger::lineBreak();
 
         // Output
         Logger::print("Simulation Output");

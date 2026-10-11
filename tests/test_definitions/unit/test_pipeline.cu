@@ -21,6 +21,7 @@
 static const char* PIPE_CMD  = "/tmp/test_pipe_cmd.tmp";
 static const char* PIPE_AGG  = "/tmp/test_pipe_agg.tmp";
 static const char* PIPE_AGG2 = "/tmp/test_pipe_agg2.tmp";
+static const char* PIPE_AGG3 = "/tmp/test_pipe_agg3.tmp";
 
 static void write_file(const char* path, const char* content) {
     FILE* f = fopen(path, "w");
@@ -406,6 +407,90 @@ void test_pipeline() {
         CHECK(pa.getConfig().timestep == 0.005 * pa.getConfig().tau_min);
         CHECK(!pa.getConfig().timestep_explicit);
         CHECK(pb.getConfig().timestep_explicit);
+    }
+
+    // ------------------------------------------------------------------ //
+    // Pair scales of a single pair: both extremes hold its value, assembled from the helpers of integrator_utils.cuh
+    // ------------------------------------------------------------------ //
+
+    {
+        Pipeline p;
+        CHECK(run_schedule_setup(p, "<N_iter> 1000\n<N_save> 100\n") == Status::ok);
+        const SimulationConfig& cfg = p.getConfig();
+        const PairScales&       s   = cfg.pair_scales;
+
+        // Two silica monomers of 100 nm: gamma 0.03, E 5e10, nu 0.17, xi 2e-10.
+        const double R      = get_R(100e-9, 100e-9);
+        const double M      = 0.5 * cfg.initial_state.masses[0];
+        const double gamma  = get_gamma(0.03, 0.03);
+        const double G      = get_G_i(5e10, 0.17);
+        const double a_0    = get_a_0(gamma, R, get_E_s(5e10, 5e10, 0.17, 0.17));
+        const double F_c    = get_F_c(gamma, R);
+        const double d_c    = get_delta_N_crit(a_0, R);
+        const double k_s    = get_k_s(get_G_s(G, G, 0.17, 0.17), a_0);
+        const double k_r    = get_k_r(F_c, R);
+        const double k_t    = get_k_t(get_G(G, G), a_0);
+        const double d_S    = get_delta_S_crit(0.17, 0.17, a_0);
+        const double d_T    = get_delta_T_crit();
+        const double E_roll = 0.5 * PI * R * k_r * 2e-10;
+
+        CHECK(s.F_c.min == s.F_c.max);
+        CHECK(s.F_c.min_i == 0 && s.F_c.min_j == 1 && s.F_c.max_i == 0 && s.F_c.max_j == 1);
+
+        CHECK_APPROX(s.a_0.min          / a_0,                           1.0,  1e-14);
+        CHECK_APPROX(s.delta_N_0.min    / get_delta_N_0(a_0, R),         1.0,  1e-14);
+        CHECK_APPROX(s.delta_N_crit.min / d_c,                           1.0,  1e-14);
+        CHECK_APPROX(s.F_c.min          / F_c,                           1.0,  1e-14);
+        CHECK_APPROX(s.tau_N.min        / sqrt(M * d_c / F_c),           1.0,  1e-14);
+        CHECK(s.tau_N.min == cfg.tau_min);
+
+        // The JKR potential between equilibrium and the turning point, 1.54 F_c delta_N_crit in Wada et al. (2007).
+        CHECK_APPROX(s.E_break.min / (F_c * d_c),                        1.5425853631546,  1e-9);
+        // E_roll = 6 pi^2 gamma R xi of Dominik & Tielens (1997).
+        CHECK_APPROX(s.E_roll.min  / E_roll,                             1.0,  1e-14);
+        CHECK_APPROX(s.E_roll.min  / (6. * PI * PI * gamma * R * 2e-10), 1.0,  1e-14);
+
+        CHECK_APPROX(s.U_S_crit.min / (0.5 * k_s * d_S * d_S),           1.0,  1e-14);
+        CHECK_APPROX(s.U_R_crit.min / (0.5 * k_r * 2e-10 * 2e-10),       1.0,  1e-14);
+        CHECK_APPROX(s.U_T_crit.min / (0.5 * k_t * d_T * d_T),           1.0,  1e-14);
+
+        CHECK_APPROX(s.v_break.min / sqrt(2. * s.E_break.min / M),       1.0,  1e-14);
+        CHECK_APPROX(s.v_roll.min  / sqrt(2. * E_roll / M),              1.0,  1e-14);
+    }
+
+    // ------------------------------------------------------------------ //
+    // Pair scales of three monomers of one material with radii 50, 100 and 200 nm: the scales that grow with the
+    // reduced radius are smallest for the pair (0, 1) and largest for the pair (1, 2)
+    // ------------------------------------------------------------------ //
+
+    {
+        write_monomer_agg(PIPE_AGG,  0.0, 0.0, 0.0,  50.0, 1);
+        write_monomer_agg(PIPE_AGG2, 0.0, 0.0, 0.0, 100.0, 1);
+        write_monomer_agg(PIPE_AGG3, 0.0, 0.0, 0.0, 200.0, 1);
+
+        char cmd[1024];
+        snprintf(cmd, sizeof(cmd),
+            "<N_iter> 1000\n<N_save> 100\n"
+            "<path_A> \"%s\"\n<pos_A> 0.0 0.0  1e-6\n"
+            "<path_B> \"%s\"\n<pos_B> 0.0 0.0 -1e-6\n"
+            "<path_C> \"%s\"\n<pos_C> 0.0 1e-6 0.0\n"
+            "<material id=\"1\"> \"silica\" 0.03 5e10 0.17 2200.0 2e-10 1e-9\n",
+            PIPE_AGG, PIPE_AGG2, PIPE_AGG3);
+        write_file(PIPE_CMD, cmd);
+
+        Pipeline p;
+        const char* argv[] = {"test", PIPE_CMD};
+        CHECK(p.run(2, argv) == Status::ok);
+        const PairScales& s = p.getConfig().pair_scales;
+
+        for (const Extremes* e : { &s.a_0, &s.F_c, &s.E_roll }) {
+            CHECK(e->min < e->max);
+            CHECK(e->min_i == 0 && e->min_j == 1);
+            CHECK(e->max_i == 1 && e->max_j == 2);
+        }
+        CHECK_APPROX(s.F_c.min / get_F_c(0.03, get_R( 50e-9, 100e-9)),  1.0,  1e-14);
+        CHECK_APPROX(s.F_c.max / get_F_c(0.03, get_R(100e-9, 200e-9)),  1.0,  1e-14);
+        CHECK(s.tau_N.min == p.getConfig().tau_min);
     }
 
     // ------------------------------------------------------------------ //

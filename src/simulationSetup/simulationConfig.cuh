@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+#include <limits>
 #include <vector>
 #include <string>
 
@@ -106,6 +108,59 @@ struct InitialState {
 };
 
 /**
+ * @brief The smallest and the largest value of a quantity over all monomer pairs, and the pairs (i, j) at which they
+ * occur. Without any pair, min is +inf and max is -inf.
+ */
+struct Extremes {
+    double  min   =  std::numeric_limits<double>::infinity();
+    double  max   = -std::numeric_limits<double>::infinity();
+    size_t  min_i = 0;
+    size_t  min_j = 0;
+    size_t  max_i = 0;
+    size_t  max_j = 0;
+
+    /**
+     * @brief Includes the value of the monomer pair (i, j). Of several pairs with the same extreme value, the first
+     * one is kept.
+     */
+    void include(const double value, const size_t i, const size_t j) {
+        if (value < min) { min = value; min_i = i; min_j = j; }
+        if (value > max) { max = value; max_i = i; max_j = j; }
+    }
+};
+
+/**
+ * @brief The characteristic scales of the contacts between the monomers, as extremes over all monomer pairs.
+ *
+ * @param a_0           Equilibrium contact radius [m].
+ * @param delta_N_0     Equilibrium normal displacement [m].
+ * @param delta_N_crit  Critical normal displacement, at which a contact breaks [m].
+ * @param F_c           Critical force, the pull-off force of a contact [N].
+ * @param tau_N         Normal contact timescale sqrt(M * delta_N_crit / F_c), with M the reduced mass [s].
+ * @param E_break       Energy to separate a contact from its equilibrium, U_N(-delta_N_crit) - U_N(delta_N_0) [J].
+ * @param E_roll        Work at the critical rolling force k_r * delta_R_crit over the distance (pi/2) * R [J].
+ * @param U_S_crit      Sliding potential at the critical sliding displacement [J].
+ * @param U_R_crit      Rolling potential at the critical rolling displacement [J].
+ * @param U_T_crit      Twisting potential at the critical twisting displacement [J].
+ * @param v_break       Relative speed sqrt(2 * E_break / M) of the two monomers [m/s].
+ * @param v_roll        Relative speed sqrt(2 * E_roll / M) of the two monomers [m/s].
+ */
+struct PairScales {
+    Extremes a_0;
+    Extremes delta_N_0;
+    Extremes delta_N_crit;
+    Extremes F_c;
+    Extremes tau_N;
+    Extremes E_break;
+    Extremes E_roll;
+    Extremes U_S_crit;
+    Extremes U_R_crit;
+    Extremes U_T_crit;
+    Extremes v_break;
+    Extremes v_roll;
+};
+
+/**
  * @brief Complete simulation setup as defined in the command file.
  *
  * The fields of this struct describe the setup of the simulation.
@@ -119,6 +174,7 @@ struct InitialState {
  * @param timestep        Simulation timestep [s]; 0 means auto-calculate from material properties.
  * @param timestep_explicit True if the timestep was set by <time_step>, false if it was calculated.
  * @param tau_min        Smallest normal contact timescale tau_N over all monomer pairs [s]; 0 if not available.
+ * @param pair_scales    Characteristic contact scales over all monomer pairs.
  * @param B_ext           External magnetic field [T].
  * @param T_dust          Dust temperature [K]; -1 disables temperature corrections.
  * @param initial_state   Per-monomer initial state assembled from aggregate files.
@@ -133,6 +189,7 @@ struct SimulationConfig {
     double                          timestep  = 0.0;
     bool                            timestep_explicit = false;
     double                          tau_min   = 0.0;
-    double3                         B_ext     = {0.0, 0.0, 0.0};
+    PairScales                      pair_scales;
+    double3                        B_ext     = {0.0, 0.0, 0.0};
     double                          T_dust    = 15.0;
 };
