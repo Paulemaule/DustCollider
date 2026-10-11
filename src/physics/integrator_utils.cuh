@@ -22,7 +22,19 @@
     matrix_i = i + j * Nmon;                                            \
     matrix_j = j + i * Nmon;
 
-    
+/**
+ * @brief Calculates the equilibrium normal displacement of two monomers, at which the normal force vanishes.
+ *
+ * delta_N_0 = a_0^2 / (3 * R)
+ *
+ * @param a_0: The equilibrium contact surface radius of the two monomers.
+ * @param R: The reduced radius of the two monomers.
+ * @returns The equilibrium normal displacement.
+ */
+__host__ __device__ double get_delta_N_0(const double a_0, const double R) {
+    return a_0 * a_0 / (3. * R);
+}
+
 /**
  * @brief Calculates the contact surface radius between two monomers.
  * 
@@ -44,7 +56,7 @@ __host__ __device__ double get_contact_radius(
     const double a_0,
     const double R
 ) {
-    double delta_N_0 = a_0 * a_0 / (3. * R);
+    double delta_N_0 = get_delta_N_0(a_0, R);
 
     // Substitute the values in the iteration process (a / a_0) =: x, (delta_N / delta_N_0) =: y.
     // The equation that is to be solved becomes: 0 = 3 * x^2 - 2 * sqrt(x) - y.
@@ -181,6 +193,26 @@ __host__ __device__ double get_delta_N_crit(const double a_0, const double R) {
  */
 __host__ __device__ double get_delta_S_crit(const double nu_i, const double nu_j, const double a_0) {
     return (2.0 - 0.5 * (nu_i + nu_j)) * a_0 / (16.0 * PI);
+}
+
+/**
+ * @brief Calculates the critical rolling displacement of two monomers, the mean of their material values.
+ *
+ * @param xi_i: The critical rolling displacement of the material of monomer i.
+ * @param xi_j: The critical rolling displacement of the material of monomer j.
+ * @returns The critical rolling displacement.
+ */
+__host__ __device__ double get_delta_R_crit(const double xi_i, const double xi_j) {
+    return 0.5 * (xi_i + xi_j);
+}
+
+/**
+ * @brief Calculates the critical twisting displacement of two monomers, 1 / (16 * pi), a fixed angle.
+ *
+ * @returns The critical twisting displacement [rad].
+ */
+__host__ __device__ double get_delta_T_crit() {
+    return 1. / (16. * PI);
 }
 
 /**

@@ -109,6 +109,18 @@ void test_math() {
     CHECK(std::isfinite(get_a_0(0.05, 1e-7, 1e11)));
 
     // ------------------------------------------------------------------ //
+    // get_delta_N_0: equilibrium normal displacement  a_0^2 / (3 * R)
+    // ------------------------------------------------------------------ //
+
+    CHECK_APPROX(get_delta_N_0(1.0, 1.0),  1.0 / 3.0,  1e-14);
+    // a_0^2 scaling: a_0=3, R=1 -> 3.
+    CHECK_APPROX(get_delta_N_0(3.0, 1.0),  3.0,  1e-14);
+    // Inverse scaling in R: a_0=1, R=2 -> 1/6.
+    CHECK_APPROX(get_delta_N_0(1.0, 2.0),  1.0 / 6.0,  1e-14);
+    // The critical displacement is (9/16)^(1/3) of it, the turning point of the JKR curve.
+    CHECK_APPROX(get_delta_N_crit(2.0, 3.0) / get_delta_N_0(2.0, 3.0),  std::cbrt(9.0 / 16.0),  1e-14);
+
+    // ------------------------------------------------------------------ //
     // get_delta_N_crit: critical normal displacement
     //   0.5 * a_0^2 / (R * cbrt(6))
     // ------------------------------------------------------------------ //
@@ -137,6 +149,23 @@ void test_math() {
                  get_delta_S_crit(0.2, 0.4, 16.0 * PI),  1e-14);
     // Linear in a_0: doubling a_0 doubles the result.
     CHECK_APPROX(get_delta_S_crit(0.0, 0.0, 32.0 * PI),  4.0,  1e-12);
+
+    // ------------------------------------------------------------------ //
+    // get_delta_R_crit: critical rolling displacement  0.5 * (xi_i + xi_j)
+    // ------------------------------------------------------------------ //
+
+    // Equal materials -> their value.
+    CHECK_APPROX(get_delta_R_crit(2e-10, 2e-10),  2e-10,  1e-14);
+    // Unequal materials -> the mean: 0.5 * (1 + 3) = 2.
+    CHECK_APPROX(get_delta_R_crit(1.0, 3.0),  2.0,  1e-14);
+    // Symmetric in its arguments.
+    CHECK(get_delta_R_crit(1.0, 3.0) == get_delta_R_crit(3.0, 1.0));
+
+    // ------------------------------------------------------------------ //
+    // get_delta_T_crit: critical twisting displacement  1 / (16 * PI)
+    // ------------------------------------------------------------------ //
+
+    CHECK_APPROX(get_delta_T_crit() * 16.0 * PI,  1.0,  1e-14);
 
     // ------------------------------------------------------------------ //
     // get_U_N: normal (JKR) potential

@@ -504,8 +504,8 @@ __global__ void updatePointers(
     double delta_N_crit = get_delta_N_crit(a_0, R);             // The critical normal displacement of the monomer pair.
     // FIXME: In wada 2007 it is mentioned that this formula is not valid for materials with strong intermolecular forces.
     double delta_S_crit = get_delta_S_crit(nu_i, nu_j, a_0);    // The critical sliding displacement of the monomer pair.
-    double delta_R_crit = 0.5 * (crit_rolling_displacement[i] + crit_rolling_displacement[j]);  // The critical rolling displacement of the monomer pair.
-    double delta_T_crit = 1. / (16. * PI);                      // The critical twisting displacement of the monomer pair.
+    double delta_R_crit = get_delta_R_crit(crit_rolling_displacement[i], crit_rolling_displacement[j]);  // The critical rolling displacement of the monomer pair.
+    double delta_T_crit = get_delta_T_crit();                   // The critical twisting displacement of the monomer pair.
 
     if (vec_length_sq(pointer_i) != 0. && vec_length_sq(pointer_j) != 0.) {
         // Corotate the contact pointers.
