@@ -607,11 +607,11 @@ private:
             Logger::print("   N_iter:    {} (from <N_iter>)", cfg.N_iter);
         }
         Logger::print("      =>      simulated time {} s{}", t_run, in_tau(t_run));
-        Logger::print("   T_dust:    {:.2g} K", cfg.T_dust);
+        Logger::print("   T_dust:    {:.2g} K (not used by the current physics)", cfg.T_dust);
         if (cfg.T_dust == -1.0) {
             Logger::print("      T_dust:   disabled");
         }
-        Logger::print("   B_ext:     ({:.3e}, {:.3e}, {:.3e}) T",
+        Logger::print("   B_ext:     ({:.3e}, {:.3e}, {:.3e}) T (not used by the current physics)",
                cfg.B_ext.x, cfg.B_ext.y, cfg.B_ext.z);
 
         Logger::lineBreak();
