@@ -12,9 +12,9 @@
  * @brief A struct that contains header information about an aggregate snapshot.
  */
 struct AggregateHeader {
-    int     Nmon;                           // The number of monomer in the aggregate [m].
-    double  external_radius;                // The external radius of the aggregate [m].
-    double  effective_radius;               // The effective radius of the aggregate [m].
+    int     Nmon;                           // The number of monomers in the aggregate.
+    double  external_radius;                // The outer radius about the file origin, max(|r_i| + a_i) [m].
+    double  effective_radius;               // The radius of a sphere with the total monomer volume [m].
 };
 
 /**
