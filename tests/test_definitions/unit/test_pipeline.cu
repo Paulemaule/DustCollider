@@ -494,6 +494,44 @@ void test_pipeline() {
     }
 
     // ------------------------------------------------------------------ //
+    // Aggregate bookkeeping: the monomer range of each aggregate, the header radii and the mass centre in the file
+    // frame
+    // ------------------------------------------------------------------ //
+
+    {
+        // Aggregate A: monomers of 10 and 20 nm at x = -10 and 20 nm. Aggregate B: a single monomer.
+        write_file(PIPE_AGG, "2 60.0 20.8\n# m\n# m\n# m\n# m\n"
+                             "-10.0 0.0 0.0 10.0 10.0 0.0 1\n"
+                             " 20.0 0.0 0.0 20.0 20.0 0.0 1\n");
+        write_monomer_agg(PIPE_AGG2, 0.0, 0.0, 0.0, 100.0, 1);
+
+        char cmd[1024];
+        snprintf(cmd, sizeof(cmd),
+            "<N_iter> 1000\n<N_save> 100\n"
+            "<path_A> \"%s\"\n<pos_A> 0.0 0.0  1e-6\n"
+            "<path_B> \"%s\"\n<pos_B> 0.0 0.0 -1e-6\n"
+            "<material id=\"1\"> \"silica\" 0.03 5e10 0.17 2200.0 2e-10 1e-9\n",
+            PIPE_AGG, PIPE_AGG2);
+        write_file(PIPE_CMD, cmd);
+
+        Pipeline p;
+        const char* argv[] = {"test", PIPE_CMD};
+        CHECK(p.run(2, argv) == Status::ok);
+        const AggregateConfig& A = p.getConfig().aggregates[0];
+        const AggregateConfig& B = p.getConfig().aggregates[1];
+
+        CHECK(A.first_monomer == 0 && A.Nmon == 2);
+        CHECK(B.first_monomer == 2 && B.Nmon == 1);
+        CHECK_APPROX(A.external_radius  / 60e-9,   1.0,  1e-14);
+        CHECK_APPROX(A.effective_radius / 20.8e-9, 1.0,  1e-14);
+
+        // One material, so the masses go with r^3: (1 * (-10) + 8 * 20) / 9 nm.
+        CHECK_APPROX(A.mass_centre.x / (150.0 / 9.0 * 1e-9), 1.0,  1e-14);
+        CHECK(A.mass_centre.y == 0.0 && A.mass_centre.z == 0.0);
+        CHECK(B.mass_centre.x == 0.0 && B.mass_centre.y == 0.0 && B.mass_centre.z == 0.0);
+    }
+
+    // ------------------------------------------------------------------ //
     // Cleanup
     // ------------------------------------------------------------------ //
 

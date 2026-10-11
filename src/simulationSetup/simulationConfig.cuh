@@ -15,6 +15,11 @@
  * @param position  Initial position offset [m].
  * @param velocity  Initial translational velocity [m/s].
  * @param angular   Initial angular velocity [rad/s].
+ * @param first_monomer     Index of the first monomer of the aggregate in the monomer arrays of the initial state.
+ * @param Nmon              Number of monomers of the aggregate.
+ * @param external_radius   Outer radius about the file origin, max(|r_i| + a_i), from the aggregate file header [m].
+ * @param effective_radius  Radius of a sphere with the total monomer volume, from the aggregate file header [m].
+ * @param mass_centre       Mass centre in the coordinates of the aggregate file [m].
  */
 struct AggregateConfig {
     std::string  name;
@@ -22,6 +27,11 @@ struct AggregateConfig {
     double3      position{};
     double3      velocity{};
     double3      angular{};
+    size_t       first_monomer    = 0;
+    size_t       Nmon             = 0;
+    double       external_radius  = 0.0;
+    double       effective_radius = 0.0;
+    double3      mass_centre{};
 };
 
 /**

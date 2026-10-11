@@ -159,8 +159,17 @@ private:
 
         size_t i = 0;
         for ( size_t j = 0; j < aggregates.size(); j++ ) {
-            const Aggregate&       agg     = aggregates[j];
-            const AggregateConfig& agg_cfg = run_config.aggregates[j];
+            const Aggregate& agg     = aggregates[j];
+            AggregateConfig& agg_cfg = run_config.aggregates[j];
+
+            agg_cfg.first_monomer    = i;
+            agg_cfg.Nmon             = (size_t)agg.header.Nmon;
+            agg_cfg.external_radius  = agg.header.external_radius;
+            agg_cfg.effective_radius = agg.header.effective_radius;
+
+            // The mass and the mass weighted sum of the positions in the coordinates of the aggregate file.
+            double  mass = 0.0;
+            double3 mass_position = { 0.0, 0.0, 0.0 };
 
             for ( size_t k = 0; k < (size_t)agg.header.Nmon; k++ ) {
                 double3 position;
@@ -187,7 +196,16 @@ private:
                 run_config.initial_state.moments[i]      = (2.0 / 5.0) * m * r * r;
                 run_config.initial_state.material_ids[i] = mid;
 
+                mass            += m;
+                mass_position.x += m * agg.monomers.positions[k].x;
+                mass_position.y += m * agg.monomers.positions[k].y;
+                mass_position.z += m * agg.monomers.positions[k].z;
+
                 i++;
+            }
+
+            if ( mass > 0.0 ) {
+                agg_cfg.mass_centre = { mass_position.x / mass, mass_position.y / mass, mass_position.z / mass };
             }
         }
 
@@ -620,13 +638,25 @@ private:
         Logger::print("Aggregate:");
         Logger::lineBreak();
         for (const AggregateConfig& a : cfg.aggregates) {
+            // The velocity the spin about the file origin adds to the mass centre.
+            const double3 spin_velocity = vec_cross(a.angular, a.mass_centre);
+
             Logger::print("   [{}] from {}", a.name.c_str(), a.path.c_str());
-            Logger::print("      pos: ({:.3e}, {:.3e}, {:.3e}) m",
+            if (a.Nmon > 0) {
+                Logger::print("      monomers: {} to {} (Nmon {})", a.first_monomer, a.first_monomer + a.Nmon - 1, a.Nmon);
+            } else {
+                Logger::print("      monomers: none");
+            }
+            Logger::print("      a_ext:    {:.10g} m (outer radius about the file origin)", a.external_radius);
+            Logger::print("      a_eff:    {:.10g} m (radius of a sphere with the total monomer volume)", a.effective_radius);
+            Logger::print("      pos:      ({}, {}, {}) m",
                    a.position.x, a.position.y, a.position.z);
-            Logger::print("      vel: ({:.3e}, {:.3e}, {:.3e}) m/s",
+            Logger::print("      vel:      ({}, {}, {}) m/s",
                    a.velocity.x, a.velocity.y, a.velocity.z);
-            Logger::print("      ang: ({:.3e}, {:.3e}, {:.3e}) rad/s",
+            Logger::print("      ang:      ({}, {}, {}) rad/s, about the file origin",
                    a.angular.x, a.angular.y, a.angular.z);
+            Logger::print("      mass centre in the file frame: ({:.4e}, {:.4e}, {:.4e}) m, |ang x r_cm| = {:.4e} m/s",
+                   a.mass_centre.x, a.mass_centre.y, a.mass_centre.z, vec_length(spin_velocity));
         }
 
         Logger::lineBreak();
