@@ -2,14 +2,14 @@
 
 A CUDA N-body simulator for collisions between interstellar dust aggregates, composed of spherical 'monomers'.
 Monomer-monomer contacts are modelled with JKR contact mechanics (Johnson et al. 1971) with extensions for sliding, rolling and twisting dofs (Dominik & Tielens 1997; Wada et al. 2007).
-The state is advanced using a leapfrog integration algorithm on the GPU.
+The state is advanced on the GPU with a velocity Verlet scheme (predictor, force evaluation, corrector).
 The code can handle multi-material aggregates.
 
 ## Requirements
 
 - NVIDIA CUDA toolkit, C++20+ to compile using make (./Makefile).
-- An NVIDIA GPU with compute capability of 8.9.
-    The code potentially supports other compute capabilities if the appropriate flags are set in ./Makefile and ./tests/Makefile.
+- An NVIDIA GPU. By default the code is compiled for compute capabilities 8.0, 8.6 and 8.9 (see ./arch.mk); newer GPUs run the included PTX of 8.9.
+    Other compute capabilities can be selected at compile time, e.g. `make CUDA_ARCHS=90`.
 
 ## Build
 
@@ -30,7 +30,7 @@ A run can be started by providing the executable with a command file.
 ./build/dust_collider <path/to/cmd_file>
 ```
 
-The code writes snapshots of the systems state to disk on completion.
+The code writes snapshots of the system's state to disk on completion.
 Logging to the command line contains vital information about the run and should be redirected to a log file for later analysis.
 
 ## Command files
@@ -38,17 +38,17 @@ Logging to the command line contains vital information about the run and should 
 Command files contain the full configuration for a single dust collider run.
 They are plain text and specify run parameters in `<tag>` value pairs.
 Comments in the command file are possible by prepending `#` or `!`.
-Relative paths are resolved relative to the command files location.
+Relative paths are resolved relative to the command file's location.
 
 ```text
 # Aggregate specification
 <path_A>            "./aggregate_A"   # input aggregate file
 <path_B>            "./aggregate_B"
-<pos_A>             -50.1e-9 0 0      # centre-of-mass position [m]
+<pos_A>             -50.1e-9 0 0      # offset of the aggregate file's origin [m]
 <pos_B>             +50.1e-9 0 0
-<vel_A>             +4 0 0            # bulk velocity [m/s]
+<vel_A>             +4 0 0            # velocity of the center of mass [m/s]
 <vel_B>             -4 0 0
-<ang_A>             0 0 0             # angular velocity [rad/s]
+<ang_A>             0 0 0             # angular velocity about the center of mass [rad/s]
 <ang_B>             0 0 0
 
 # Run specification (alternatives in physical time: see "Run length and snapshots" below)
@@ -70,7 +70,7 @@ Relative paths are resolved relative to the command files location.
 <material id="1">   "forsterite"  0.07  204e9  0.24  3210  2e-10  1e-12
 ```
 
-The material parameters are: The surface energy `gamma` [J/m²] ; Youngs modulus `E` [Pa] ; Poisson ratio `nu` ; the density `rho` [kg/m³] ; the critical rolling displacement `xi` [m] (see eg Wada et al. 2007) ; and the viscous damping timescale `tvis` [s].
+The material parameters are: The surface energy `gamma` [J/m²] ; Young's modulus `E` [Pa] ; Poisson ratio `nu` ; the density `rho` [kg/m³] ; the critical rolling displacement `xi` [m] (see e.g. Wada et al. 2007) ; and the viscous damping timescale `tvis` [s].
 A material may also define five magnetic parameters (`tss`, `tsl`, `Msat`, `chi`, `Tc`), however they are currently unused.
 
 ### Run length and snapshots
@@ -109,13 +109,12 @@ Written to `<path_results>/`:
 - `binary/` — raw `double`/`int` arrays of the stored snapshots (positions,
   velocities, forces, torques, angular velocities) plus energies and cluster IDs.
   There are `N_iter / N_save + 1` snapshots, snapshot `k` at `t = k * N_save * dt`.
-  Each energy file holds one `double` per snapshot, summed over all monomers:
-  - `sim_{normal,sliding,rolling,twisting}_pot.bin` — the potential energy stored in
-    the contacts at the time of the snapshot.
+  Each energy file holds one `double` per snapshot, summed over all monomers. The potential energies are the values at the snapshot; the dissipated energies are summed over the `N_save` steps before the snapshot (0 for snapshot 0):
+  - `sim_{normal,sliding,rolling,twisting}_pot.bin` — the potential energy stored in the contacts at the time of the snapshot.
   - `sim_normal_damp.bin` — viscous damping of the normal motion.
   - `sim_{sliding,rolling,twisting}_slip.bin` — energy dissipated through inelastic motion beyond critical tangential displacements.
   - `sim_{normal,sliding,rolling,twisting}_break.bin` — when a contact breaks all stored potential energy is dissipated.
-  - `sim_normal_form.bin` — when contacts are formed, energy is dissipated.
+  - `sim_normal_form.bin` — the potential of the normal dof is history dependent and the force non-conservative. To keep the total energy conserved the jump in potential energy at contact formation needs to be tracked.
 
 - `ovito/` — `t_*.dump` files for visualization in OVITO (https://www.ovito.org/)
   (vectors are rescaled for display).
