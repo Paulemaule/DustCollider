@@ -13,7 +13,7 @@
 # If the compute capability is known at compile time and fixed it can be specified via
 #   make CUDA_ARCHS=89
 
-CUDA_ARCHS ?= 80 86 89
+CUDA_ARCHS ?= 80 86 89 90
 
 # This ensures that the PTX of the newest architecture is also included.
 PTX_ARCH := $(shell printf '%s\n' $(CUDA_ARCHS) | sort -n | tail -1)
