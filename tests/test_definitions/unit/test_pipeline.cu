@@ -394,7 +394,7 @@ void test_pipeline() {
     }
 
     // ------------------------------------------------------------------ //
-    // tau_min is also calculated when <time_step> is set explicitly
+    // tau_min is also calculated when <time_step> is set explicitly, and the source of the timestep is recorded
     // ------------------------------------------------------------------ //
 
     {
@@ -404,6 +404,8 @@ void test_pipeline() {
         CHECK(pb.getConfig().tau_min > 0.0);
         CHECK(pa.getConfig().tau_min == pb.getConfig().tau_min);
         CHECK(pa.getConfig().timestep == 0.005 * pa.getConfig().tau_min);
+        CHECK(!pa.getConfig().timestep_explicit);
+        CHECK(pb.getConfig().timestep_explicit);
     }
 
     // ------------------------------------------------------------------ //

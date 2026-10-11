@@ -184,6 +184,7 @@ private:
         Logger::log("Calculate simulation timestep.");
 
         const bool skip_timestep = (run_config.timestep != 0.0);
+        run_config.timestep_explicit = skip_timestep;
         if ( skip_timestep ) {
             Logger::warn("<time_step> was set in command file. Timestep was set to {} s.", run_config.timestep);
         }
@@ -544,18 +545,19 @@ private:
         const double t_run = double(cfg.N_iter) * cfg.timestep;
 
         Logger::print("   Nmon:      {}", cfg.initial_state.positions.size());
-        Logger::print("   timestep:  {:.4e} s{}", cfg.timestep, in_tau(cfg.timestep));
+        Logger::print("   timestep:  {} s{} ({})", cfg.timestep, in_tau(cfg.timestep),
+            cfg.timestep_explicit ? "from <time_step>" : "auto");
         if (cfg.tau_min > 0.0) {
-            Logger::print("   tau_{{N,min}}: {:.4e} s", cfg.tau_min);
+            Logger::print("   tau_{{N,min}}: {} s", cfg.tau_min);
         } else {
             Logger::print("   tau_{{N,min}}: n/a (fewer than two monomers)");
         }
         if (cfg.t_end != 0.0) {
-            Logger::print("   N_iter:    {} (from <t_end> = {:.4e} s)", cfg.N_iter, cfg.t_end);
+            Logger::print("   N_iter:    {} (from <t_end> = {} s)", cfg.N_iter, cfg.t_end);
         } else {
             Logger::print("   N_iter:    {} (from <N_iter>)", cfg.N_iter);
         }
-        Logger::print("      =>      simulated time {:.4e} s{}", t_run, in_tau(t_run));
+        Logger::print("      =>      simulated time {} s{}", t_run, in_tau(t_run));
         Logger::print("   T_dust:    {:.2g} K", cfg.T_dust);
         if (cfg.T_dust == -1.0) {
             Logger::print("      T_dust:   disabled");
@@ -636,12 +638,12 @@ private:
         if (cfg.output.N_snap != 0) {
             Logger::print("   N_save:    {} (from <N_snap> = {})", cfg.output.N_save, cfg.output.N_snap);
         } else if (cfg.output.t_save != 0.0) {
-            Logger::print("   N_save:    {} (from <t_save> = {:.4e} s)", cfg.output.N_save, cfg.output.t_save);
+            Logger::print("   N_save:    {} (from <t_save> = {} s)", cfg.output.N_save, cfg.output.t_save);
         } else {
             Logger::print("   N_save:    {} (from <N_save>)", cfg.output.N_save);
         }
-        Logger::print("      =>      a snapshot every {:.4e} s{}", t_save, in_tau(t_save));
-        Logger::print("      =>      {} snapshots from t = 0 to {:.4e} s will be saved",
+        Logger::print("      =>      a snapshot every {} s{}", t_save, in_tau(t_save));
+        Logger::print("      =>      {} snapshots from t = 0 to {} s will be saved",
             cfg.N_iter / cfg.output.N_save + 1, t_run);
         Logger::print("   ovito={:<3}  pos={:<3}  vel={:<3}  ang={:<3}  force={:<3}  torque={:<3}",
             cfg.output.ovito    ? "yes" : "no",
