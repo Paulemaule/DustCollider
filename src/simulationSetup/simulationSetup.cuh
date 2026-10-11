@@ -631,22 +631,29 @@ private:
 
         Logger::lineBreak();
 
-        // Materials
+        // Materials, with the 1-indexed IDs of the command file
         Logger::print("Materials:");
         Logger::lineBreak();
+
+        // The number of monomers of each material.
+        std::vector<size_t> material_count(cfg.materials.size(), 0);
+        for ( const int id : cfg.initial_state.material_ids ) {
+            if ( id >= 0 && id < (int)material_count.size() ) material_count[id]++;
+        }
+
         Logger::print("   - Mechanical properties -");
-        Logger::print("   {:<2} | {:<20} | {:<9} | {:<9} | {:<9} | {:<9} | {:<9} | {:<9}",
-            "ID", "name", "gamma", "E", "nu", "rho", "xi", "tvis");
-        Logger::print("   {:<2} | {:<20} | {:<9} | {:<9} | {:<9} | {:<9} | {:<9} | {:<9}",
-            "", "", "J/m^2", "Pa", "", "kg/m^3", "m", "s");
+        Logger::print("   {:<2} | {:<20} | {:<6} | {:<9} | {:<9} | {:<9} | {:<9} | {:<9} | {:<9}",
+            "ID", "name", "Nmon", "gamma", "E", "nu", "rho", "xi", "tvis");
+        Logger::print("   {:<2} | {:<20} | {:<6} | {:<9} | {:<9} | {:<9} | {:<9} | {:<9} | {:<9}",
+            "", "", "", "J/m^2", "Pa", "", "kg/m^3", "m", "s");
 
         Logger::lineBreak();
 
         bool magnetic_print = false;
         for ( int i = 0; i < (int)cfg.materials.size(); i++ ) {
             const MaterialEntry& m = cfg.materials[i];
-            Logger::print("   {:<2} | {:>20} | {:>9.2e} | {:>9.2e} | {:>9.2e} | {:>9.2e} | {:>9.2e} | {:>9.2e}", 
-                i, m.name, m.gamma, m.E, m.nu, m.rho, m.xi, m.tvis);
+            Logger::print("   {:<2} | {:>20} | {:>6} | {:>9.2e} | {:>9.2e} | {:>9.2e} | {:>9.2e} | {:>9.2e} | {:>9.2e}",
+                i + 1, m.name, material_count[i], m.gamma, m.E, m.nu, m.rho, m.xi, m.tvis);
 
             // Check if any of the materials have magnetic properties defined
             if ( m.Msat != 0.0 || m.chi != 0.0 ) {
@@ -668,10 +675,10 @@ private:
                 const MaterialEntry& m = cfg.materials[i];
                 if ( m.Msat != 0.0 || m.chi != 0.0 ) {
                     Logger::print("   {:<2} | {:<20} | {:<9.2e} | {:<9.2e} | {:<9.2e} | {:<9.2e} | {:<9.2e}",
-                        i, m.name, m.tss, m.tsl, m.Msat, m.chi, m.Tc);
+                        i + 1, m.name, m.tss, m.tsl, m.Msat, m.chi, m.Tc);
                 } else {
                     Logger::print("   {:<2} | {:<20} | XXX",
-                        i, m.name);
+                        i + 1, m.name);
                 }
             }
 
