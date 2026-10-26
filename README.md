@@ -108,7 +108,7 @@ Written to `<path_results>/`:
 
 - `binary/` — raw `double`/`int` arrays of the stored snapshots (positions,
   velocities, forces, torques, angular velocities) plus energies, cluster IDs and contacts.
-  `binary/header.txt` lists the format of every file written: data type, byte order, shape (C order, with the actual dimensions), unit and content.
+  `binary/header.txt` lists the format of every file written: data type, shape, unit and content.
   There are `N_iter / N_save + 1` snapshots, snapshot `k` at `t = k * N_save * dt`.
   Each energy file holds one `double` per snapshot, summed over all monomers. The potential energies are the values at the snapshot; the dissipated energies are summed over the `N_save` steps before the snapshot (0 for snapshot 0):
   - `sim_{normal,sliding,rolling,twisting}_pot.bin` — the potential energy stored in the contacts at the time of the snapshot.
@@ -117,7 +117,7 @@ Written to `<path_results>/`:
   - `sim_{normal,sliding,rolling,twisting}_break.bin` — when a contact breaks all stored potential energy is dissipated.
   - `sim_normal_form.bin` — the potential of the normal dof is history dependent and the force non-conservative. To keep the total energy conserved the jump in potential energy at contact formation needs to be tracked.
 
-  `sim_contact.bin` says which monomers are in contact. For each snapshot it holds the `Nmon × Nmon` contact matrix with one bit per pair, packed like `numpy.packbits` (row-major, most significant bit first, the last byte padded with zeros). It is symmetric, and its diagonal is zero. To read it:
+  `sim_contact.bin` says which monomers are in contact. For each snapshot it holds the `Nmon × Nmon` contact matrix with one bit per pair, to read it:
   ```python
   raw = np.fromfile("sim_contact.bin", np.uint8).reshape(N_snap, -1)
   C = np.unpackbits(raw, axis=1)[:, :Nmon * Nmon].reshape(N_snap, Nmon, Nmon).astype(bool)
