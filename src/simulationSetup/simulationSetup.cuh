@@ -734,7 +734,7 @@ private:
             Logger::print("   {:<2} | {:<20} | {:<9} | {:<9} | {:<9} | {:<9} | {:<9}",
                 "ID", "name", "tss", "tsl", "Msat", "chi", "Tc");
             Logger::print("   {:<2} | {:<20} | {:<9} | {:<9} | {:<9} | {:<9} | {:<9}",
-                "", "", "s", "s", "", "A/m", "", "K");
+                "", "", "s", "s", "A/m", "", "K");
             Logger::lineBreak();
 
             for ( int i = 0; i < (int)cfg.materials.size(); i++ ) {
