@@ -40,7 +40,7 @@ int main(const int argc, const char** argv)
     simulator.run();
 
     // Write the output files
-    simulator.write_output();
+    const Status output_status = simulator.write_output();
 
     // Calculate and print the final runtime.
     auto end = std::chrono::high_resolution_clock::now();
@@ -52,6 +52,13 @@ int main(const int argc, const char** argv)
     Logger::log("Run finished at {}.", current_time_string());
 
     Logger::lineBreak();
+
+    if (output_status != Status::ok) {
+        Logger::error("The output is incomplete. Terminating with an error.");
+        Logger::header("FAILED");
+        return -1;
+    }
+
     Logger::header("DONE");
 
     return 0;

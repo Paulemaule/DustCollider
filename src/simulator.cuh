@@ -90,7 +90,7 @@ public:
     }
 
     void run();
-    void write_output() const;
+    Status write_output() const;
 
 private:
     void log_device_info() const;
@@ -98,7 +98,7 @@ private:
     void init_mat();
     void allocate_snapshots();
     void save_snapshot(size_t snap_idx);
-    void write_ovito() const;
+    Status write_ovito() const;
 };
 
 /**
@@ -569,12 +569,21 @@ inline void Simulator::run() {
  * The state variables are all scaled for better visualisation.
  * Velocity, torque and angular velocity are stored as unit vectors.
  * The force is scaled by |F|^(1/8).
+ *
+ * @return Status::error if the directory or any of the files could not be written completely.
  */
-inline void Simulator::write_ovito() const {
+inline Status Simulator::write_ovito() const {
     Logger::log("Writing Ovito files.");
 
     const auto ovito_path = std::filesystem::path(config.output.path) / "ovito";
-    std::filesystem::create_directories(ovito_path);
+    std::error_code ec;
+    std::filesystem::create_directories(ovito_path, ec);
+    if (ec) {
+        Logger::error("Could not create the Ovito directory '{}': {}", ovito_path.string(), ec.message());
+        return Status::error;
+    }
+
+    Status status = Status::ok;
 
     const size_t N_store_mon = Nmon * N_store_;
     const std::vector<double3>& pos = *snap_pos_;
@@ -603,6 +612,7 @@ inline void Simulator::write_ovito() const {
         std::ofstream writer(filepath);
         if (!writer) {
             Logger::error("Failed to open OVITO file target: '{}'", filepath);
+            status = Status::error;
             continue;
         }
 
@@ -666,40 +676,66 @@ inline void Simulator::write_ovito() const {
                 vx, vy, vz, fx, fy, fz, tx, ty, tz, ox, oy, oz, r);
             writer << line;
         }
+
+        // Closing flushes the buffer, so a full disk shows up here at the latest.
+        writer.close();
+        if (!writer) {
+            Logger::error("Failed to write OVITO file: '{}'", filepath);
+            status = Status::error;
+        }
     }
+
+    return status;
 }
 
 /**
  * @brief Write binary files for the system snapshots and energy diagnostics.
+ *
+ * A file that fails is logged and the remaining files are still written.
+ *
+ * @return Status::error if the output directory or any of the files could not be written completely.
  */
-inline void Simulator::write_output() const {
+inline Status Simulator::write_output() const {
     Logger::header("WRITING SIMULATION DATA");
     Logger::lineBreak();
 
-    if (N_store_ == 0) return;
+    if (N_store_ == 0) return Status::ok;
 
     // Determine file location
     const auto bin_path = std::filesystem::path(config.output.path) / "binary";
-    std::filesystem::create_directories(bin_path);
+    std::error_code ec;
+    std::filesystem::create_directories(bin_path, ec);
+    if (ec) {
+        Logger::error("Could not create the output directory '{}': {}", bin_path.string(), ec.message());
+        return Status::error;
+    }
     const std::string bin = bin_path.string();
 
-    // Helper function that write a specific type of data
+    Status status = Status::ok;
+
+    // Helper function that writes raw bytes to a file. Closing flushes the buffer, so a full disk shows up there at the latest.
+    auto write_bytes = [&](const std::string& name, const void* data, size_t bytes) {
+        const std::string filepath = bin + "/" + name;
+        std::ofstream f(filepath, std::ios::binary);
+        f.write(static_cast<const char*>(data), (std::streamsize)bytes);
+        f.close();
+        if (!f) {
+            Logger::error("Failed to write binary file: '{}'", filepath);
+            status = Status::error;
+        }
+    };
+
+    // Helper functions that write a specific type of data
     auto write_vec3 = [&](const std::string& name, const std::vector<double3>& v) {
-        std::ofstream f(bin + "/" + name, std::ios::binary);
-        if (!f) { Logger::error("Failed to open binary target file: '{}'", name); }
-        f.write(reinterpret_cast<const char*>(v.data()), (std::streamsize)(v.size() * sizeof(double3)));
+        write_bytes(name, v.data(), v.size() * sizeof(double3));
     };
 
     auto write_double = [&](const std::string& name, const std::vector<double>& v) {
-        std::ofstream f(bin + "/" + name, std::ios::binary);
-        if (!f) { Logger::error("Failed to open binary target file: '{}'", name); }
-        f.write(reinterpret_cast<const char*>(v.data()), (std::streamsize)(v.size() * sizeof(double)));
+        write_bytes(name, v.data(), v.size() * sizeof(double));
     };
 
     auto write_int = [&](const std::string& name, const std::vector<int>& v) {
-        std::ofstream f(bin + "/" + name, std::ios::binary);
-        if (!f) { Logger::error("Failed to open binary target file: '{}'", name); }
-        f.write(reinterpret_cast<const char*>(v.data()), (std::streamsize)(v.size() * sizeof(int)));
+        write_bytes(name, v.data(), v.size() * sizeof(int));
     };
 
     // Write the monomer data
@@ -727,10 +763,11 @@ inline void Simulator::write_output() const {
 
     // Write Ovito files
     if ( config.output.ovito ) {
-        if ( snap_pos_ )
-            write_ovito();
-        else
+        if ( snap_pos_ ) {
+            if ( write_ovito() != Status::ok ) status = Status::error;
+        } else {
             Logger::warn("Cannot write Ovito output: No position data available.");
+        }
     }
 
     // Write the energy diagnostics
@@ -765,4 +802,10 @@ inline void Simulator::write_output() const {
     }
 
     Logger::lineBreak();
+
+    if (status != Status::ok) {
+        Logger::error("Not all output files could be written completely, see the errors above.");
+    }
+
+    return status;
 }

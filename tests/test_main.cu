@@ -24,6 +24,7 @@
 #include "test_definitions/unit/test_aggregate.cu"
 #include "test_definitions/unit/test_pipeline.cu"
 #include "test_definitions/unit/test_buffer.cu"
+#include "test_definitions/unit/test_output.cu"
 #include "test_definitions/kernel/test_energy.cu"
 #include "test_definitions/kernel/test_update_pointers.cu"
 
@@ -36,6 +37,7 @@ int main() {
     RUN_SUITE("aggregate file I/O",   test_aggregate);
     RUN_SUITE("pipeline setup",       test_pipeline);
     RUN_SUITE("GPU memory wrappers",  test_buffer);
+    RUN_SUITE("output files",         test_output);
     RUN_SUITE("energy channels",      test_energy);
     RUN_SUITE("pointer correction",   test_update_pointers);
 
