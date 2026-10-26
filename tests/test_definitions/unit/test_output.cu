@@ -1,7 +1,7 @@
 /**
  * @file test_output.cu
- * @brief Tests for Simulator::write_output() in simulator.cuh: the files it writes, and the status it returns
- * when the output directory or a file can not be written.
+ * @brief Tests for Simulator::write_output() in simulator.cuh: the files it writes, the formats header.txt gives
+ * for them, and the status it returns when the output directory or a file can not be written.
  *
  * Each case sets up a two-monomer run with Pipeline::run() and constructs the Simulator, which allocates device
  * memory, but never runs it. write_output() then writes the zero-initialised snapshot arrays.
@@ -18,6 +18,8 @@
 
 #include <filesystem>
 #include <fstream>
+#include <map>
+#include <sstream>
 #include <string>
 #include <unistd.h>     // getpid
 
@@ -43,6 +45,33 @@ static uintmax_t out_size(const std::filesystem::path& path) {
     std::error_code ec;
     const uintmax_t size = std::filesystem::file_size(path, ec);
     return ec ? uintmax_t(-1) : size;
+}
+
+// Reads binary/header.txt: the dtype of each listed file, and the size in bytes that its dtype and shape give.
+struct OutFormat { std::string dtype; uintmax_t bytes; };
+static std::map<std::string, OutFormat> out_read_header(const std::filesystem::path& path) {
+    std::map<std::string, OutFormat> formats;
+    std::ifstream in(path);
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.empty() || line[0] == '#') continue;
+
+        std::istringstream tokens(line);
+        std::string name, dtype;
+        tokens >> name >> dtype;
+
+        // The shape is the comma separated list between the brackets
+        const size_t open = line.find('['), close = line.find(']');
+        if (open == std::string::npos || close == std::string::npos) continue;
+        uintmax_t count = 1;
+        std::istringstream dims(line.substr(open + 1, close - open - 1));
+        std::string dim;
+        while (std::getline(dims, dim, ',')) count *= std::stoull(dim);
+
+        const uintmax_t item = dtype == "float64" ? 8 : dtype == "int32" ? 4 : dtype == "uint8" ? 1 : 0;
+        formats[name] = {dtype, count * item};
+    }
+    return formats;
 }
 
 // Sets up a run of two single-monomer aggregates that saves every state array and the Ovito files into out_dir,
@@ -118,6 +147,21 @@ void test_output() {
 
         CHECK(fs::is_regular_file(out / "ovito" / "t_00000.dump"));
         CHECK(fs::is_regular_file(out / "ovito" / "t_00001.dump"));
+
+        // header.txt lists every other file of the directory, with the dtype and shape of its size
+        const auto formats = out_read_header(bin / "header.txt");
+        CHECK(formats.size() == 23);
+        for (const auto& [name, format] : formats) {
+            CHECK(format.bytes > 0);
+            CHECK(out_size(bin / name) == format.bytes);
+        }
+        for (const auto& entry : fs::directory_iterator(bin)) {
+            const std::string name = entry.path().filename().string();
+            if (name != "header.txt") CHECK(formats.count(name) == 1);
+        }
+        CHECK(formats.at("sim_pos.bin").dtype     == "float64");
+        CHECK(formats.at("sim_cluster.bin").dtype == "int32");
+        CHECK(formats.at("sim_contact.bin").dtype == "uint8");
     }
 
     // ------------------------------------------------------------------ //
@@ -145,6 +189,12 @@ void test_output() {
         CHECK(out_size(out / "binary" / "sim_vel.bin")         == vec3_bytes);
         CHECK(out_size(out / "binary" / "sim_normal_form.bin") == energy_bytes);
         CHECK(fs::is_regular_file(out / "ovito" / "t_00001.dump"));
+
+        // header.txt lists only the files that were written
+        const auto formats = out_read_header(out / "binary" / "header.txt");
+        CHECK(formats.size() == 22);
+        CHECK(formats.count("sim_pos.bin") == 0);
+        CHECK(formats.count("sim_vel.bin") == 1);
     }
 
     // ------------------------------------------------------------------ //
@@ -159,6 +209,25 @@ void test_output() {
 
         CHECK(out_write(out) == Status::error);
         CHECK(out_size(out / "binary" / "sim_sliding_pot.bin") == energy_bytes);
+
+        const auto formats = out_read_header(out / "binary" / "header.txt");
+        CHECK(formats.count("sim_normal_pot.bin")  == 0);
+        CHECK(formats.count("sim_sliding_pot.bin") == 1);
+    }
+
+    // ------------------------------------------------------------------ //
+    // header.txt blocked by a directory → Status::error,
+    // the binary files are still written
+    // ------------------------------------------------------------------ //
+
+    {
+        fs::remove_all(OUT_ROOT);
+        const fs::path out = OUT_ROOT / "blocked_header";
+        fs::create_directories(out / "binary" / "header.txt");
+
+        CHECK(out_write(out) == Status::error);
+        CHECK(out_size(out / "binary" / "sim_pos.bin")         == vec3_bytes);
+        CHECK(out_size(out / "binary" / "sim_normal_form.bin") == energy_bytes);
     }
 
     // ------------------------------------------------------------------ //

@@ -702,6 +702,7 @@ inline Status Simulator::write_ovito() const {
  * @brief Write binary files for the system snapshots and energy diagnostics.
  *
  * A file that fails is logged and the remaining files are still written.
+ * At the end, header.txt lists the format, unit and content of every file that was written.
  *
  * @return Status::error if the output directory or any of the files could not be written completely.
  */
@@ -723,7 +724,11 @@ inline Status Simulator::write_output() const {
 
     Status status = Status::ok;
 
-    // Helper function that writes raw bytes to a file. Closing flushes the buffer, so a full disk shows up there at the latest.
+    // One line of header.txt for every file that was written completely
+    std::vector<std::string> header_lines;
+
+    // Helper function that writes raw bytes to a file and returns whether it was written completely.
+    // Closing flushes the buffer, so a full disk shows up there at the latest.
     auto write_bytes = [&](const std::string& name, const void* data, size_t bytes) {
         const std::string filepath = bin + "/" + name;
         std::ofstream f(filepath, std::ios::binary);
@@ -732,51 +737,65 @@ inline Status Simulator::write_output() const {
         if (!f) {
             Logger::error("Failed to write binary file: '{}'", filepath);
             status = Status::error;
+            return false;
         }
+        return true;
     };
 
-    // Helper functions that write a specific type of data
-    auto write_vec3 = [&](const std::string& name, const std::vector<double3>& v) {
-        write_bytes(name, v.data(), v.size() * sizeof(double3));
+    // Helper function that adds the format of a file to header.txt.
+    auto describe = [&](const std::string& name, const char* dtype, const std::vector<size_t>& shape,
+                        const char* unit, const std::string& content) {
+        std::string dims;
+        for (const size_t d : shape) dims += (dims.empty() ? "" : ", ") + std::to_string(d);
+        header_lines.push_back(std::format("{:<24} {:<8} {:<16} {:<7} {}", name, dtype, "[" + dims + "]", unit, content));
     };
 
-    auto write_double = [&](const std::string& name, const std::vector<double>& v) {
-        write_bytes(name, v.data(), v.size() * sizeof(double));
+    // Helper functions that write a specific type of data and describe it in header.txt
+    auto write_vec3 = [&](const std::string& name, const std::vector<double3>& v, const char* unit, const std::string& content) {
+        if (write_bytes(name, v.data(), v.size() * sizeof(double3))) describe(name, "float64", {N_store_, Nmon, 3}, unit, content);
     };
 
-    auto write_int = [&](const std::string& name, const std::vector<int>& v) {
-        write_bytes(name, v.data(), v.size() * sizeof(int));
+    auto write_double = [&](const std::string& name, const std::vector<double>& v, const std::vector<size_t>& shape,
+                            const char* unit, const std::string& content) {
+        if (write_bytes(name, v.data(), v.size() * sizeof(double))) describe(name, "float64", shape, unit, content);
     };
 
-    auto write_uint8 = [&](const std::string& name, const std::vector<uint8_t>& v) {
-        write_bytes(name, v.data(), v.size());
+    auto write_int = [&](const std::string& name, const std::vector<int>& v, const std::vector<size_t>& shape,
+                         const char* unit, const std::string& content) {
+        if (write_bytes(name, v.data(), v.size() * sizeof(int))) describe(name, "int32", shape, unit, content);
+    };
+
+    auto write_uint8 = [&](const std::string& name, const std::vector<uint8_t>& v, const std::vector<size_t>& shape,
+                           const char* unit, const std::string& content) {
+        if (write_bytes(name, v.data(), v.size())) describe(name, "uint8", shape, unit, content);
     };
 
     // Write the monomer data
-    // TODO: Write header.txt (N_iter, Nmon, N_save, timestep, N_mat)
     Logger::log("Writing snapshots to disk.");
 
-    write_double("agg_a_mon.bin",    config.initial_state.radii);
-    write_double("agg_mass_mon.bin", config.initial_state.masses);
+    write_double("agg_a_mon.bin",    config.initial_state.radii,  {Nmon}, "m",  "radius of each monomer");
+    write_double("agg_mass_mon.bin", config.initial_state.masses, {Nmon}, "kg", "mass of each monomer");
     {
         std::vector<int> matids_1indexed(Nmon);
         for (size_t i = 0; i < Nmon; i++)
             matids_1indexed[i] = config.initial_state.material_ids[i] + 1;
-        write_int("agg_matid_mon.bin", matids_1indexed);
+        write_int("agg_matid_mon.bin", matids_1indexed, {Nmon}, "-", "material ID of each monomer, from 1 as in the command file");
     }
 
     // Write the systam state snapshots
-    if (snap_pos_)    write_vec3("sim_pos.bin",    *snap_pos_);
-    if (snap_vel_)    write_vec3("sim_vel.bin",    *snap_vel_);
-    if (snap_force_)  write_vec3("sim_force.bin",  *snap_force_);
-    if (snap_torque_) write_vec3("sim_torque.bin", *snap_torque_);
-    if (snap_omega_)  write_vec3("sim_omega.bin",  *snap_omega_);
+    if (snap_pos_)    write_vec3("sim_pos.bin",    *snap_pos_,    "m",     "position of each monomer");
+    if (snap_vel_)    write_vec3("sim_vel.bin",    *snap_vel_,    "m/s",   "velocity of each monomer");
+    if (snap_force_)  write_vec3("sim_force.bin",  *snap_force_,  "N",     "force on each monomer");
+    if (snap_torque_) write_vec3("sim_torque.bin", *snap_torque_, "N m",   "torque on each monomer");
+    if (snap_omega_)  write_vec3("sim_omega.bin",  *snap_omega_,  "rad/s", "angular velocity of each monomer");
 
     if (!snap_cluster_.empty())
-        write_int("sim_cluster.bin", snap_cluster_);
+        write_int("sim_cluster.bin", snap_cluster_, {N_store_, Nmon}, "-",
+            "cluster ID of each monomer, numbered per snapshot from 0 in the order of the lowest monomer index of each cluster");
 
     if (!snap_contact_.empty())
-        write_uint8("sim_contact.bin", snap_contact_);
+        write_uint8("sim_contact.bin", snap_contact_, {N_store_, contactMatrixBytes(Nmon)}, "-",
+            std::format("contact matrix with 1 bit per monomer pair: bit i*{0}+j is 1 if monomers i and j are in contact, the last byte is padded with zeros", Nmon));
 
     // Write Ovito files
     if ( config.output.ovito ) {
@@ -798,30 +817,43 @@ inline Status Simulator::write_output() const {
             return res;
         };
 
+        // The energies are totals over all monomers, one per snapshot.
+        const std::vector<size_t> per_snapshot = {N_store_};
+
         // The potential energies of the contacts at the time of each snapshot.
-        write_double("sim_normal_pot.bin",   series([](const EnergyRecord& e) { return e.normal_pot;   }));
-        write_double("sim_sliding_pot.bin",  series([](const EnergyRecord& e) { return e.sliding_pot;  }));
-        write_double("sim_rolling_pot.bin",  series([](const EnergyRecord& e) { return e.rolling_pot;  }));
-        write_double("sim_twisting_pot.bin", series([](const EnergyRecord& e) { return e.twisting_pot; }));
+        write_double("sim_normal_pot.bin",   series([](const EnergyRecord& e) { return e.normal_pot;   }), per_snapshot, "J", "normal contact potential at snapshot k");
+        write_double("sim_sliding_pot.bin",  series([](const EnergyRecord& e) { return e.sliding_pot;  }), per_snapshot, "J", "sliding contact potential at snapshot k");
+        write_double("sim_rolling_pot.bin",  series([](const EnergyRecord& e) { return e.rolling_pot;  }), per_snapshot, "J", "rolling contact potential at snapshot k");
+        write_double("sim_twisting_pot.bin", series([](const EnergyRecord& e) { return e.twisting_pot; }), per_snapshot, "J", "twisting contact potential at snapshot k");
 
         // The dissipated energies are stored per dof and dissipation channel. Acumulated over N_save iterations since the previous snapshot.
-        write_double("sim_normal_damp.bin",    series([](const EnergyRecord& e) { return e.normal_damp;    }));
-        write_double("sim_sliding_slip.bin",   series([](const EnergyRecord& e) { return e.sliding_slip;   }));
-        write_double("sim_rolling_slip.bin",   series([](const EnergyRecord& e) { return e.rolling_slip;   }));
-        write_double("sim_twisting_slip.bin",  series([](const EnergyRecord& e) { return e.twisting_slip;  }));
-        write_double("sim_normal_break.bin",   series([](const EnergyRecord& e) { return e.normal_break;   }));
-        write_double("sim_sliding_break.bin",  series([](const EnergyRecord& e) { return e.sliding_break;  }));
-        write_double("sim_rolling_break.bin",  series([](const EnergyRecord& e) { return e.rolling_break;  }));
-        write_double("sim_twisting_break.bin", series([](const EnergyRecord& e) { return e.twisting_break; }));
+        write_double("sim_normal_damp.bin",    series([](const EnergyRecord& e) { return e.normal_damp;    }), per_snapshot, "J", "energy dissipated by normal damping, accumulated since last snapshot");
+        write_double("sim_sliding_slip.bin",   series([](const EnergyRecord& e) { return e.sliding_slip;   }), per_snapshot, "J", "energy dissipated by inelastic sliding, accumulated since last snapshot");
+        write_double("sim_rolling_slip.bin",   series([](const EnergyRecord& e) { return e.rolling_slip;   }), per_snapshot, "J", "energy dissipated by inelastic rolling, accumulated since last snapshot");
+        write_double("sim_twisting_slip.bin",  series([](const EnergyRecord& e) { return e.twisting_slip;  }), per_snapshot, "J", "energy dissipated by inelastic twisting, accumulated since last snapshot");
+        write_double("sim_normal_break.bin",   series([](const EnergyRecord& e) { return e.normal_break;   }), per_snapshot, "J", "normal contact potential lost on contact breaking, accumulated since last snapshot");
+        write_double("sim_sliding_break.bin",  series([](const EnergyRecord& e) { return e.sliding_break;  }), per_snapshot, "J", "sliding contact potential lost on contact breaking, accumulated since last snapshot");
+        write_double("sim_rolling_break.bin",  series([](const EnergyRecord& e) { return e.rolling_break;  }), per_snapshot, "J", "rolling contact potential lost on contact breaking, accumulated since last snapshot");
+        write_double("sim_twisting_break.bin", series([](const EnergyRecord& e) { return e.twisting_break; }), per_snapshot, "J", "twisting contact potential lost on contact breaking, accumulated since last snapshot");
 
         // Normal potential bookkeeping
-        write_double("sim_normal_form.bin",    series([](const EnergyRecord& e) { return e.normal_form;    }));
+        write_double("sim_normal_form.bin",    series([](const EnergyRecord& e) { return e.normal_form;    }), per_snapshot, "J", "normal potential discontinuity at contact formation, accumulated since last snapshot");
+    }
+
+    // Write the format of every file that was written completely
+    Logger::log("Writing the file formats to header.txt.");
+    {
+        std::string header = "# Files written to disk, with content and format information\n";
+        header += std::format("# {:<22} {:<8} {:<16} {:<7} {}\n", "file", "dtype", "shape", "unit", "content");
+        for (const std::string& line : header_lines) header += line + "\n";
+
+        write_bytes("header.txt", header.data(), header.size());
     }
 
     Logger::lineBreak();
 
     if (status != Status::ok) {
-        Logger::error("Not all output files could be written completely, see the errors above.");
+        Logger::error("Not all output files could be written completely.");
     }
 
     return status;
