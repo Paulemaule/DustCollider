@@ -630,11 +630,11 @@ private:
             Logger::print("   N_iter:    {} (from <N_iter>)", cfg.N_iter);
         }
         Logger::print("      =>      simulated time {} s{}", t_run, in_tau(t_run));
-        Logger::print("   T_dust:    {:.2g} K (not used by the current physics)", cfg.T_dust);
+        Logger::print("   T_dust:    {} K (not used by the current physics)", cfg.T_dust);
         if (cfg.T_dust == -1.0) {
             Logger::print("      T_dust:   disabled");
         }
-        Logger::print("   B_ext:     ({:.3e}, {:.3e}, {:.3e}) T (not used by the current physics)",
+        Logger::print("   B_ext:     ({}, {}, {}) T (not used by the current physics)",
                cfg.B_ext.x, cfg.B_ext.y, cfg.B_ext.z);
 
         Logger::lineBreak();
@@ -718,7 +718,7 @@ private:
         bool magnetic_print = false;
         for ( int i = 0; i < (int)cfg.materials.size(); i++ ) {
             const MaterialEntry& m = cfg.materials[i];
-            Logger::print("   {:<2} | {:>20} | {:>6} | {:>9.2e} | {:>9.2e} | {:>9.2e} | {:>9.2e} | {:>9.2e} | {:>9.2e}",
+            Logger::print("   {:<2} | {:>20} | {:>6} | {:>9} | {:>9} | {:>9} | {:>9} | {:>9} | {:>9}",
                 i + 1, m.name, material_count[i], m.gamma, m.E, m.nu, m.rho, m.xi, m.tvis);
 
             // Check if any of the materials have magnetic properties defined
@@ -740,7 +740,7 @@ private:
             for ( int i = 0; i < (int)cfg.materials.size(); i++ ) {
                 const MaterialEntry& m = cfg.materials[i];
                 if ( m.Msat != 0.0 || m.chi != 0.0 ) {
-                    Logger::print("   {:<2} | {:<20} | {:<9.2e} | {:<9.2e} | {:<9.2e} | {:<9.2e} | {:<9.2e}",
+                    Logger::print("   {:<2} | {:<20} | {:<9} | {:<9} | {:<9} | {:<9} | {:<9}",
                         i + 1, m.name, m.tss, m.tsl, m.Msat, m.chi, m.Tc);
                 } else {
                     Logger::print("   {:<2} | {:<20} | XXX",
