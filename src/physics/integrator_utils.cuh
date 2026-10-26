@@ -5,6 +5,9 @@
 
 #pragma once
 
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <stack>
 
 #include "utils/constant.cuh"
@@ -474,6 +477,36 @@ void findMonomerClusters(const int Nmon, const double3* contact_pointer, int* cl
         if (cluster[i] == -1) {
             dfs_iterative(i, Nmon, contact_pointer, cluster, current_id);
             current_id++;
+        }
+    }
+}
+
+/**
+ * @brief The number of bytes of a bit-packed Nmon×Nmon contact matrix.
+ */
+inline size_t contactMatrixBytes(const size_t Nmon) {
+    return (Nmon * Nmon + 7) / 8;
+}
+
+/**
+ * @brief Packs the contacts between the monomers into a bit matrix.
+ *
+ * Bit k = i*Nmon + j of the Nmon×Nmon matrix is 1 if monomers i and j are in contact.
+ * The bits are aligned to bytes, the last byte may contain additional zeros that 
+ * don't correspond with a monomer pair (when Nmon*Nmon % 8 != 0).
+ *
+ * @param Nmon             Total number of monomers.
+ * @param contact_pointer  Nmon×Nmon contact-pointer matrix (on host).
+ * @param packed           Output array of contactMatrixBytes(Nmon) bytes.
+ */
+void packContactMatrix(const int Nmon, const double3* contact_pointer, uint8_t* packed) {
+    const size_t n_pairs = size_t(Nmon) * size_t(Nmon);
+
+    std::fill(packed, packed + contactMatrixBytes(size_t(Nmon)), uint8_t(0));
+
+    for (size_t k = 0; k < n_pairs; k++) {
+        if (vec_length_sq(contact_pointer[k]) != 0.0) {
+            packed[k / 8] |= uint8_t(0x80u >> (k % 8));
         }
     }
 }

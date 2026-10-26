@@ -60,8 +60,11 @@ class Simulator {
     // Energy diagnostic snapshots
     std::vector<EnergyRecord> snap_energy_;
 
-    // Cluster IDs — always stored when N_store_ > 0
+    // Cluster IDs - always stored when N_store_ > 0
     std::vector<int> snap_cluster_;
+
+    // Bit-packed contact matrices - always stored when N_store_ > 0
+    std::vector<uint8_t> snap_contact_;
 
 public:
     /**
@@ -315,6 +318,9 @@ inline void Simulator::allocate_snapshots() {
     // Preallocate and initialize memory for the cluster membership.
     snap_cluster_.assign(N_store_mon, -1);
 
+    // Preallocate memory for the contact matrices.
+    snap_contact_.assign(N_store_ * contactMatrixBytes(Nmon), 0);
+
     // Sum up the allocated memory for logging.
     size_t n_vec3 = 0;
     if (snap_pos_)    n_vec3++;
@@ -325,7 +331,8 @@ inline void Simulator::allocate_snapshots() {
 
     const size_t bytes = n_vec3 * N_store_mon * sizeof(double3)  // kinematic snapshots
                        + N_store_ * sizeof(EnergyRecord)         // energy diagnostic snapshots
-                       + N_store_mon * sizeof(int);              // cluster membership
+                       + N_store_mon * sizeof(int)               // cluster membership
+                       + snap_contact_.size();                   // contact matrices
 
     Logger::log("Allocated {} snapshot slots ({} monomers each) using {} of host memory.",
                 N_store_, Nmon, bytes_to_string(bytes));
@@ -337,7 +344,7 @@ inline void Simulator::allocate_snapshots() {
  * Pulls the system state from device memory and writes them into the corresponding
  * snap_* buffers starting at the position snap_idx * Nmon.
  * Also evaluates the contact potentials of the stored state, records the energy trackers
- * and calculates and stores the monomer aggregate memberships.
+ * and calculates and stores the monomer aggregate memberships and the contact matrix.
  * 
  * @param snap_idx 0 based index of the snapshot to write.
  */
@@ -382,6 +389,9 @@ inline void Simulator::save_snapshot(size_t snap_idx) {
 
     // Calculate monomer cluster membership and store it into a storage struct
     findMonomerClusters((int)Nmon, hv.contact_pointer, snap_cluster_.data() + base);
+
+    // Store which monomers are in contact
+    packContactMatrix((int)Nmon, hv.contact_pointer, snap_contact_.data() + snap_idx * contactMatrixBytes(Nmon));
 }
 
 /**
@@ -738,6 +748,10 @@ inline Status Simulator::write_output() const {
         write_bytes(name, v.data(), v.size() * sizeof(int));
     };
 
+    auto write_uint8 = [&](const std::string& name, const std::vector<uint8_t>& v) {
+        write_bytes(name, v.data(), v.size());
+    };
+
     // Write the monomer data
     // TODO: Write header.txt (N_iter, Nmon, N_save, timestep, N_mat)
     Logger::log("Writing snapshots to disk.");
@@ -760,6 +774,9 @@ inline Status Simulator::write_output() const {
 
     if (!snap_cluster_.empty())
         write_int("sim_cluster.bin", snap_cluster_);
+
+    if (!snap_contact_.empty())
+        write_uint8("sim_contact.bin", snap_contact_);
 
     // Write Ovito files
     if ( config.output.ovito ) {

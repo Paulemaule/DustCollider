@@ -102,6 +102,7 @@ void test_output() {
         CHECK(out_size(bin / "agg_mass_mon.bin")  == OUT_NMON * sizeof(double));
         CHECK(out_size(bin / "agg_matid_mon.bin") == OUT_NMON * sizeof(int));
         CHECK(out_size(bin / "sim_cluster.bin")   == OUT_NSNAP * OUT_NMON * sizeof(int));
+        CHECK(out_size(bin / "sim_contact.bin")   == OUT_NSNAP * contactMatrixBytes(OUT_NMON));
 
         for (const char* name : {"sim_pos.bin", "sim_vel.bin", "sim_omega.bin", "sim_force.bin", "sim_torque.bin"}) {
             CHECK(out_size(bin / name) == vec3_bytes);
