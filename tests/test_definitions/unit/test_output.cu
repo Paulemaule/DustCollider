@@ -114,7 +114,7 @@ void test_output() {
     namespace fs = std::filesystem;
 
     const uintmax_t vec3_bytes   = OUT_NSNAP * OUT_NMON * sizeof(double3);
-    const uintmax_t energy_bytes = OUT_NSNAP * sizeof(double);
+    const uintmax_t energy_bytes = OUT_NSNAP * OUT_NMON * sizeof(double);
 
     // ------------------------------------------------------------------ //
     // Writable directory → Status::ok, every file with its full size
@@ -127,21 +127,21 @@ void test_output() {
 
         CHECK(out_write(out) == Status::ok);
 
-        CHECK(out_size(bin / "agg_a_mon.bin")     == OUT_NMON * sizeof(double));
-        CHECK(out_size(bin / "agg_mass_mon.bin")  == OUT_NMON * sizeof(double));
-        CHECK(out_size(bin / "agg_matid_mon.bin") == OUT_NMON * sizeof(int));
-        CHECK(out_size(bin / "sim_cluster.bin")   == OUT_NSNAP * OUT_NMON * sizeof(int));
-        CHECK(out_size(bin / "sim_contact.bin")   == OUT_NSNAP * contactMatrixBytes(OUT_NMON));
+        CHECK(out_size(bin / "radius.bin")      == OUT_NMON * sizeof(double));
+        CHECK(out_size(bin / "mass.bin")        == OUT_NMON * sizeof(double));
+        CHECK(out_size(bin / "material_id.bin") == OUT_NMON * sizeof(int));
+        CHECK(out_size(bin / "cluster.bin")     == OUT_NSNAP * OUT_NMON * sizeof(int));
+        CHECK(out_size(bin / "contact.bin")     == OUT_NSNAP * contactMatrixBytes(OUT_NMON));
 
-        for (const char* name : {"sim_pos.bin", "sim_vel.bin", "sim_omega.bin", "sim_force.bin", "sim_torque.bin"}) {
+        for (const char* name : {"position.bin", "velocity.bin", "omega.bin", "force.bin", "torque.bin"}) {
             CHECK(out_size(bin / name) == vec3_bytes);
         }
 
-        for (const char* name : {"sim_normal_pot.bin",   "sim_sliding_pot.bin",   "sim_rolling_pot.bin",
-                                 "sim_twisting_pot.bin", "sim_normal_damp.bin",   "sim_sliding_slip.bin",
-                                 "sim_rolling_slip.bin", "sim_twisting_slip.bin", "sim_normal_break.bin",
-                                 "sim_sliding_break.bin", "sim_rolling_break.bin", "sim_twisting_break.bin",
-                                 "sim_normal_form.bin"}) {
+        for (const char* name : {"normal_pot.bin",        "sliding_pot.bin",        "rolling_pot.bin",
+                                 "twisting_pot.bin",      "normal_damp.bin",        "sliding_inelastic.bin",
+                                 "rolling_inelastic.bin", "twisting_inelastic.bin", "normal_break.bin",
+                                 "sliding_break.bin",     "rolling_break.bin",      "twisting_break.bin",
+                                 "normal_form.bin"}) {
             CHECK(out_size(bin / name) == energy_bytes);
         }
 
@@ -159,9 +159,9 @@ void test_output() {
             const std::string name = entry.path().filename().string();
             if (name != "header.txt") CHECK(formats.count(name) == 1);
         }
-        CHECK(formats.at("sim_pos.bin").dtype     == "float64");
-        CHECK(formats.at("sim_cluster.bin").dtype == "int32");
-        CHECK(formats.at("sim_contact.bin").dtype == "uint8");
+        CHECK(formats.at("position.bin").dtype == "float64");
+        CHECK(formats.at("cluster.bin").dtype  == "int32");
+        CHECK(formats.at("contact.bin").dtype  == "uint8");
     }
 
     // ------------------------------------------------------------------ //
@@ -183,18 +183,18 @@ void test_output() {
     {
         fs::remove_all(OUT_ROOT);
         const fs::path out = OUT_ROOT / "blocked_file";
-        fs::create_directories(out / "binary" / "sim_pos.bin");
+        fs::create_directories(out / "binary" / "position.bin");
 
         CHECK(out_write(out) == Status::error);
-        CHECK(out_size(out / "binary" / "sim_vel.bin")         == vec3_bytes);
-        CHECK(out_size(out / "binary" / "sim_normal_form.bin") == energy_bytes);
+        CHECK(out_size(out / "binary" / "velocity.bin")    == vec3_bytes);
+        CHECK(out_size(out / "binary" / "normal_form.bin") == energy_bytes);
         CHECK(fs::is_regular_file(out / "ovito" / "t_00001.dump"));
 
         // header.txt lists only the files that were written
         const auto formats = out_read_header(out / "binary" / "header.txt");
         CHECK(formats.size() == 22);
-        CHECK(formats.count("sim_pos.bin") == 0);
-        CHECK(formats.count("sim_vel.bin") == 1);
+        CHECK(formats.count("position.bin") == 0);
+        CHECK(formats.count("velocity.bin") == 1);
     }
 
     // ------------------------------------------------------------------ //
@@ -205,14 +205,14 @@ void test_output() {
         fs::remove_all(OUT_ROOT);
         const fs::path out = OUT_ROOT / "full_disk";
         fs::create_directories(out / "binary");
-        fs::create_symlink("/dev/full", out / "binary" / "sim_normal_pot.bin");
+        fs::create_symlink("/dev/full", out / "binary" / "normal_pot.bin");
 
         CHECK(out_write(out) == Status::error);
-        CHECK(out_size(out / "binary" / "sim_sliding_pot.bin") == energy_bytes);
+        CHECK(out_size(out / "binary" / "sliding_pot.bin") == energy_bytes);
 
         const auto formats = out_read_header(out / "binary" / "header.txt");
-        CHECK(formats.count("sim_normal_pot.bin")  == 0);
-        CHECK(formats.count("sim_sliding_pot.bin") == 1);
+        CHECK(formats.count("normal_pot.bin")  == 0);
+        CHECK(formats.count("sliding_pot.bin") == 1);
     }
 
     // ------------------------------------------------------------------ //
@@ -226,8 +226,8 @@ void test_output() {
         fs::create_directories(out / "binary" / "header.txt");
 
         CHECK(out_write(out) == Status::error);
-        CHECK(out_size(out / "binary" / "sim_pos.bin")         == vec3_bytes);
-        CHECK(out_size(out / "binary" / "sim_normal_form.bin") == energy_bytes);
+        CHECK(out_size(out / "binary" / "position.bin")    == vec3_bytes);
+        CHECK(out_size(out / "binary" / "normal_form.bin") == energy_bytes);
     }
 
     // ------------------------------------------------------------------ //
@@ -241,8 +241,8 @@ void test_output() {
         out_write_text(out / "ovito", "x");
 
         CHECK(out_write(out) == Status::error);
-        CHECK(out_size(out / "binary" / "sim_pos.bin")         == vec3_bytes);
-        CHECK(out_size(out / "binary" / "sim_normal_form.bin") == energy_bytes);
+        CHECK(out_size(out / "binary" / "position.bin")    == vec3_bytes);
+        CHECK(out_size(out / "binary" / "normal_form.bin") == energy_bytes);
     }
 
     // ------------------------------------------------------------------ //

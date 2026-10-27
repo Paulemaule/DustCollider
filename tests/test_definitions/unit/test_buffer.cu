@@ -1,8 +1,9 @@
 /**
  * @file test_buffer.cu
  * @brief Tests for the RAII GPU memory wrappers: DeviceBuffer/HostBuffer
- * (utils/buffer.cuh), DeviceState/HostState (physics/state.cuh) and
- * DeviceMaterials/HostMaterials (physics/materials.cuh).
+ * (utils/buffer.cuh), DeviceState/HostState (physics/state.cuh),
+ * DeviceMaterials/HostMaterials (physics/materials.cuh) and
+ * HostEnergy (physics/energy.cuh).
  *
  * These tests perform real CUDA allocations and host<->device copies on
  * whatever GPU is available in the test environment.
@@ -15,6 +16,7 @@
 #include "utils/buffer.cuh"
 #include "physics/state.cuh"
 #include "physics/materials.cuh"
+#include "physics/energy.cuh"
 
 void test_buffer() {
 
@@ -232,6 +234,48 @@ void test_buffer() {
             CHECK_APPROX(v2.poisson_number[i],      v.poisson_number[i],      1e-14);
             CHECK_APPROX(v2.damping_timescale[i],   v.damping_timescale[i],   1e-20);
             CHECK_APPROX(v2.crit_rolling_disp[i],   v.crit_rolling_disp[i],   1e-20);
+        }
+    }
+
+    // ------------------------------------------------------------------ //
+    // HostEnergy::records(): record i holds the trackers of monomer i,
+    // each in its own field.
+    // ------------------------------------------------------------------ //
+
+    {
+        const size_t Nmon = 3;
+
+        // Tracker t of monomer i holds 100*t + i + 1, so no two slots are equal.
+        HostEnergy he(Nmon);
+        HostEnergyView v = he.view();
+        double* trackers[] = {
+            v.normal_pot,        v.sliding_pot,       v.rolling_pot,   v.twisting_pot,
+            v.normal_damp,
+            v.sliding_inelastic, v.rolling_inelastic, v.twisting_inelastic,
+            v.normal_break,      v.sliding_break,     v.rolling_break, v.twisting_break,
+            v.normal_form
+        };
+        for (size_t t = 0; t < 13; t++)
+            for (size_t i = 0; i < Nmon; i++)
+                trackers[t][i] = 100.0 * t + i + 1;
+
+        EnergyRecord r[Nmon] = {};
+        he.records(Nmon, r);
+
+        for (size_t i = 0; i < Nmon; i++) {
+            CHECK(r[i].normal_pot         ==    0.0 + i + 1);
+            CHECK(r[i].sliding_pot        ==  100.0 + i + 1);
+            CHECK(r[i].rolling_pot        ==  200.0 + i + 1);
+            CHECK(r[i].twisting_pot       ==  300.0 + i + 1);
+            CHECK(r[i].normal_damp        ==  400.0 + i + 1);
+            CHECK(r[i].sliding_inelastic  ==  500.0 + i + 1);
+            CHECK(r[i].rolling_inelastic  ==  600.0 + i + 1);
+            CHECK(r[i].twisting_inelastic ==  700.0 + i + 1);
+            CHECK(r[i].normal_break       ==  800.0 + i + 1);
+            CHECK(r[i].sliding_break      ==  900.0 + i + 1);
+            CHECK(r[i].rolling_break      == 1000.0 + i + 1);
+            CHECK(r[i].twisting_break     == 1100.0 + i + 1);
+            CHECK(r[i].normal_form        == 1200.0 + i + 1);
         }
     }
 }

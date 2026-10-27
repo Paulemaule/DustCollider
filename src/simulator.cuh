@@ -57,7 +57,7 @@ class Simulator {
     std::optional<std::vector<double3>> snap_torque_;
     std::optional<std::vector<double3>> snap_omega_;
 
-    // Energy diagnostic snapshots
+    // Energy trackers of each monomer per snapshot
     std::vector<EnergyRecord> snap_energy_;
 
     // Cluster IDs - always stored when N_store_ > 0
@@ -313,7 +313,7 @@ inline void Simulator::allocate_snapshots() {
     if (config.output.angular)  snap_omega_.emplace(N_store_mon,  double3{});
 
     // Preallocate and initialize memory for the energy trackers.
-    snap_energy_.assign(N_store_, EnergyRecord{});
+    snap_energy_.assign(N_store_mon, EnergyRecord{});
 
     // Preallocate and initialize memory for the cluster membership.
     snap_cluster_.assign(N_store_mon, -1);
@@ -330,7 +330,7 @@ inline void Simulator::allocate_snapshots() {
     if (snap_omega_)  n_vec3++;
 
     const size_t bytes = n_vec3 * N_store_mon * sizeof(double3)  // kinematic snapshots
-                       + N_store_ * sizeof(EnergyRecord)         // energy diagnostic snapshots
+                       + N_store_mon * sizeof(EnergyRecord)      // energy trackers
                        + N_store_mon * sizeof(int)               // cluster membership
                        + snap_contact_.size();                   // contact matrices
 
@@ -382,9 +382,9 @@ inline void Simulator::save_snapshot(size_t snap_idx) {
     if (snap_torque_) std::copy(hv.torque,   hv.torque   + Nmon, snap_torque_->data() + base);
     if (snap_omega_)  std::copy(hv.omega,    hv.omega    + Nmon, snap_omega_->data()  + base);
 
-    // Pull the energy trackers from the device, sum the individual monomer contributions, store them and reset the tracker
+    // Pull the energy trackers from the device, store the contribution of each monomer and reset the trackers
     host_energy.pull_from(device_energy, Nmon);
-    snap_energy_[snap_idx] = host_energy.totals(Nmon);
+    host_energy.records(Nmon, snap_energy_.data() + base);
     device_energy.zero();
 
     // Calculate monomer cluster membership and store it into a storage struct
@@ -424,7 +424,7 @@ inline void Simulator::run() {
             next.position, curr.contact_pointer,
             next.contact_pointer, next.contact_rotation,
             next.contact_twist,
-            en.sliding_slip, en.rolling_slip, en.twisting_slip,
+            en.sliding_inelastic, en.rolling_inelastic, en.twisting_inelastic,
             en.normal_break, en.sliding_break, en.rolling_break, en.twisting_break,
             en.normal_form,
             mat.radius, mat.youngs_modulus, mat.poisson_number,
@@ -491,7 +491,7 @@ inline void Simulator::run() {
             next.position, curr.contact_pointer,
             next.contact_pointer, next.contact_rotation,
             next.contact_twist,
-            en.sliding_slip, en.rolling_slip, en.twisting_slip,
+            en.sliding_inelastic, en.rolling_inelastic, en.twisting_inelastic,
             en.normal_break, en.sliding_break, en.rolling_break, en.twisting_break,
             en.normal_form,
             mat.radius, mat.youngs_modulus, mat.poisson_number,
@@ -773,28 +773,28 @@ inline Status Simulator::write_output() const {
     // Write the monomer data
     Logger::log("Writing snapshots to disk.");
 
-    write_double("agg_a_mon.bin",    config.initial_state.radii,  {Nmon}, "m",  "radius of each monomer");
-    write_double("agg_mass_mon.bin", config.initial_state.masses, {Nmon}, "kg", "mass of each monomer");
+    write_double("radius.bin", config.initial_state.radii,  {Nmon}, "m",  "radius of each monomer");
+    write_double("mass.bin",   config.initial_state.masses, {Nmon}, "kg", "mass of each monomer");
     {
         std::vector<int> matids_1indexed(Nmon);
         for (size_t i = 0; i < Nmon; i++)
             matids_1indexed[i] = config.initial_state.material_ids[i] + 1;
-        write_int("agg_matid_mon.bin", matids_1indexed, {Nmon}, "-", "material ID of each monomer, from 1 as in the command file");
+        write_int("material_id.bin", matids_1indexed, {Nmon}, "-", "material ID of each monomer, from 1 as in the command file");
     }
 
     // Write the systam state snapshots
-    if (snap_pos_)    write_vec3("sim_pos.bin",    *snap_pos_,    "m",     "position of each monomer");
-    if (snap_vel_)    write_vec3("sim_vel.bin",    *snap_vel_,    "m/s",   "velocity of each monomer");
-    if (snap_force_)  write_vec3("sim_force.bin",  *snap_force_,  "N",     "force on each monomer");
-    if (snap_torque_) write_vec3("sim_torque.bin", *snap_torque_, "N m",   "torque on each monomer");
-    if (snap_omega_)  write_vec3("sim_omega.bin",  *snap_omega_,  "rad/s", "angular velocity of each monomer");
+    if (snap_pos_)    write_vec3("position.bin", *snap_pos_,    "m",     "position of each monomer");
+    if (snap_vel_)    write_vec3("velocity.bin", *snap_vel_,    "m/s",   "velocity of each monomer");
+    if (snap_force_)  write_vec3("force.bin",    *snap_force_,  "N",     "force on each monomer");
+    if (snap_torque_) write_vec3("torque.bin",   *snap_torque_, "N m",   "torque on each monomer");
+    if (snap_omega_)  write_vec3("omega.bin",    *snap_omega_,  "rad/s", "angular velocity of each monomer");
 
     if (!snap_cluster_.empty())
-        write_int("sim_cluster.bin", snap_cluster_, {N_store_, Nmon}, "-",
+        write_int("cluster.bin", snap_cluster_, {N_store_, Nmon}, "-",
             "cluster ID of each monomer, numbered per snapshot from 0 in the order of the lowest monomer index of each cluster");
 
     if (!snap_contact_.empty())
-        write_uint8("sim_contact.bin", snap_contact_, {N_store_, contactMatrixBytes(Nmon)}, "-",
+        write_uint8("contact.bin", snap_contact_, {N_store_, contactMatrixBytes(Nmon)}, "-",
             std::format("contact matrix with 1 bit per monomer pair: bit i*{0}+j is 1 if monomers i and j are in contact, the last byte is padded with zeros", Nmon));
 
     // Write Ovito files
@@ -810,34 +810,34 @@ inline Status Simulator::write_output() const {
     Logger::log("Writing energy diagnostics to disk.");
     
     if (!snap_energy_.empty()) {
-        // Helper function that evaluates a quantity of the energy records for every snapshot.
+        // Helper function that evaluates a quantity of the energy records for every monomer of every snapshot.
         auto series = [&](auto quantity) {
-            std::vector<double> res(N_store_);
-            for (size_t k = 0; k < N_store_; k++) res[k] = quantity(snap_energy_[k]);
+            std::vector<double> res(snap_energy_.size());
+            for (size_t k = 0; k < snap_energy_.size(); k++) res[k] = quantity(snap_energy_[k]);
             return res;
         };
 
-        // The energies are totals over all monomers, one per snapshot.
-        const std::vector<size_t> per_snapshot = {N_store_};
+        // The energies of each monomer, half of the energy of each of its contacts.
+        const std::vector<size_t> per_monomer = {N_store_, Nmon};
 
         // The potential energies of the contacts at the time of each snapshot.
-        write_double("sim_normal_pot.bin",   series([](const EnergyRecord& e) { return e.normal_pot;   }), per_snapshot, "J", "normal contact potential at snapshot k");
-        write_double("sim_sliding_pot.bin",  series([](const EnergyRecord& e) { return e.sliding_pot;  }), per_snapshot, "J", "sliding contact potential at snapshot k");
-        write_double("sim_rolling_pot.bin",  series([](const EnergyRecord& e) { return e.rolling_pot;  }), per_snapshot, "J", "rolling contact potential at snapshot k");
-        write_double("sim_twisting_pot.bin", series([](const EnergyRecord& e) { return e.twisting_pot; }), per_snapshot, "J", "twisting contact potential at snapshot k");
+        write_double("normal_pot.bin",   series([](const EnergyRecord& e) { return e.normal_pot;   }), per_monomer, "J", "normal contact potential of each monomer at snapshot k");
+        write_double("sliding_pot.bin",  series([](const EnergyRecord& e) { return e.sliding_pot;  }), per_monomer, "J", "sliding contact potential of each monomer at snapshot k");
+        write_double("rolling_pot.bin",  series([](const EnergyRecord& e) { return e.rolling_pot;  }), per_monomer, "J", "rolling contact potential of each monomer at snapshot k");
+        write_double("twisting_pot.bin", series([](const EnergyRecord& e) { return e.twisting_pot; }), per_monomer, "J", "twisting contact potential of each monomer at snapshot k");
 
         // The dissipated energies are stored per dof and dissipation channel. Acumulated over N_save iterations since the previous snapshot.
-        write_double("sim_normal_damp.bin",    series([](const EnergyRecord& e) { return e.normal_damp;    }), per_snapshot, "J", "energy dissipated by normal damping, accumulated since last snapshot");
-        write_double("sim_sliding_slip.bin",   series([](const EnergyRecord& e) { return e.sliding_slip;   }), per_snapshot, "J", "energy dissipated by inelastic sliding, accumulated since last snapshot");
-        write_double("sim_rolling_slip.bin",   series([](const EnergyRecord& e) { return e.rolling_slip;   }), per_snapshot, "J", "energy dissipated by inelastic rolling, accumulated since last snapshot");
-        write_double("sim_twisting_slip.bin",  series([](const EnergyRecord& e) { return e.twisting_slip;  }), per_snapshot, "J", "energy dissipated by inelastic twisting, accumulated since last snapshot");
-        write_double("sim_normal_break.bin",   series([](const EnergyRecord& e) { return e.normal_break;   }), per_snapshot, "J", "normal contact potential lost on contact breaking, accumulated since last snapshot");
-        write_double("sim_sliding_break.bin",  series([](const EnergyRecord& e) { return e.sliding_break;  }), per_snapshot, "J", "sliding contact potential lost on contact breaking, accumulated since last snapshot");
-        write_double("sim_rolling_break.bin",  series([](const EnergyRecord& e) { return e.rolling_break;  }), per_snapshot, "J", "rolling contact potential lost on contact breaking, accumulated since last snapshot");
-        write_double("sim_twisting_break.bin", series([](const EnergyRecord& e) { return e.twisting_break; }), per_snapshot, "J", "twisting contact potential lost on contact breaking, accumulated since last snapshot");
+        write_double("normal_damp.bin",        series([](const EnergyRecord& e) { return e.normal_damp;        }), per_monomer, "J", "energy of each monomer dissipated by normal damping, accumulated since last snapshot");
+        write_double("sliding_inelastic.bin",  series([](const EnergyRecord& e) { return e.sliding_inelastic;  }), per_monomer, "J", "energy of each monomer dissipated by inelastic sliding, accumulated since last snapshot");
+        write_double("rolling_inelastic.bin",  series([](const EnergyRecord& e) { return e.rolling_inelastic;  }), per_monomer, "J", "energy of each monomer dissipated by inelastic rolling, accumulated since last snapshot");
+        write_double("twisting_inelastic.bin", series([](const EnergyRecord& e) { return e.twisting_inelastic; }), per_monomer, "J", "energy of each monomer dissipated by inelastic twisting, accumulated since last snapshot");
+        write_double("normal_break.bin",       series([](const EnergyRecord& e) { return e.normal_break;       }), per_monomer, "J", "normal contact potential of each monomer lost on contact breaking, accumulated since last snapshot");
+        write_double("sliding_break.bin",      series([](const EnergyRecord& e) { return e.sliding_break;      }), per_monomer, "J", "sliding contact potential of each monomer lost on contact breaking, accumulated since last snapshot");
+        write_double("rolling_break.bin",      series([](const EnergyRecord& e) { return e.rolling_break;      }), per_monomer, "J", "rolling contact potential of each monomer lost on contact breaking, accumulated since last snapshot");
+        write_double("twisting_break.bin",     series([](const EnergyRecord& e) { return e.twisting_break;     }), per_monomer, "J", "twisting contact potential of each monomer lost on contact breaking, accumulated since last snapshot");
 
         // Normal potential bookkeeping
-        write_double("sim_normal_form.bin",    series([](const EnergyRecord& e) { return e.normal_form;    }), per_snapshot, "J", "normal potential discontinuity at contact formation, accumulated since last snapshot");
+        write_double("normal_form.bin",        series([](const EnergyRecord& e) { return e.normal_form;        }), per_monomer, "J", "normal potential discontinuity of each monomer at contact formation, accumulated since last snapshot");
     }
 
     // Write the format of every file that was written completely

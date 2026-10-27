@@ -293,19 +293,19 @@ struct TmDevice {
         host_energy.pull_from(energy, TM_NMON);
         HostEnergyView b = host_energy.view();
 
-        tm_check_tracker(b.normal_pot,     expected.normal_pot,     energy_scale, label, "normal_pot");
-        tm_check_tracker(b.sliding_pot,    expected.sliding_pot,    energy_scale, label, "sliding_pot");
-        tm_check_tracker(b.rolling_pot,    expected.rolling_pot,    energy_scale, label, "rolling_pot");
-        tm_check_tracker(b.twisting_pot,   expected.twisting_pot,   energy_scale, label, "twisting_pot");
-        tm_check_tracker(b.normal_damp,    expected.normal_damp,    energy_scale, label, "normal_damp");
-        tm_check_tracker(b.sliding_slip,   expected.sliding_slip,   energy_scale, label, "sliding_slip");
-        tm_check_tracker(b.rolling_slip,   expected.rolling_slip,   energy_scale, label, "rolling_slip");
-        tm_check_tracker(b.twisting_slip,  expected.twisting_slip,  energy_scale, label, "twisting_slip");
-        tm_check_tracker(b.normal_break,   expected.normal_break,   energy_scale, label, "normal_break");
-        tm_check_tracker(b.sliding_break,  expected.sliding_break,  energy_scale, label, "sliding_break");
-        tm_check_tracker(b.rolling_break,  expected.rolling_break,  energy_scale, label, "rolling_break");
-        tm_check_tracker(b.twisting_break, expected.twisting_break, energy_scale, label, "twisting_break");
-        tm_check_tracker(b.normal_form,    expected.normal_form,    energy_scale, label, "normal_form");
+        tm_check_tracker(b.normal_pot,         expected.normal_pot,         energy_scale, label, "normal_pot");
+        tm_check_tracker(b.sliding_pot,        expected.sliding_pot,        energy_scale, label, "sliding_pot");
+        tm_check_tracker(b.rolling_pot,        expected.rolling_pot,        energy_scale, label, "rolling_pot");
+        tm_check_tracker(b.twisting_pot,       expected.twisting_pot,       energy_scale, label, "twisting_pot");
+        tm_check_tracker(b.normal_damp,        expected.normal_damp,        energy_scale, label, "normal_damp");
+        tm_check_tracker(b.sliding_inelastic,  expected.sliding_inelastic,  energy_scale, label, "sliding_inelastic");
+        tm_check_tracker(b.rolling_inelastic,  expected.rolling_inelastic,  energy_scale, label, "rolling_inelastic");
+        tm_check_tracker(b.twisting_inelastic, expected.twisting_inelastic, energy_scale, label, "twisting_inelastic");
+        tm_check_tracker(b.normal_break,       expected.normal_break,       energy_scale, label, "normal_break");
+        tm_check_tracker(b.sliding_break,      expected.sliding_break,      energy_scale, label, "sliding_break");
+        tm_check_tracker(b.rolling_break,      expected.rolling_break,      energy_scale, label, "rolling_break");
+        tm_check_tracker(b.twisting_break,     expected.twisting_break,     energy_scale, label, "twisting_break");
+        tm_check_tracker(b.normal_form,        expected.normal_form,        energy_scale, label, "normal_form");
     }
 
     void run_update_pointers() {
@@ -317,7 +317,7 @@ struct TmDevice {
             nv.position, cv.contact_pointer,
             nv.contact_pointer, nv.contact_rotation,
             nv.contact_twist,
-            ev.sliding_slip, ev.rolling_slip, ev.twisting_slip,
+            ev.sliding_inelastic, ev.rolling_inelastic, ev.twisting_inelastic,
             ev.normal_break, ev.sliding_break, ev.rolling_break, ev.twisting_break,
             ev.normal_form,
             mv.radius, mv.youngs_modulus, mv.poisson_number,

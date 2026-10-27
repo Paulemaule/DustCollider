@@ -110,16 +110,22 @@ Written to `<path_results>/`:
   velocities, forces, torques, angular velocities) plus energies, cluster IDs and contacts.
   `binary/header.txt` lists the format of every file written: data type, shape, unit and content.
   There are `N_iter / N_save + 1` snapshots, snapshot `k` at `t = k * N_save * dt`.
-  Each energy file holds one `double` per snapshot, summed over all monomers. The potential energies are the values at the snapshot; the dissipated energies are summed over the `N_save` steps before the snapshot (0 for snapshot 0):
-  - `sim_{normal,sliding,rolling,twisting}_pot.bin` — the potential energy stored in the contacts at the time of the snapshot.
-  - `sim_normal_damp.bin` — viscous damping of the normal motion.
-  - `sim_{sliding,rolling,twisting}_slip.bin` — energy dissipated through inelastic motion beyond critical tangential displacements.
-  - `sim_{normal,sliding,rolling,twisting}_break.bin` — when a contact breaks all stored potential energy is dissipated.
-  - `sim_normal_form.bin` — the potential of the normal dof is history dependent and the force non-conservative. To keep the total energy conserved the jump in potential energy at contact formation needs to be tracked.
+  Each energy file holds one `double` per monomer and snapshot, `[N_snap, Nmon]`. The energy of a contact is split equally between its two monomers. The potential energies are the values at the snapshot; the dissipated energies are summed over the `N_save` steps before the snapshot (0 for snapshot 0):
+  - `{normal,sliding,rolling,twisting}_pot.bin` — the potential energy stored in the contacts at the time of the snapshot.
+  - `normal_damp.bin` — viscous damping of the normal motion.
+  - `{sliding,rolling,twisting}_inelastic.bin` — energy dissipated through inelastic motion beyond critical tangential displacements.
+  - `{normal,sliding,rolling,twisting}_break.bin` — when a contact breaks all stored potential energy is dissipated.
+  - `normal_form.bin` — the potential of the normal dof is history dependent and the force non-conservative. To keep the total energy conserved the jump in potential energy at contact formation needs to be tracked.
 
-  `sim_contact.bin` says which monomers are in contact. For each snapshot it holds the `Nmon × Nmon` contact matrix with one bit per pair, to read it:
+  The system total of a snapshot is the sum over the monomers:
   ```python
-  raw = np.fromfile("sim_contact.bin", np.uint8).reshape(N_snap, -1)
+  E = np.fromfile("normal_damp.bin", np.float64).reshape(N_snap, Nmon)
+  E_total = E.sum(axis=1)
+  ```
+
+  `contact.bin` says which monomers are in contact. For each snapshot it holds the `Nmon × Nmon` contact matrix with one bit per pair, to read it:
+  ```python
+  raw = np.fromfile("contact.bin", np.uint8).reshape(N_snap, -1)
   C = np.unpackbits(raw, axis=1)[:, :Nmon * Nmon].reshape(N_snap, Nmon, Nmon).astype(bool)
   ```
 

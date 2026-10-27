@@ -422,9 +422,9 @@ __global__ void updatePointers(
     double3*                    pointer_next,
     double4*                    rotation_next,
     double*                     twisting_next,
-    double*                     sliding_slip,
-    double*                     rolling_slip,
-    double*                     twisting_slip,
+    double*                     sliding_inelastic,
+    double*                     rolling_inelastic,
+    double*                     twisting_inelastic,
     double*                     normal_break,
     double*                     sliding_break,
     double*                     rolling_break,
@@ -570,8 +570,8 @@ __global__ void updatePointers(
         }
 
         // Track dissipated energy, the work at the critical force. Each thread stores half the total contribution, because two threads contribute to each entry.
-        if (sliding_excess_abs > 0.) atomicAdd(&sliding_slip[i], 0.5 * k_s * delta_S_crit * sliding_excess_abs);
-        if (rolling_excess_abs > 0.) atomicAdd(&rolling_slip[i], 0.5 * k_r * delta_R_crit * rolling_excess_abs);
+        if (sliding_excess_abs > 0.) atomicAdd(&sliding_inelastic[i], 0.5 * k_s * delta_S_crit * sliding_excess_abs);
+        if (rolling_excess_abs > 0.) atomicAdd(&rolling_inelastic[i], 0.5 * k_r * delta_R_crit * rolling_excess_abs);
 
         if (twisting_displacement * twisting_displacement > delta_T_crit * delta_T_crit) {
             // Inelastic twisting motion.
@@ -579,7 +579,7 @@ __global__ void updatePointers(
             twisting_next[matrix_i] = sign * delta_T_crit;
             
             // Track dissipated energy.
-            atomicAdd(&twisting_slip[i], 0.5 * k_t * delta_T_crit * (fabs(twisting_displacement) - delta_T_crit));
+            atomicAdd(&twisting_inelastic[i], 0.5 * k_t * delta_T_crit * (fabs(twisting_displacement) - delta_T_crit));
         }
     } else {
         double normal_displacement;             // The displacement in the normal-dof of the contact.

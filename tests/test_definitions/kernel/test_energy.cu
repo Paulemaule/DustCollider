@@ -80,9 +80,9 @@ static void en_test_update_pointers(const double4 q) {
         tm_displacements(s, normal, sliding, rolling);
 
         EnergyRecord expected = {};
-        expected.sliding_slip  = 0.5 * p.k_s * p.delta_S_crit * (vec_length(sliding) - p.delta_S_crit);
-        expected.rolling_slip  = 0.5 * p.k_r * p.delta_R_crit * (vec_length(tm_tangential(s, rolling)) - p.delta_R_crit);
-        expected.twisting_slip = 0.5 * p.k_t * p.delta_T_crit * (fabs(s.twist)     - p.delta_T_crit);
+        expected.sliding_inelastic  = 0.5 * p.k_s * p.delta_S_crit * (vec_length(sliding) - p.delta_S_crit);
+        expected.rolling_inelastic  = 0.5 * p.k_r * p.delta_R_crit * (vec_length(tm_tangential(s, rolling)) - p.delta_R_crit);
+        expected.twisting_inelastic = 0.5 * p.k_t * p.delta_T_crit * (fabs(s.twist)     - p.delta_T_crit);
 
         TmDevice dev(s, q);
         dev.run_update_pointers();
